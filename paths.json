@@ -1,0 +1,94 @@
+{
+  "raw" : {
+    "historic" : {
+      "train" : {
+        "img" : "./data/raw/historic/train/img/",
+        "mask" : "./data/raw/historic/train/mask/"
+      },
+      "test" : {
+        "img" : "./data/raw/historic/test/img/",
+        "mask" : "./data/raw/historic/test/mask/"
+      }
+    },
+    "repeat": {
+      "train" : {
+        "img" : "./data/raw/repeat/train/img/",
+        "mask" : "./data/raw/repeat/train/mask/"
+      },
+      "test" : {
+        "img" : "./data/raw/repeat/test/img/",
+        "mask" : "./data/raw/repeat/test/mask/"
+      }
+    }
+  },
+  "db" : {
+    "historic" : {
+      "extract" : "./data/db/historic/mlp_extract.h5",
+      "augment" : "./data/db/historic/mlp_augment.h5"
+    },
+    "repeat" : {
+      "extract" : "./data/db/repeat/mlp_extract.h5",
+      "augment" : "./data/db/repeat/mlp_augment.h5"
+    },
+    "historic_merged" : {
+      "extract" : "./data/db/historic/mlp_extract.h5",
+      "augment" : "./data/db/historic_merged/mlp_augment.h5"
+    },
+    "repeat_merged" : {
+      "extract" : "./data/db/repeat/mlp_extract.h5",
+      "augment" : "./data/db/repeat_merged/mlp_augment.h5"
+    }
+  },
+  "metadata" : {
+    "historic" : {
+      "extract" : "./data/metadata/historic/mlp_extract_profile.npy",
+      "sample_rates" : "./data/metadata/historic/mlp_sample_rates.npy",
+      "augment" : "./data/metadata/historic/mlp_augment_profile.npy",
+      "train" : "./data/metadata/historic/mlp_train_profile.npy"
+    },
+    "historic_merged" : {
+      "extract" : "./data/metadata/historic/mlp_extract_profile.npy",
+      "sample_rates" : "./data/metadata/historic_merged/mlp_sample_rates.npy",
+      "augment" : "./data/metadata/historic_merged/mlp_augment_profile.npy",
+      "train" : "./data/metadata/historic_merged/mlp_train_profile.npy"
+    },
+    "repeat" : {
+      "extract" : "./data/metadata/repeat/mlp_extract_profile.npy",
+      "sample_rates" : "./data/metadata/repeat/mlp_sample_rates.npy",
+      "augment" : "./data/metadata/repeat/mlp_augment_profile.npy",
+      "train" : "./data/metadata/repeat/mlp_train_profile.npy"
+    },
+    "repeat_merged" : {
+      "extract" : "./data/metadata/repeat/mlp_extract_profile.npy",
+      "sample_rates" : "./data/metadata/repeat_merged/mlp_sample_rates.npy",
+      "augment" : "./data/metadata/repeat_merged/mlp_augment_profile.npy",
+      "train" : "./data/metadata/repeat_merged/mlp_train_profile.npy"
+    }
+  },
+  "save" : {
+    "historic" : "./save/historic/",
+    "historic_merged" : "./save/historic_merged/",
+    "repeat" : "./save/repeat/",
+    "repeat_merged" : "./save/repeat_merged/"
+  },
+  "logs" : {
+    "train" : {
+      "historic" : "./logs/train/historic/",
+      "historic_merged" : "./logs/train/historic_merged/",
+      "repeat" : "./logs/train/repeat/",
+      "repeat_merged" : "./logs/train/repeat_merged/"
+    },
+    "test" : {
+      "historic" : "./logs/test/historic/",
+      "historic_merged" : "./logs/test/historic_merged/",
+      "repeat" : "./logs/test/repeat/",
+      "repeat_merged" : "./logs/test/repeat_merged/"
+    }
+  },
+  "eval" : {
+    "historic" : "./eval/historic/",
+    "historic_merged" : "./eval/historic_merged/",
+    "repeat" : "./eval/repeat/",
+    "repeat_merged" : "./eval/repeat_merged/"
+  }
+}
