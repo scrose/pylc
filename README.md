@@ -3,7 +3,7 @@ Implementation of Answer-aware Question Generation Encoder-Decoder
 
   **Overview**
 
-We present an enhanced deep sequence-to-sequence architecture for question generation. Given a set of paired source sentences and human-created target questions, the proposed model learns to generate natural, contextually-relevant questions. Building on the attention-based sequence learning model of Du, et al.[1], this paper presents two enhancements to improve the quality of questions: (1) Answer-aware source embedding to attend to key tokens in the source, and a normalized beam search decoder to improve the selection of candidate output sequences.
+The Mountain Legacy Project (MLP) is an ongoing repeat photography project basedon over 120 000 historical terrestrial oblique photographs.  The original photographs were taken systematically by surveyors from the late 19th to mid 20th centuries to create topographic maps of the Canadian mountain west (Deville 1895; Bridgland 1916, 1924).The photographs have been pre- served on large format glass plates, mainly at Library and Archives Canada.  Over the years, the MLP has repeated over 7000 of the historic images, and has built a suite of custom tools for classification and analysis of oblique images (Gat et al.  2011; Jean et al.  2015b; Sanseverino et al.  2016)We propose a multi-class approach for segmentation of high-resolution,  grayscale and colour landscape photography,  specifically applicable to oblique mountain landscapes.This  approach  is  potentially  generalizable  for  segmentation  of  other  amorphous  land-scape images.
 
 1. **Model**
 
