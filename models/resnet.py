@@ -84,9 +84,9 @@ class ResNetResidualBlock(ResidualBlock):
         return self.in_channels != self.expanded_channels
 
 
-
 class ResNetBottleNeckBlock(ResNetResidualBlock):
     expansion = 4
+
     def __init__(self, in_channels, out_channels, *args, **kwargs):
         super().__init__(in_channels, out_channels, expansion=4, *args, **kwargs)
         self.blocks = nn.Sequential(
@@ -100,6 +100,7 @@ class ResNetBottleNeckBlock(ResNetResidualBlock):
 
 class ResNetBasicBlock(ResNetResidualBlock):
     expansion = 1
+
     def __init__(self, in_channels, out_channels, *args, **kwargs):
         super().__init__(in_channels, out_channels, *args, **kwargs)
         self.blocks = nn.Sequential(
@@ -111,6 +112,7 @@ class ResNetBasicBlock(ResNetResidualBlock):
 
 class ResNetUpsampleBlock(ResNetResidualBlock):
     expansion = 1
+
     def __init__(self, in_channels, out_channels, *args, **kwargs):
         super().__init__(in_channels, out_channels, *args, **kwargs)
         self.blocks = nn.Sequential(
@@ -119,7 +121,9 @@ class ResNetUpsampleBlock(ResNetResidualBlock):
             conv_bn(self.out_channels, self.expanded_channels, conv=self.conv, bias=False),
         )
 
+
 class ResNetUpsampleLayer(nn.Module):
+
     def __init__(self, in_channels, out_channels, expansion=1, stride=1, upsample=None):
         super(ResNetUpsampleLayer, self).__init__()
         self.expansion = expansion
@@ -168,9 +172,8 @@ class ResNetUpsampleLayer(nn.Module):
         return out
 
 
-
-
 class ResNetLayer(nn.Module):
+
     def __init__(self, in_channels, out_channels, block=ResNetBasicBlock, n=1, activation='relu', *args, **kwargs):
         super().__init__()
         # 'We perform downsampling directly by convolutional layers that have a stride of 2.'
@@ -185,7 +188,6 @@ class ResNetLayer(nn.Module):
     def forward(self, x):
         x = self.blocks(x)
         return x
-
 
 
 class ResNetEncoder(nn.Module):
@@ -221,7 +223,6 @@ class ResNetEncoder(nn.Module):
         for block in self.blocks:
             x = block(x)
         return x
-
 
 
 class ResNetDecoder(nn.Module):

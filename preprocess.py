@@ -11,12 +11,20 @@ from utils.dbwrapper import MLPDataset, DB, load_data
 from tqdm import tqdm, trange
 from params import params
 
+# -----------------------------
+# Constants
+# -----------------------------
+n_patches_per_image = 1000
 
+
+# -----------------------------
 # Subimage extraction from original images
-def extract_subimages(files, config):
+# -----------------------------
+def extract_subimages(files, conf):
+
     # initialize main image arrays
-    imgs = np.empty((len(files)*1000, config.n_ch, params.patch_size, params.patch_size), dtype=np.uint8)
-    masks = np.empty((len(files)*1000, params.patch_size, params.patch_size), dtype=np.uint8)
+    imgs = np.empty((len(files)*n_patches_per_image, conf.n_ch, params.patch_size, params.patch_size), dtype=np.uint8)
+    masks = np.empty((len(files)*n_patches_per_image, params.patch_size, params.patch_size), dtype=np.uint8)
     idx = 0
 
     # Iterate over files
@@ -24,16 +32,17 @@ def extract_subimages(files, config):
     print('\tPatch dimensions: {}px x {}px'.format(params.patch_size, params.patch_size))
     print('\tStride: {}px'.format(params.stride_size))
     for i, fpair in enumerate(files):
+
         # Get image and associated mask data
         img_path = fpair.get('img')
         mask_path = fpair.get('mask')
+
         # Extract image subimages [NCWH]
-        img_data = torch.as_tensor(utils.get_image(img_path, config.n_ch), dtype=torch.uint8)
+        img_data = torch.as_tensor(utils.get_image(img_path, conf.n_ch), dtype=torch.uint8)
         print('\nPair {}:'.format(i + 1))
         print('\tImage {} / Shape: {}'.format(img_path, img_data.shape))
         img_data = img_data.unfold(0, params.patch_size, params.stride_size).unfold(1, params.patch_size, params.stride_size)
-        img_data = torch.reshape(img_data, (img_data.shape[0]*img_data.shape[1], config.n_ch, params.patch_size, params.patch_size) )
-
+        img_data = torch.reshape(img_data, (img_data.shape[0]*img_data.shape[1], conf.n_ch, params.patch_size, params.patch_size) )
         print('\tImg Patches / Shape: {}'.format(img_data.shape))
         size = img_data.shape[0]
 
@@ -68,18 +77,23 @@ def extract_subimages(files, config):
     return {'img': imgs, 'mask': masks}
 
 
-def oversample(dloader, dsize, rates, n_ch):
+# -----------------------------
+# Oversample subimages for class balancing
+# -----------------------------
+def oversample(dloader, dsize, rates, n_ch, conf):
+
     # initialize main image arrays
     e_size = params.patch_size
     imgs = np.empty((dsize, n_ch, e_size, e_size), dtype=np.uint8)
     masks = np.empty((dsize, e_size, e_size), dtype=np.uint8)
     aug_data = {'img':[], 'mask':[]}
     idx = 0
+
     # iterate data loader
-    for i, data in tqdm(enumerate(dloader), total=dsize//config.batch_size, unit=' batches'):
+    for i, data in tqdm(enumerate(dloader), total=dsize//conf.batch_size, unit=' batches'):
         input, target = data
         for j in range(rates[i]):
-            #print('Oversample rate: {}'.format(rate))
+            # print('Oversample rate: {}'.format(rate))
             random_state = np.random.RandomState(j)
             alpha_affine = input.shape[-1] * params.alpha
             inp_data, tgt_data = utils.elastic_transform(input.numpy(), target.numpy(), alpha_affine, random_state)
@@ -88,6 +102,7 @@ def oversample(dloader, dsize, rates, n_ch):
             np.copyto(imgs[idx:idx + 1, ...], inp_data)
             np.copyto(masks[idx:idx + 1, ...], tgt_data)
             idx += 1
+
     # truncate to size
     imgs = imgs[:idx]
     masks = masks[:idx]
@@ -102,25 +117,30 @@ def oversample(dloader, dsize, rates, n_ch):
     return {'img': imgs, 'mask': masks}
 
 
+# -----------------------------
+# Profile image dataset
+# -----------------------------
 # Calculates class distribution for extraction dataset
 # Also: calculates sample metrics and statistics
 # Input: class-encoded mask data
 # Output: pixel distribution, class weights, other metrics/analytics
-def profile(dloader, dsize, config):
+# -----------------------------
+def profile(dloader, dsize, conf):
+
     # Obtain overall class stats for dataset
     n_samples = dsize
     px_dist = []
     px_count = params.patch_size * params.patch_size
 
     # get pixel counts from db
-    for i, data in tqdm(enumerate(dloader), total=dsize//config.batch_size, unit=' batches'):
+    for i, data in tqdm(enumerate(dloader), total=dsize//conf.batch_size, unit=' batches'):
         input, target = data
         # check if merged class profile
-        if config.n_classes == 4:
+        if conf.n_classes == 4:
             target = utils.merge_classes(target)
         # convert to one-hot encoding
-        target_1hot = torch.nn.functional.one_hot(target, num_classes=config.n_classes).permute(0,3,1,2)
-        px_dist += [np.sum(target_1hot.numpy(), axis=(2,3))]
+        target_1hot = torch.nn.functional.one_hot(target, num_classes=conf.n_classes).permute(0, 3, 1, 2)
+        px_dist += [np.sum(target_1hot.numpy(), axis=(2, 3))]
 
     # Calculate sample pixel distribution / sample pixel count
     px_dist = np.concatenate(px_dist)
@@ -132,12 +152,12 @@ def profile(dloader, dsize, config):
     print('Total pixel count: {} / estimated: {}.'.format(dset_px_count, n_samples * px_count))
 
     # Calculate class weight balancing
-    weights = 1 / (np.log(1.02 + (probs)))
+    weights = 1 / (np.log(1.02 + probs))
     weights = weights/np.max(weights)
 
     # Gibbs class variance
 
-    M2 = (config.n_classes/(config.n_classes - 1))*(1 - np.sum((probs)**2))
+    M2 = (conf.n_classes/(conf.n_classes - 1))*(1 - np.sum(probs**2))
 
     print('\nM2: {}\n'.format(M2))
     print('{:20s} {:3s} \t {:3s}\n'.format('Class', 'Probs', 'Weights'))
@@ -152,16 +172,15 @@ def profile(dloader, dsize, config):
         'dset_px_count': dset_px_count,
         'weights':weights}
 
+
 # main preprocessing routine
-def main(config):
+def main(conf):
 
+    # -----------------------------
+    # Extraction
+    # -----------------------------
+    if conf.action == params.EXTRACT:
 
-    if config.h:
-        print_usage()
-
-
-    elif config.action == params.EXTRACT:
-        # -----------------------------
         # Extract subimages for training
         print("Subimage extraction starting ... ")
 
@@ -169,77 +188,93 @@ def main(config):
         img_files = utils.load_files(params.paths['raw']['train']['img'], ['.tif', '.tiff'])
         mask_files = utils.load_files(params.paths['raw']['train']['mask'], ['.png'])
         files = []
+
         # verify image/mask pairing
         for i, img_fname in enumerate(img_files):
             assert i < len(mask_files), 'Image {} does not have a mask.'.format(img_fname)
             mask_fname = mask_files[i]
-            assert os.path.splitext(img_fname)[0] == os.path.splitext(mask_fname)[0].replace('_mask', ''), 'Image {} does not match Mask {}.'.format(img_fname, mask_fname)
+            assert os.path.splitext(img_fname)[0] == os.path.splitext(mask_fname)[0].replace('_mask', ''), \
+                'Image {} does not match Mask {}.'.format(img_fname, mask_fname)
+
             # re-add full path to image and associated mask data
             img_fname = os.path.join(params.paths['raw']['train']['img'], img_fname)
             mask_fname = os.path.join(params.paths['raw']['train']['mask'], mask_fname)
             files += [{'img': img_fname, 'mask':mask_fname}]
+
+        # Extract image/mask data as subimages in database
         assert i < len(mask_files), 'Mask {} does not have an image.'.format(mask_files[i])
         print("{} image/mask pairs found.".format(len(files)))
-        # Extract image/mask data as subimages in database
-        data = extract_subimages(files, config)
+        data = extract_subimages(files, conf)
         print('\t{} subimages generated.'.format(len(data['img'])))
         print('Extraction done.')
+
         # save to database file
-        db = DB(config)
-        db.save(data, path=params.paths['db'][config.capture]['extract'])
+        db = DB(conf)
+        db.save(data, path=params.paths['db'][conf.capture]['extract'])
 
+    # -----------------------------
+    # Augmentation
+    # -----------------------------
+    elif conf.action == params.AUGMENT:
 
-    elif config.action == params.AUGMENT:
-        # -----------------------------
         # Data augmentation based on pixel profile
-        print('\nStarting {} data augmentation ...'.format(config.capture))
-        config.batch_size = 1
-        dloader, dsize = load_data(config, 'preprocess')
+        print('\nStarting {} data augmentation ...'.format(conf.capture))
+        conf.batch_size = 1
+        dloader, dsize = load_data(conf, 'preprocess')
         print('\tOriginal dataset size: {}'.format(dsize))
-        print('\tClasses: {}'.format(config.n_classes))
-        print('\tInput channels: {}'.format(config.in_channels))
-        metadata_path = params.paths['metadata'][config.capture]['sample_rates']
+        print('\tClasses: {}'.format(conf.n_classes))
+        print('\tInput channels: {}'.format(conf.in_channels))
+        metadata_path = params.paths['metadata'][conf.capture]['sample_rates']
         metadata = np.load(metadata_path, allow_pickle=True)
         sample_rates = metadata.item().get('rates')
+
         # over-sample underrepresented data
-        aug_data = oversample(dloader, dsize, sample_rates, config.in_channels)
+        aug_data = oversample(dloader, dsize, sample_rates, conf.in_channels)
         print('Oversampled dataset size: {}'.format(len(aug_data['img'])))
-        db_path = params.paths['db'][config.capture][config.action]
-        db = DB(config)
+        db_path = params.paths['db'][conf.capture][conf.action]
+        db = DB(conf)
         db.save(aug_data, db_path)
 
+    # -----------------------------
+    # Profiling
+    # -----------------------------
+    elif conf.action == params.PROFILE:
 
-    elif config.action == params.PROFILE:
-        # -----------------------------
-        # profile subimage pixel distributions to analyze class imbalance
-        # change to NCWH format
-        print("Starting {}/{} pixel class profiling ... ".format(config.capture, config.stage))
-        dloader, dsize = load_data(config, 'preprocess')
-        print('\tDataset size: {} / Batch size: {}'.format(dsize, config.batch_size))
-        print('\tClasses: {}'.format(config.n_classes))
-        metadata = profile(dloader, dsize, config)
-        path = params.paths['metadata'][config.capture][config.stage]
+        # profile subimage pixel distributions to analyze class imbalance [NCWH format]
+        print("Starting {}/{} pixel class profiling ... ".format(conf.capture, conf.stage))
+        dloader, dsize = load_data(conf, 'preprocess')
+        print('\tDataset size: {} / Batch size: {}'.format(dsize, conf.batch_size))
+        print('\tClasses: {}'.format(conf.n_classes))
+        metadata = profile(dloader, dsize, conf)
+        path = params.paths['metadata'][conf.capture][conf.stage]
         if not os.path.exists(path) or input("\tData file {} exists. Overwrite? (\'Y\' or \'N\'): ".format(path)) == 'Y':
             print('\nCopying metadata to {} ... '.format(path), end='')
             np.save(path, metadata)
             print('done.')
 
-
-    elif not config.action:
+    elif not conf.action:
         print("No preprocessing action provided.")
 
-
     else:
-        print("Unknown preprocessing action: \"{}\"".format(config.action))
+        print("Unknown preprocessing action: \"{}\"".format(conf.action))
 
+
+# -----------------------------
+# Main Execution Routine
+# -----------------------------
 if __name__ == "__main__":
 
     ''' Parse model configuration '''
-    config, unparsed, parser = get_config(params.PREPROCESS)
+    conf, unparsed, parser = get_config(params.PREPROCESS)
+
+    ''' Parse model configuration '''
+    if conf.h:
+        parser.print_usage()
+        exit(0)
 
     # If we have unparsed arguments, print usage and exit
     if len(unparsed) > 0:
         parser.print_usage()
         exit(1)
 
-    main(config)
+    main(conf)

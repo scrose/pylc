@@ -1,4 +1,4 @@
-# Question Generation Encoder-Decoder
+# Mountain Legacy Project
 Implementation of Answer-aware Question Generation Encoder-Decoder
 
   **Overview**
