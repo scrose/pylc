@@ -1,12 +1,12 @@
-# Don't track content of these folders
+# Don't track content of these folders/files
+###################
 save/
 logs/
 data/
 eval/
-.idea/
-__pycache__/
 
-.remote-sync.json
+
+
 
 
 # Compiled source #
@@ -32,4 +32,11 @@ __pycache__/
 *.rar
 *.tar
 *.zip
+
+# IDE Files #
+############
+.idea/
+__pycache__/
 *.iml
+.DS_STORE
+.remote-sync.json
