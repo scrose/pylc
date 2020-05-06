@@ -5,6 +5,7 @@ import h5py
 import numpy as np
 from params import params
 
+
 class MLPDataset(torch.utils.data.IterableDataset):
     '''
     Wrapper for MLP dataset
@@ -16,7 +17,7 @@ class MLPDataset(torch.utils.data.IterableDataset):
         config: User configuration
     '''
 
-    def __init__(self, config, db_path=None, partition=None):
+    def __init__(self, config: object, db_path: object = None, partition: object = None) -> object:
         super(MLPDataset).__init__()
 
         # initialize dataset parameters
@@ -44,6 +45,7 @@ class MLPDataset(torch.utils.data.IterableDataset):
 
 class Buffer(object):
     ''' dataset iterator buffer '''
+
     def __init__(self, db):
         self.db = db
         self.db_iter = iter(db)
@@ -58,7 +60,7 @@ class Buffer(object):
 
     def __next__(self):
         # check if at end of buffer
-        if self.size == 0 or self.current%self.size == 0:
+        if self.size == 0 or self.current % self.size == 0:
             # load next database chunk into buffer
             buffering = self.load()
             self.current = 0
@@ -92,12 +94,10 @@ class Buffer(object):
             return True
         return False
 
-
     def alloc(self, size):
         # allocate buffer memory
         self.input = np.empty((size,) + (self.input_shape), dtype=np.uint8)
         self.target = np.empty((size,) + (self.target_shape), dtype=np.uint8)
-
 
 
 class DB(object):
@@ -113,14 +113,14 @@ class DB(object):
         if path:
             self.path = path
             f = self.open()
-            self.size = int(params.clip*len(f['img']))
+            self.size = int(params.clip * len(f['img']))
             self.input_shape = f['img'].shape
             self.target_shape = f['mask'].shape
             f.close()
             # partition database for dataset
             if partition:
-                self.start = int(math.ceil(partition[0]*self.size))
-                self.end = int(math.ceil(partition[1]*self.size))
+                self.start = int(math.ceil(partition[0] * self.size))
+                self.end = int(math.ceil(partition[1] * self.size))
             else:
                 self.start = 0
                 self.end = self.size
@@ -139,7 +139,6 @@ class DB(object):
             self.buf_size = min(params.buf_size, self.dset_size)
             self.current = self.start
             self.next = self.current + self.buf_size
-
 
     # iterator to load indicies for next dataset chunk into object array
     def __iter__(self):
@@ -169,11 +168,13 @@ class DB(object):
         assert len(data['img']) == len(data['mask']), 'Image(s) missing paired mask(s). Save aborted.'
         n_samples = len(data['img'])
         print('\nSaving to database  ')
-        if not os.path.exists(path) or input("\tData file {} exists. Overwrite? (\'Y\' or \'N\'): ".format(path)) == 'Y':
+        if not os.path.exists(path) or input(
+                "\tData file {} exists. Overwrite? (\'Y\' or \'N\'): ".format(path)) == 'Y':
             print('\nCopying {} samples to datafile {}  '.format(n_samples, path), end='')
             with h5py.File(path, 'w') as f:
                 img_dset = f.create_dataset("img", data['img'].shape, compression='gzip', chunks=True, data=data['img'])
-                mask_dset = f.create_dataset("mask", data['mask'].shape, compression='gzip', chunks=True, data=data['mask'])
+                mask_dset = f.create_dataset("mask", data['mask'].shape, compression='gzip', chunks=True,
+                                             data=data['mask'])
                 f.close()
             print('done.')
         else:
@@ -181,48 +182,58 @@ class DB(object):
             exit()
 
 
+""" 
+-----------------------------
+Data Loader
+-----------------------------
+creates training and validation data loaders 
+"""
+
 
 def load_data(config, mode):
-    ''' creates training and validation data loaders '''
-    # training datasets
+
+    # Training datasets
     if mode == 'train':
         # load datasets and loaders
-        tr_dset = MLPDataset(config, db_path=params.paths['db'][config.capture]['extract'], partition=(0, 1 - params.partition))
-        va_dset = MLPDataset(config, db_path=params.paths['db'][config.capture]['extract'], partition=(1 - params.partition, 1.))
+        tr_dset = MLPDataset(config, db_path=params.get_path('db', config.dset, config.capture, 'extract'),
+                             partition=(0, 1 - params.partition))
+        va_dset = MLPDataset(config, db_path=params.get_path('db', config.dset, config.capture, 'extract'),
+                             partition=(1 - params.partition, 1.))
 
         # create data loaders
         tr_dloader = torch.utils.data.DataLoader(tr_dset,
-                                                    batch_size=config.batch_size,
-                                                    num_workers=config.n_workers,
-                                                    pin_memory=torch.cuda.is_available(),
-                                                    drop_last=True)
+                                                 batch_size=config.batch_size,
+                                                 num_workers=config.n_workers,
+                                                 pin_memory=torch.cuda.is_available(),
+                                                 drop_last=True)
         va_dloader = torch.utils.data.DataLoader(va_dset,
-                                                    batch_size=config.batch_size,
-                                                    num_workers=config.n_workers,
-                                                    pin_memory=torch.cuda.is_available(),
-                                                    drop_last=True)
+                                                 batch_size=config.batch_size,
+                                                 num_workers=config.n_workers,
+                                                 pin_memory=torch.cuda.is_available(),
+                                                 drop_last=True)
 
         return tr_dloader, va_dloader, tr_dset.db.dset_size, va_dset.db.dset_size, tr_dset.db.size
 
     # data augmentation dataset
     elif mode == 'augment':
-        aug_dset = MLPDataset(config, db_path=params.paths['db'][config.capture]['augment'])
+        aug_dset = MLPDataset(config, db_path=params.get_path('db', config.dset, config.capture, 'augment'))
         aug_dloader = torch.utils.data.DataLoader(aug_dset,
-                                                    batch_size=config.batch_size,
-                                                    num_workers=config.n_workers,
-                                                    pin_memory=torch.cuda.is_available(),
-                                                    drop_last=True)
+                                                  batch_size=config.batch_size,
+                                                  num_workers=config.n_workers,
+                                                  pin_memory=torch.cuda.is_available(),
+                                                  drop_last=True)
 
         return aug_dloader, aug_dset.db.dset_size, aug_dset.db.size
 
-
     # preprocess datasets
     elif mode == 'preprocess':
-        pre_dset = MLPDataset(config, db_path=params.paths['db'][config.capture][config.stage])
+
+        pre_dset = MLPDataset(config, db_path=params.get_path('db', config.dset, config.capture, config.stage))
+        print(pre_dset.db_path)
         pre_dloader = torch.utils.data.DataLoader(pre_dset,
-                                                    batch_size=config.batch_size,
-                                                    num_workers=0,
-                                                    pin_memory=torch.cuda.is_available())
+                                                  batch_size=config.batch_size,
+                                                  num_workers=0,
+                                                  pin_memory=torch.cuda.is_available())
         return pre_dloader, pre_dset.db.dset_size
 
     else:

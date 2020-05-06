@@ -9,27 +9,30 @@ import torch
 import utils.utils as utils
 from params import params
 
+
 class MultiLoss(object):
     """A simple wrapper for loss computation."""
 
     def __init__(self,
-                n_classes,
-                cls_weight,
-                eps=1e-10,
-                gamma=0.9
+                 n_classes,
+                 cls_weight,
+                 eps=1e-10,
+                 gamma=0.9
                  ):
         super(MultiLoss, self).__init__()
         self.n_classes = n_classes
         self.cls_weight = cls_weight
-        self.dice_weight=params.dice_weight
-        self.ce_weight=params.ce_weight
+        self.dice_weight = params.dice_weight
+        self.ce_weight = params.ce_weight
         self.eps = eps
         self.gamma = gamma
 
         if self.n_classes == 4:
             categories = params.category_labels_merged
-        else:
+        elif self.n_classes == 11:
             categories = params.category_labels
+        else:
+            categories = params.category_labels_alt
 
         # initialize cross entropy loss weights
         if isinstance(self.cls_weight, np.ndarray):
@@ -37,6 +40,7 @@ class MultiLoss(object):
         else:
             self.cls_weight = torch.ones(self.n_classes).to(params.device)
 
+        # Print the loaded class weights for training
         print('\nLoss Weights Loaded')
         print('\n{:20s}{:>15s}\n'.format('Class', 'Weight'))
         for i, w in enumerate(self.cls_weight):
@@ -59,7 +63,6 @@ class MultiLoss(object):
 
         return self.ce_loss(y_pred, y_true)
 
-
     # Multiclass (soft) dice loss function
     def dice_loss(self, y_pred, y_true):
         """Computes the Sørensen–Dice loss.
@@ -75,11 +78,11 @@ class MultiLoss(object):
             dice_loss: the Sørensen–Dice loss.
         """
 
-        y_true_1hot = torch.nn.functional.one_hot(y_true, num_classes=self.n_classes).permute(0,3,1,2)
+        y_true_1hot = torch.nn.functional.one_hot(y_true, num_classes=self.n_classes).permute(0, 3, 1, 2)
         probs = torch.nn.functional.softmax(y_pred, dim=1).to(params.device)
 
-        intersection = torch.sum(probs * y_true_1hot, axis=(0,2,3))
-        cardinality = torch.sum(probs + y_true_1hot, axis=(0,2,3))
+        intersection = torch.sum(probs * y_true_1hot, axis=(0, 2, 3))
+        cardinality = torch.sum(probs + y_true_1hot, axis=(0, 2, 3))
         dice_loss = (2. * intersection + params.dice_smooth) / (cardinality + params.dice_smooth)
 
         return 1 - dice_loss.mean()
@@ -106,7 +109,6 @@ class RunningLoss(object):
         self.output_file = os.path.join(utils.mk_path(dir_path), 'losses.pth')
         self.load(config)
 
-
     def load(self, config):
         ''' load log file for losses'''
         if os.path.exists(self.output_file):
@@ -122,12 +124,11 @@ class RunningLoss(object):
                 print('Deleting and Restarting.')
                 os.remove(self.output_file)
 
-
     def log(self, iter, training):
         ''' log running losses'''
         if self.intv:
             # get interval average for losses
-            (self.avg_ce, self.avg_dice) = tuple([sum(l)/len(self.intv) for l in zip(*self.intv)])
+            (self.avg_ce, self.avg_dice) = tuple([sum(l) / len(self.intv) for l in zip(*self.intv)])
             self.intv = []
             if training:
                 self.train += [(iter,) + (self.avg_ce, self.avg_dice)]
@@ -137,8 +138,6 @@ class RunningLoss(object):
                 self.is_best = self.avg_dice < self.best_dice
                 if self.is_best:
                     self.best_dice = self.avg_dice
-
-
 
     def save(self, test=False):
         '''Save loss values to disk'''

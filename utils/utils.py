@@ -11,6 +11,7 @@ import torch.nn.functional as F
 import cv2
 from params import params
 
+
 # Utility functions
 
 # Convert RGBA to Hex
@@ -39,12 +40,12 @@ def colourize(img_data, n_classes, palette=None):
     h = img_data.shape[2]
     # collapse one-hot encoding to single channel
     # make 3-channel (RGB) image
-    img_data = np.moveaxis(np.stack((img_data,)*3, axis=1), 1, -1).reshape(n*w*h, 3)
+    img_data = np.moveaxis(np.stack((img_data,) * 3, axis=1), 1, -1).reshape(n * w * h, 3)
     # map categories to palette colours
     for i in range(n_classes):
-        bool = img_data == np.array([i,i,i])
-        bool = np.all(bool, axis=1)
-        img_data[bool] =  params.palette[i]
+        class_bool = img_data == np.array([i, i, i])
+        class_idx = np.all(class_bool, axis=1)
+        img_data[class_idx] = palette[i]
     return img_data.reshape(n, w, h, 3)
 
 
@@ -60,29 +61,73 @@ def coshuffle(data, dist=None):
 
 
 # Merge segmentation classes
-def merge_classes(data_tensor):
+def merge_classes(data_tensor, merged_classes):
 
     data = data_tensor.numpy()
 
     # merge classes
-    for i, cat_grp in enumerate(params.categories_merged):
+    for i, cat_grp in enumerate(merged_classes):
         data[np.isin(data, cat_grp)] = i
 
     return torch.tensor(data)
 
+
 # Convert RBG mask array to class-index encoded values
 # input form: NCWH with RGB-value encoding, where C = RGB (3)
-# Palette paramters in form [CC'], where C = number of classes, C' = 3 (RGB)
+# Palette parameters in form [CC'], where C = number of classes, C' = 3 (RGB)
 # output form: NCWH with one-hot encoded classes, where C = number of classes
-def class_encode(input):
-    assert input.shape[1] == 3
-    input = input.to(torch.float32).mean(dim=1)
-    palette = torch.from_numpy(params.palette).to(torch.float32).mean(dim=1)
+def class_encode(input_data, palette):
+
+    # Ensure image is RBG format
+    assert input_data.shape[1] == 3
+    input_data = input_data.to(torch.float32).mean(dim=1)
+    palette = torch.from_numpy(palette).to(torch.float32).mean(dim=1)
+
     # map mask colours to segmentation classes
     for idx, c in enumerate(palette):
-        bool = input == c
-        input[bool] = idx
-    return input.to(torch.uint8)
+        class_bool = input_data == c
+        input_data[class_bool] = idx
+    return input_data.to(torch.uint8)
+
+
+# Affine Image Distortion
+# Input image [NWHC] / Mask [NWHC]
+# Output image [NWHC] / Mask [NWHC]
+def affine_transform(image, mask, alpha_affine, random_state=None):
+    """Affine deformation of images as described in:
+    https://docs.opencv.org/3.4/d4/d61/tutorial_warp_affine.html
+    """
+    if random_state is None:
+        random_state = np.random.RandomState(None)
+
+    dsize = image.shape[2:]
+    n_ch = image.shape[1]
+    image = np.squeeze(np.moveaxis(image, 1, -1), axis=0)
+    mask = np.squeeze(mask, axis=0)
+
+    # apply random flip
+    if bool(random.getrandbits(1)):
+        image = np.flip(image, axis=1)
+        mask = np.flip(mask, axis=1)
+
+    # Random affine deformation
+    pts1 = np.array([[0, 0], [dsize - 1, 0], [0, dsize - 1]]).astype(np.float32)
+    pts2 = np.array([[0, dsize * 0.33], [dsize * 0.85, dsize * 0.25], [dsize * 0.15, dsize * 0.7]]).astype(np.float32)
+
+    # center = (warp_dst.shape[1]//2, warp_dst.shape[0]//2)
+    # angle = -50
+    # scale = 0.6
+
+    # Get warp transformation matrix and apply to image and mask
+    warp_mat = cv2.getAffineTransform(pts1, pts2)
+    image = cv2.warpAffine(image, warp_mat, dsize, flags=cv2.INTER_NEAREST, borderMode=cv2.BORDER_REFLECT_101)
+    mask = cv2.warpAffine(mask, warp_mat, dsize, flags=cv2.INTER_NEAREST, borderMode=cv2.BORDER_REFLECT_101)
+
+    # Handle colour channels
+    if n_ch == 3:
+        image = np.moveaxis(image, -1, 0)
+
+    return image, mask
 
 
 # Function to distort image
@@ -114,7 +159,7 @@ def elastic_transform(image, mask, alpha_affine, random_state=None):
     center_square = np.float32(dsize) // 2
     square_size = min(dsize) // 3
     pts1 = np.float32(
-        [center_square + square_size, [center_square[0]+square_size, center_square[1]
+        [center_square + square_size, [center_square[0] + square_size, center_square[1]
                                        - square_size], center_square - square_size])
     pts2 = pts1 + random_state.uniform(-alpha_affine, alpha_affine, size=pts1.shape).astype(np.float32)
     M = cv2.getAffineTransform(pts1, pts2)
@@ -134,12 +179,12 @@ def show_sample(x, y, pad=False, save_dir='./eval'):
     img_samples = np.moveaxis(x.numpy(), 1, -1)
     mask_samples = colourize(y.numpy())
     if pad:
-        mask_samples = np.pad(mask_samples, [(params.pad_size, params.pad_size), (params.pad_size, params.pad_size), (0,0)])
-
+        mask_samples = np.pad(mask_samples,
+                              [(params.pad_size, params.pad_size), (params.pad_size, params.pad_size), (0, 0)])
 
     # Plot settings
     n_rows = 2
-    n_cols = x.shape[0]//n_rows
+    n_cols = x.shape[0] // n_rows
     k = 0
 
     fig, axes = plt.subplots(n_rows, n_cols, sharex='col', sharey='row', figsize=(n_cols, n_rows),
@@ -155,10 +200,10 @@ def show_sample(x, y, pad=False, save_dir='./eval'):
             mask_patch_sample = mask_samples[k]
 
             # add original image
-            axes[i,j].imshow(img_patch_sample)
+            axes[i, j].imshow(img_patch_sample)
             # overlay mask
-            axes[i,j].imshow(mask_patch_sample, alpha=0.4)
-            axes[i,j].set_title('Sample #{}'.format(k))
+            axes[i, j].imshow(mask_patch_sample, alpha=0.4)
+            axes[i, j].set_title('Sample #{}'.format(k))
             k += 1
 
     fname = str(int(datetime.datetime.now().timestamp()))

@@ -57,18 +57,18 @@ class Model:
             self.ckpt = Checkpoint(config)
             self = self.ckpt.load(self)
             self.net.train()
+
         # inference
         elif config.type == params.TEST:
             self.test = Evaluator(config)
-            #self.net = torch.nn.DataParallel(self.net)
+            # self.net = torch.nn.DataParallel(self.net)
             self = self.test.load(self)
-            #self.net.summary()
+            # self.net.summary()
             self.net.eval()
-
 
     # Retrieve preprocessed class weights
     def init_class_weight(self):
-        path = params.paths['metadata'][self.config.capture]['train']
+        path = params.get_path('metadata', self.config.dset, self.config.capture, 'train')
         cls_weight = np.load(path, allow_pickle=True)
         self.cls_weight = cls_weight.item().get('weights')
 
@@ -250,7 +250,7 @@ class Model:
         '''summarize model parameters'''
         try:
             from torchsummary import summary
-            summary(self.net, input_size=(config.in_channels, params.input_size, params.input_size))
+            summary(self.net, input_size=(self.in_channels, params.input_size, params.input_size))
         except ImportError as e:
             print('Summary not available.')
             pass  # module doesn't exist, deal with it.
