@@ -3,6 +3,9 @@ save/
 logs/
 data/
 eval/
+.idea/
+__pycache__/
+
 .remote-sync.json
 
 
@@ -29,3 +32,4 @@ eval/
 *.rar
 *.tar
 *.zip
+*.iml
