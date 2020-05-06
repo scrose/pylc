@@ -2,17 +2,45 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="94bc9823-c6c5-45ce-b005-6ac26d0d62c7" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/config.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/models/base.py" beforeDir="false" afterPath="$PROJECT_DIR$/models/base.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/models/utils/loss.py" beforeDir="false" afterPath="$PROJECT_DIR$/models/utils/loss.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/params.py" beforeDir="false" afterPath="$PROJECT_DIR$/params.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/paths.json" beforeDir="false" afterPath="$PROJECT_DIR$/paths.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/preprocess.py" beforeDir="false" afterPath="$PROJECT_DIR$/preprocess.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/train.py" beforeDir="false" afterPath="$PROJECT_DIR$/train.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/utils/dbwrapper.py" beforeDir="false" afterPath="$PROJECT_DIR$/utils/dbwrapper.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/utils/utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/utils/utils.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/dictionaries/boutrous.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/inspectionProfiles/Project_Default.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/sbt.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.remote-sync.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/config.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/mlpss.iml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/backbone/drn.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/backbone/mobilenet.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/backbone/resnet.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/backbone/xception.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/base.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/decoder.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/deeplab.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/res_unet.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/resnet.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/sync_batchnorm/batchnorm.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/sync_batchnorm/comm.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/sync_batchnorm/replicate.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/sync_batchnorm/unittest.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/unet.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/unet2.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/utils/aspp.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/utils/loss.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/mountain-legacy-project.iml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/params.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/paths.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/preprocess.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/test.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/train.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/utils/__init__.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/utils/dbwrapper.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/utils/gc.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/utils/utils.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/utils/visualize.py" beforeDir="false" />
     </list>
     <ignored path="$PROJECT_DIR$/out/" />
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
@@ -33,6 +61,7 @@
       </usages-collector>
       <usages-collector id="statistics.file.extensions.open">
         <counts>
+          <entry key="gitignore" value="1" />
           <entry key="json" value="2" />
           <entry key="md" value="2" />
           <entry key="py" value="12" />
@@ -42,11 +71,13 @@
         <counts>
           <entry key="JSON" value="2" />
           <entry key="Markdown" value="2" />
+          <entry key="PLAIN_TEXT" value="1" />
           <entry key="Python" value="12" />
         </counts>
       </usages-collector>
       <usages-collector id="statistics.file.extensions.edit">
         <counts>
+          <entry key="gitignore" value="23" />
           <entry key="json" value="204" />
           <entry key="md" value="337" />
           <entry key="preprocess" value="10" />
@@ -58,7 +89,7 @@
         <counts>
           <entry key="JSON" value="204" />
           <entry key="Markdown" value="337" />
-          <entry key="PLAIN_TEXT" value="15" />
+          <entry key="PLAIN_TEXT" value="38" />
           <entry key="Python" value="3654" />
         </counts>
       </usages-collector>
@@ -66,14 +97,23 @@
   </component>
   <component name="FileEditorManager">
     <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
-      <file pinned="false" current-in-tab="true">
+      <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/train.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="408">
-              <caret line="64" column="14" selection-start-line="64" selection-start-column="14" selection-end-line="64" selection-end-column="14" />
+            <state relative-caret-position="322">
+              <caret line="63" column="47" lean-forward="true" selection-start-line="63" selection-start-column="47" selection-end-line="63" selection-end-column="47" />
               <folding>
                 <element signature="e#138#163#0" expanded="true" />
               </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="true">
+        <entry file="file://$PROJECT_DIR$/.gitignore">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="75">
+              <caret line="5" selection-start-line="5" selection-end-line="5" selection-end-column="17" />
             </state>
           </provider>
         </entry>
@@ -157,6 +197,7 @@
         <option value="$PROJECT_DIR$/models/base.py" />
         <option value="$PROJECT_DIR$/models/utils/loss.py" />
         <option value="$PROJECT_DIR$/train.py" />
+        <option value="$PROJECT_DIR$/.gitignore" />
       </list>
     </option>
   </component>
@@ -191,7 +232,6 @@
             <path>
               <item name="mountain-legacy-project" type="b2602c69:ProjectViewProjectNode" />
               <item name="mountain-legacy-project" type="462c0819:PsiDirectoryNode" />
-              <item name="models" type="462c0819:PsiDirectoryNode" />
               <item name="utils" type="462c0819:PsiDirectoryNode" />
             </path>
           </expand>
@@ -201,7 +241,7 @@
     </panes>
   </component>
   <component name="PropertiesComponent">
-    <property name="com.android.tools.idea.instantapp.provision.ProvisionBeforeRunTaskProvider.myTimeStamp" value="1588797772735" />
+    <property name="com.android.tools.idea.instantapp.provision.ProvisionBeforeRunTaskProvider.myTimeStamp" value="1588799745061" />
     <property name="settings.editor.selected.configurable" value="vcs.Git" />
   </component>
   <component name="RunDashboard">
@@ -357,7 +397,7 @@
     <frame x="10" y="23" width="1669" height="957" extended-state="0" />
     <editor active="true" />
     <layout>
-      <window_info content_ui="combo" id="Project" order="0" sideWeight="0.67897725" visible="true" weight="0.14566687" />
+      <window_info active="true" content_ui="combo" id="Project" order="0" sideWeight="0.67897725" visible="true" weight="0.14566687" />
       <window_info id="Structure" order="1" sideWeight="0.32102272" side_tool="true" visible="true" weight="0.14566687" />
       <window_info id="Designer" order="2" />
       <window_info id="Image Layers" order="3" />
@@ -366,7 +406,7 @@
       <window_info id="UI Designer" order="6" />
       <window_info anchor="bottom" id="Message" order="0" />
       <window_info anchor="bottom" id="Find" order="1" />
-      <window_info active="true" anchor="bottom" id="Run" order="2" visible="true" weight="0.18612717" />
+      <window_info anchor="bottom" id="Run" order="2" visible="true" weight="0.18612717" />
       <window_info anchor="bottom" id="Debug" order="3" weight="0.33063585" />
       <window_info anchor="bottom" id="Cvs" order="4" weight="0.25" />
       <window_info anchor="bottom" id="Inspection" order="5" weight="0.4" />
@@ -509,11 +549,18 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/train.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="408">
-          <caret line="64" column="14" selection-start-line="64" selection-start-column="14" selection-end-line="64" selection-end-column="14" />
+        <state relative-caret-position="322">
+          <caret line="63" column="47" lean-forward="true" selection-start-line="63" selection-start-column="47" selection-end-line="63" selection-end-column="47" />
           <folding>
             <element signature="e#138#163#0" expanded="true" />
           </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/.gitignore">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="75">
+          <caret line="5" selection-start-line="5" selection-end-line="5" selection-end-column="17" />
         </state>
       </provider>
     </entry>
