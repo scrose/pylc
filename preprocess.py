@@ -12,7 +12,7 @@ from params import params
 # -----------------------------
 # Constants
 # -----------------------------
-n_patches_per_image = 200
+n_patches_per_image = 120
 
 
 # -----------------------------
