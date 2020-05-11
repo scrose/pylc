@@ -2,7 +2,6 @@ import json
 import os
 import random
 import sys
-
 import numpy as np
 import torch
 
@@ -16,6 +15,12 @@ class Parameters:
     def __init__(self):
         # device settings
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+        # Data paths JSON file
+        self.paths_file = 'paths.json'
+        if not os.path.isfile(self.paths_file):
+            print('File ' + self.paths_file + ' not found.')
+            exit(0)
 
         # Enumerated modes
         self.TRAIN = 'train'
@@ -38,7 +43,7 @@ class Parameters:
         self.files = None
 
         # load data paths
-        with open('./paths.json') as json_file:
+        with open(self.paths_file) as json_file:
             self.paths = json.load(json_file)
             self.root_dir = self.paths['root']
 

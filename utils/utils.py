@@ -7,7 +7,6 @@
 import os, random
 import numpy as np
 import torch
-import torch.nn.functional as F
 import cv2
 from params import params
 
