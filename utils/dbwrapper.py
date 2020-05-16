@@ -195,9 +195,9 @@ def load_data(config, mode):
     # Training datasets
     if mode == 'train':
         # load datasets and loaders
-        tr_dset = MLPDataset(config, db_path=params.get_path('db', config.dset, config.capture, 'extract'),
+        tr_dset = MLPDataset(config, db_path=params.get_path('db', config.dset, config.capture, config.db),
                              partition=(0, 1 - params.partition))
-        va_dset = MLPDataset(config, db_path=params.get_path('db', config.dset, config.capture, 'extract'),
+        va_dset = MLPDataset(config, db_path=params.get_path('db', config.dset, config.capture, config.db),
                              partition=(1 - params.partition, 1.))
 
         # create data loaders

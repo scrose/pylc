@@ -7,12 +7,9 @@
 # U-Net
 # Deeplab v3
 
-import os, math, datetime
 import torch
-import numpy as np
 from config import get_config
 from utils.dbwrapper import load_data
-from utils import utils
 from models.base import Model
 from tqdm import tqdm
 from params import params
@@ -23,15 +20,10 @@ from params import params
 # -----------------------------
 def train(config, model):
 
-    # Load datasets
+    # Load training dataset (db)
     tr_dloader, va_dloader, tr_size, va_size, db_size = load_data(config, mode=params.TRAIN)
     tr_batches = tr_size//config.batch_size
     va_batches = va_size//config.batch_size
-    aug_data = None;
-    # include augmented dataset
-    if model.augment:
-        aug_data, aug_size, aug_db_size = load_data(config, mode=params.AUGMENT)
-        aug_batches = aug_size//config.batch_size
 
     # get offset epoch if resuming from checkpoint
     epoch_offset = model.epoch
@@ -43,21 +35,14 @@ def train(config, model):
         # log learning rate
         model.loss.lr += [(model.iter, model.get_lr())]
 
-        print('\nEpoch {} / {} for Trial \'{}\''.format(e + epoch_offset + 1, config.n_epochs, config.label))
+        print('\nEpoch {} / {} for Experiment \'{}\''.format(e + epoch_offset + 1, config.n_epochs, config.label))
         print('\tBatch size: {}'.format(config.batch_size))
         print('\tTraining dataset size: {} / batches: {}'.format(tr_size, tr_batches))
-
-        if model.augment:
-            print('\tAugmentation dataset size: {} / batches: {}'.format(aug_size, aug_batches))
 
         print('\tValidation dataset size: {} / batches: {}'.format(va_size, va_batches))
         print('\tCurrent learning rate: {}'.format(model.loss.lr[-1][1]))
 
-        if model.augment:
-            # force iterator mode
-            model = epoch(model, tr_dloader, tr_batches, iter(aug_data), aug_batches)
-        else:
-            model = epoch(model, tr_dloader, tr_batches)
+        model = epoch(model, tr_dloader, tr_batches)
         print("\n[Train] CE avg: %4.4f / Dice: %4.4f\n" % (model.loss.avg_ce, model.loss.avg_dice))
 
         model = validate(model, va_dloader, va_batches)
@@ -72,23 +57,12 @@ def train(config, model):
 # -----------------------------
 # Training loop for single epoch
 # -----------------------------
-def epoch(model, dloader, n_batches, aug_dloader=None, aug_batches=0):
+def epoch(model, dloader, n_batches):
     model.net.train()
     for i, (x, y) in tqdm(enumerate(dloader), total=n_batches, desc="Training: ", unit=' batches'):
 
-        # simplified dataset
-        if model.n_classes == 4:
-            y = utils.merge_classes(y)
-
         # train with main dataset
         model.train(x, y)
-        # train with augmented dataset
-        if model.augment and i % 2 == 0 and i//2 + 2 < aug_batches:
-            # print('augmented data item {}/{}'.format(i//2 + 1, aug_batches))
-            (x, y) = next(aug_dloader)
-            if model.n_classes == 4:
-                y = utils.merge_classes(y)
-            model.train(x, y)
 
     return model
 
@@ -100,8 +74,6 @@ def validate(model, dloader, n_batches):
     model.net.eval()
     with torch.no_grad():
         for i, (x, y) in tqdm(enumerate(dloader), total=n_batches, desc="Validating: ", unit=' batches'):
-            if model.n_classes == 4:
-                y = utils.merge_classes(y)
             model.eval(x, y)
         model.log()
         model.save()
@@ -134,8 +106,12 @@ def main(config):
 
     # initialize config parameters based on capture type
     config = init_capture(config)
-    print("\nTraining {} model / Mode: {} / Capture Type: {} ... ".format(config.model, config.mode, config.capture))
-    print('\tInput channels: {} / Classes: {}'.format(config.in_channels, config.n_classes))
+    print("\nTraining Experiment {}".format(config.label))
+    print("\n\tCapture Type: {}".format(config.capture))
+    print("\n\tDatabase: {}".format(config.db))
+    print("\n\tModel: {}".format(config.model))
+    print('\n\tInput channels: {}'.format(config.in_channels))
+    print('\n\tClasses: {}'.format(config.n_classes))
 
     # Build model from hyperparameters
     model = Model(config)

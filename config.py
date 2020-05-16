@@ -93,9 +93,10 @@ def get_parser(action):
                          choices=["normal", "overfit", "summary"],
                          help="Training mode.")
 
-        arg.add_argument('--augment', type=str2bool,
-                         default=False,
-                         help='Include data augmentation.')
+        arg.add_argument('--db', type=str2bool,
+                         default='extract',
+                         choices=['extract', 'augment'],
+                         help='Select the training database.')
 
         arg.add_argument('--pretrained', type=str,
                          default='',
