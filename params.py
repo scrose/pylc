@@ -8,11 +8,20 @@ import torch
 
 class Parameters:
     """
-    - Preprocessing parameters
-    - Visualization parameters
+    - General parameters
+    - Model parameters
+    - Land Cover Categories (LCC-A, LCC-B)
+    - Data Augmentation parameters
+    - Network hyperparameters
+    - Utility functions
     """
 
     def __init__(self):
+
+        # ===================================
+        # General Parameters
+        # ===================================
+
         # device settings
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -48,7 +57,10 @@ class Parameters:
             self.paths = json.load(json_file)
             self.root_dir = self.paths['root']
 
+        # ===================================
         # Model Parameters
+        # ===================================
+
         # size of the output feature map
         self.output_size = 324
 
@@ -82,7 +94,12 @@ class Parameters:
         # print(f"random seed (note down for reproducibility): {seed}")
 
         # ===================================
+        # Land Cover Categories (LCC-A, LCC-B, LCC-merged)
+        # ===================================
+
+        # -----------------------------------
         # DST-A Land Cover Categories (LCC-A)
+        # -----------------------------------
         # 1. '#000000' [0,0,0] (black - solid): Not categorized
         # 2. '#ffa500' [255, 165, 0] (orange) Broadleaf/Mixedwood forest
         # 3. '#228b22' [34, 139, 34] (dark green - approx): Coniferous forest
@@ -142,8 +159,9 @@ class Parameters:
             np.array([10]),
         ]
 
-        # ===================================
-        # DST-A Land Cover Categories (LCC-A)
+        # ------------------------------------
+        # DST-B Land Cover Categories (LCC-B)
+        # ------------------------------------
         # 1. '#000000' [0,0,0] (black - solid): Not categorized
         # 2. '#ffaa00' [] Broadleaf forest
         # 3. '#d5d500' [] Mixedwood forest
@@ -198,8 +216,9 @@ class Parameters:
              [255, 0, 255],
              ])
 
-        # ===================================
+        # ------------------------------------
         # Merged Land Cover Categories (LCC-Merged)
+        # ------------------------------------
 
         # merged classes
         self.categories_merged = [
@@ -239,14 +258,22 @@ class Parameters:
              ])
 
         # ===================================
-        # Data augmentation
+        # Data Augmentation Parameters
+        # ===================================
+
+        self.aug_n_samples_max = 4000
         self.min_sample_rate = 0
-        self.max_sample_rate = 40
+        self.max_sample_rate = 5
+        self.sample_rate_coef = np.arange(1, 21, 1)
+        self.sample_threshold = np.arange(0, 3., 0.1)
 
         # Affine coefficient (elastic deformation)
         self.alpha = 0.19
 
-        # Network hyperparameters
+        # ===================================
+        # Network Hyperparameters
+        # ===================================
+
         self.dropout = 0.5
         self.lr_min = 1e-6
         self.lr_max = 0.1
@@ -261,7 +288,13 @@ class Parameters:
         self.grad_steps = 16
         self.test_intv = 70
 
+    # ===================================
+    # Utility Functions
+    # ===================================
+
+    # -----------------------------------
     # Returns concatenated path
+    # -----------------------------------
     def get_path(self, *path_keys):
 
         result_path = self.paths
@@ -280,4 +313,7 @@ class Parameters:
         sys.exit(1)
 
 
+# -----------------------------------
+# Create parameters instance
+# -----------------------------------
 params: Parameters = Parameters()

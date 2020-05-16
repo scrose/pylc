@@ -10,16 +10,32 @@ import torch
 import cv2
 from params import params
 
-
+# ===================================
 # Utility functions
+# ===================================
 
+
+# -----------------------------------
 # Convert RGBA to Hex
+# -----------------------------------
 def RGB2HEX(color):
     return "#{:02x}{:02x}{:02x}".format(int(color[0]), int(color[1]), int(color[2]))
 
 
+# -----------------------------------
+# Calculates the Jensen–Shannon divergence
+# JSD is a method of measuring the similarity between two probability distributions.
+# -----------------------------------
+def jsd(p, q):
+    M = 0.5*(p + q)
+    return 0.5*np.sum(np.multiply(p, np.log(p/M))) + 0.5*np.sum(np.multiply(q, np.log(q/M)))
+
+
+# -----------------------------------
+# Loads image data into array
 # Read image and reverse channel order
-# Loads image as 8 bit (regardless of original depth):
+# Loads image as 8 bit (regardless of original depth)
+# -----------------------------------
 def get_image(image_path, img_ch=3):
     assert img_ch == 3 or img_ch == 1, 'Invalid input channel number.'
     image = None
@@ -31,8 +47,10 @@ def get_image(image_path, img_ch=3):
     return image
 
 
-# Read image and reverse channel order
+# -----------------------------------
+# Colourize one-hot encoded image by palette
 # Input format: NCWH (one-hot class encoded)
+# -----------------------------------
 def colourize(img_data, n_classes, palette=None):
     n = img_data.shape[0]
     w = img_data.shape[1]
@@ -48,7 +66,9 @@ def colourize(img_data, n_classes, palette=None):
     return img_data.reshape(n, w, h, 3)
 
 
+# -----------------------------------
 # Shuffle image/mask datasets with same indicies
+# -----------------------------------
 def coshuffle(data, dist=None):
     idx_arr = np.arange(len(data['img']))
     np.random.shuffle(idx_arr)
@@ -59,7 +79,9 @@ def coshuffle(data, dist=None):
     return data, dist
 
 
+# -----------------------------------
 # Merge segmentation classes
+# -----------------------------------
 def merge_classes(data_tensor, merged_classes):
 
     data = data_tensor.numpy()
@@ -71,10 +93,12 @@ def merge_classes(data_tensor, merged_classes):
     return torch.tensor(data)
 
 
+# -----------------------------------
 # Convert RBG mask array to class-index encoded values
 # input form: NCWH with RGB-value encoding, where C = RGB (3)
 # Palette parameters in form [CC'], where C = number of classes, C' = 3 (RGB)
 # output form: NCWH with one-hot encoded classes, where C = number of classes
+# -----------------------------------
 def class_encode(input_data, palette):
 
     # Ensure image is RBG format
@@ -89,49 +113,11 @@ def class_encode(input_data, palette):
     return input_data.to(torch.uint8)
 
 
-# Affine Image Distortion
+# -----------------------------------
+# Apply affine distortion to image
 # Input image [NWHC] / Mask [NWHC]
 # Output image [NWHC] / Mask [NWHC]
-def affine_transform(image, mask, alpha_affine, random_state=None):
-    """Affine deformation of images as described in:
-    https://docs.opencv.org/3.4/d4/d61/tutorial_warp_affine.html
-    """
-    if random_state is None:
-        random_state = np.random.RandomState(None)
-
-    dsize = image.shape[2:]
-    n_ch = image.shape[1]
-    image = np.squeeze(np.moveaxis(image, 1, -1), axis=0)
-    mask = np.squeeze(mask, axis=0)
-
-    # apply random flip
-    if bool(random.getrandbits(1)):
-        image = np.flip(image, axis=1)
-        mask = np.flip(mask, axis=1)
-
-    # Random affine deformation
-    pts1 = np.array([[0, 0], [dsize - 1, 0], [0, dsize - 1]]).astype(np.float32)
-    pts2 = np.array([[0, dsize * 0.33], [dsize * 0.85, dsize * 0.25], [dsize * 0.15, dsize * 0.7]]).astype(np.float32)
-
-    # center = (warp_dst.shape[1]//2, warp_dst.shape[0]//2)
-    # angle = -50
-    # scale = 0.6
-
-    # Get warp transformation matrix and apply to image and mask
-    warp_mat = cv2.getAffineTransform(pts1, pts2)
-    image = cv2.warpAffine(image, warp_mat, dsize, flags=cv2.INTER_NEAREST, borderMode=cv2.BORDER_REFLECT_101)
-    mask = cv2.warpAffine(mask, warp_mat, dsize, flags=cv2.INTER_NEAREST, borderMode=cv2.BORDER_REFLECT_101)
-
-    # Handle colour channels
-    if n_ch == 3:
-        image = np.moveaxis(image, -1, 0)
-
-    return image, mask
-
-
-# Function to distort image
-# Input image [NWHC] / Mask [NWHC]
-# Output image [NWHC] / Mask [NWHC]
+# -----------------------------------
 def elastic_transform(image, mask, alpha_affine, random_state=None):
     """Elastic deformation of images as described in [Simard2003]_ (with modifications).
     .. [Simard2003] Simard, Steinkraus and Platt, "Best Practices for
@@ -170,7 +156,7 @@ def elastic_transform(image, mask, alpha_affine, random_state=None):
     return image, mask
 
 
-# Check for checkpoint
+# Show image sample
 def show_sample(x, y, pad=False, save_dir='./eval'):
     import cv2, os, datetime
     import matplotlib.pyplot as plt
@@ -189,7 +175,7 @@ def show_sample(x, y, pad=False, save_dir='./eval'):
     fig, axes = plt.subplots(n_rows, n_cols, sharex='col', sharey='row', figsize=(n_cols, n_rows),
                              subplot_kw={'xticks': [], 'yticks': []})
     plt.rcParams.update({'font.size': 4})
-    plt.rcParams['interactive'] == True
+    # plt.rcParams['interactive'] == True
 
     # Plot sample subimages
     for i in range(0, n_rows):
@@ -209,12 +195,13 @@ def show_sample(x, y, pad=False, save_dir='./eval'):
     plt.savefig(os.path.join(save_dir, str(fname + '.png')), dpi=200)
 
 
-# File loading utilities
+# Load image pairs by extension
 def load_files(path, exts):
     assert os.path.exists(path), 'Directory path {} does not exist.'.format(path)
     return list(sorted([f for f in os.listdir(path) if any(ext in f for ext in exts)]))
 
 
+# Create directory
 def mk_path(path):
     # Make path if directory does not exist
     if not os.path.exists(path):
@@ -222,11 +209,3 @@ def mk_path(path):
         os.makedirs(path)
         print('done.')
     return path
-
-
-def timer(mode):
-    if mode == 'start':
-        self.start_time = time.time()
-    elif mode == 'end':
-        self.end_time = time.time()
-        print(self.end_time - self.start_time)

@@ -186,10 +186,97 @@ def profile(dloader, dsize, cf):
         'weights': weights}
 
 
-# main preprocessing routine
+# -----------------------------------
+# Data augmentation parameters grid search
+# -----------------------------------
+# Output:
+# - Sample Rates
+# -----------------------------------
+def aug_optimize(profile_metadata, n_classes):
+
+    # Profile metadata
+    # Load metadata
+    px_dist = profile_metadata.item().get('px_dist')
+    px_count = profile_metadata.item().get('px_count')
+    dset_px_dist = profile_metadata.item().get('dset_px_dist')
+    dset_px_count = profile_metadata.item().get('dset_px_count')
+
+    # Calculate class probabilities
+    dset_probs = dset_px_dist/dset_px_count
+
+    # Optimized profile data
+    profile_data = []
+
+    # Initialize oversample filter and class prior probabilities
+    oversample_filter = np.clip(1/n_classes - dset_probs, a_min=0, a_max=1.)
+    probs = px_dist/px_count
+    probs_weighted = np.multiply(np.multiply(probs, 1/dset_probs), oversample_filter)
+
+    # Calculate scores for oversampling
+    scores = np.sqrt(np.sum(probs_weighted, axis=1))
+
+    # Initialize Augmentation Parameters
+    # rate coefficient (range of 1 - 21)
+    rate_coefs = params.sample_rate_coef
+    # threshold for oversampling (range of 0 - 3)
+    thresholds = params.sample_threshold
+    # upper limit on number of augmentation samples
+    aug_n_samples_max = params.aug_n_samples_max
+    # Jensen-Shannon divergence coefficients
+    jsd = []
+
+    # initialize balanced model distribution
+    balanced_px_prob = np.empty(n_classes)
+    balanced_px_prob.fill(1/n_classes)
+
+    # Grid search for sample rates
+    for i, rate_coef, in enumerate(rate_coefs):
+        for j, threshold in enumerate(thresholds):
+
+            # create boolean mask to oversample
+            assert rate_coef >= 1, 'Rate coefficient must be >= one.'
+            oversample = scores > threshold
+
+            # calculate rates based on rate coefficient and scores
+            rates = np.multiply(oversample, rate_coef * scores).astype(int)
+
+            # clip rates to max value
+            rates = np.clip(rates, 0, params.max_sample_rate)
+
+            # limit to max number of augmented images
+            if np.sum(rates) < aug_n_samples_max:
+                aug_px_dist = np.multiply(np.expand_dims(rates, axis=1), px_dist)
+                full_px_dist = px_dist + aug_px_dist
+                full_px_probs = np.sum(full_px_dist, axis=0)/np.sum(full_px_dist)
+                jsd += [utils.jsd(full_px_probs, balanced_px_prob)]
+                profile_data += [{
+                    'probs': full_px_probs,
+                    'threshold' : threshold,
+                    'rate_coef': rate_coef,
+                    'rates': rates,
+                    'n_samples': int(np.sum(full_px_dist)/px_count),
+                    'aug_n_samples': np.sum(rates),
+                    'rate_max': params.max_sample_rate
+                }]
+
+    # Get parameters that minimize Jensen-Shannon Divergence metric
+    assert len(jsd) > 0, 'No augmentation optimization found.'
+
+    # Return optimal augmentation parameters (minimize JSD)
+    optim_idx = np.argmin(np.asarray(jsd))
+    return profile_data[optim_idx]
+
+
+# ============================
+# Main preprocessing routine
+# ============================
 def main(cf, parser):
     # -----------------------------
     # Extraction
+    # -----------------------------
+    # Extract square image/mask tiles from raw high-resolution images. Saves to database.
+    # Mask data is also profiled for analysis and data augmentation.
+    # See parameters for dimensions and stride.
     # -----------------------------
     if cf.mode == params.EXTRACT:
 
@@ -260,7 +347,10 @@ def main(cf, parser):
             print('done.')
 
     # -----------------------------
-    # Augmentation
+    # Data Augmentation
+    # -----------------------------
+    # Calculates sample rates based on dataset profile metadata
+    # Optimized rates minimize Jensen-Shannon divergence from balanced distribution
     # -----------------------------
     elif cf.mode == params.AUGMENT:
 
@@ -271,17 +361,18 @@ def main(cf, parser):
         # turn off multi-processing
         cf.n_workers = 0
 
-        # Get extraction data
+        # Load extraction database
         dloader, dset_size, db_size = load_data(cf, params.EXTRACT)
         print('\tExtracted (original) dataset size: {}'.format(dset_size))
         print('\tClasses: {}'.format(cf.n_classes))
         print('\tInput channels: {}'.format(cf.in_channels))
 
-        # Load profile metadata
-        metadata_path = params.get_path('metadata', cf.dset, cf.capture, 'sample_rates')
-        print('\nLoading sample rates at {} ... '.format(metadata_path), end='')
+        # Load dataset metadata and calculate augmentation sample rates
+        metadata_path = params.get_path('metadata', cf.dset, cf.capture, params.EXTRACT)
         metadata = np.load(metadata_path, allow_pickle=True)
-        sample_rates = metadata.item().get('rates')
+        print('\nCalculating sample rates  ... ', end='')
+        aug_optim = aug_optimize(metadata, cf.n_classes)
+        sample_rates = aug_optim.get('rates')
         print('done.')
 
         # over-sample minority classes (uses pre-calculated sample rates)
@@ -312,7 +403,8 @@ def main(cf, parser):
 
     # -----------------------------
     # Profiling
-    # profile subimage pixel distributions to analyze class imbalance [NCWH format]
+    # -----------------------------
+    # Profiles dataset pixel distributions for analysis and data augmentation
     # -----------------------------
     elif cf.mode == params.PROFILE:
 
