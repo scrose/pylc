@@ -28,7 +28,7 @@ def get_parser(action):
 
     arg.add_argument('--db_path', type=str,
                      default='',
-                     help='Path to main data directory for paths.json. (Default: /Users/boutrous/Workspace/)')
+                     help='Path to main data directory for paths.json.')
 
     arg.add_argument("--dset", type=str,
                      default="combined",
@@ -41,8 +41,8 @@ def get_parser(action):
                      help='Image capture/mask type.')
 
     arg.add_argument('--label', type=str,
-                     default='',
-                     help='Label to append to output files. (Optional - default uses [CAPTURE]-[ACTION]-[DATE])')
+                     default='trial',
+                     help='Label to append to output files.')
 
     arg.add_argument("--n_classes", type=int,
                      default=9,
@@ -52,6 +52,10 @@ def get_parser(action):
                      default=3,
                      help="Number of channels for image. (Default: 3 for colour images / 1 for grayscale images.)")
 
+    arg.add_argument("--n_workers", type=int,
+                     default=6,
+                     help="Number of workers for multiprocessing.")
+
     # ----------------------------------------
     # Arguments for preprocessing
     if action == 'preprocess':
@@ -59,20 +63,15 @@ def get_parser(action):
         arg = parser.add_argument_group("Preprocess")
         arg_lists.append(arg)
 
-        arg.add_argument("--action", type=str,
+        arg.add_argument("--mode", type=str,
                          default=None,
                          choices=["extract", "profile", "augment"],
                          help="Preprocess action to run.")
 
-        arg.add_argument("--mode", type=str,
-                         default="train",
-                         choices=["train", "test"],
-                         help="Preprocessing mode.")
-
-        arg.add_argument("--stage", type=str,
-                         default="extract",
+        arg.add_argument("--db", type=str,
+                         default='extract',
                          choices=["extract", "augment"],
-                         help="Stage of preprocessing.")
+                         help="Database to process.")
 
         arg.add_argument("--pad", type=str2bool,
                          default=False,
@@ -138,10 +137,6 @@ def get_parser(action):
                          default=10,
                          help="Number of epochs to train.")
 
-        arg.add_argument("--n_workers", type=int,
-                         default=6,
-                         help="Number of workers for multiprocessing.")
-
         arg.add_argument("--report", type=int,
                          default=20,
                          help="Report interval (unit: iterations).")
@@ -162,16 +157,21 @@ def get_parser(action):
                          choices=["normal", "tune"],
                          help="Run mode")
 
+        arg.add_argument('--dir_path', type=str,
+                         default='/Users/boutrous/Workspace/MLP/experiments/',
+                         help='Experiment files directory.')
+
         arg.add_argument('--img_path', type=str,
-                         default='/Users/boutrous/Workspace/MLP/src/data/raw/test/img/MIL1928_6-852R.tif',
+                         default='/Users/boutrous/Workspace/MLP/mountain-legacy-project/data/raw/jean/repeat/test/img/ri-0042.tif',
                          help='Path to test image.')
 
         arg.add_argument('--mask_path', type=str,
-                         default='/Users/boutrous/Workspace/MLP/src/data/raw/test/mask/MIL1928_6-852R_mask.png',
+                         default='/Users/boutrous/Workspace/MLP/mountain-legacy-project/data/raw/jean/repeat/test/mask/ri-0042.png',
                          help='Path to mask image.')
 
         arg.add_argument('--model', type=str,
-                         default='unet',
+                         default='deeplab',
+                         choices=["unet", "deeplab"],
                          help='Network model architecture.')
 
         arg.add_argument('--up_mode', type=str,
@@ -184,7 +184,7 @@ def get_parser(action):
                          help="Size of each test batch")
 
         arg.add_argument("--n_workers", type=int,
-                         default=0,
+                         default=6,
                          help="Number of workers for multiprocessing.")
 
         arg.add_argument("--report", type=int,

@@ -94,59 +94,24 @@ def extract_subimages(files, cf):
 def oversample(dloader, dsize, rates, cf):
     # initialize main image arrays
     e_size = params.patch_size
-    imgs = np.empty((dsize, cf.in_channels, e_size, e_size), dtype=np.uint8)
-    masks = np.empty((dsize, e_size, e_size), dtype=np.uint8)
-    aug_data = {'img': [], 'mask': []}
+    imgs = np.empty((dsize*2, cf.in_channels, e_size, e_size), dtype=np.uint8)
+    masks = np.empty((dsize*2, e_size, e_size), dtype=np.uint8)
     idx = 0
 
     # iterate data loader
     for i, data in tqdm(enumerate(dloader), total=dsize // cf.batch_size, unit=' batches'):
-        input, target = data
+        img, mask = data
+
+        # copy originals to dataset
+        np.copyto(imgs[idx:idx + 1, ...], img.numpy().astype(np.uint8))
+        np.copyto(masks[idx:idx + 1, ...], mask.numpy().astype(np.uint8))
+        idx += 1
+
+        # append augmented data
         for j in range(rates[i]):
-            # print('Oversample rate: {}'.format(rate))
             random_state = np.random.RandomState(j)
-            alpha_affine = input.shape[-1] * params.alpha
-            inp_data, tgt_data = utils.elastic_transform(input.numpy(), target.numpy(), alpha_affine, random_state)
-            inp_data = torch.as_tensor(inp_data, dtype=torch.uint8).unsqueeze(0)
-            tgt_data = torch.as_tensor(tgt_data, dtype=torch.uint8).unsqueeze(0)
-            np.copyto(imgs[idx:idx + 1, ...], inp_data)
-            np.copyto(masks[idx:idx + 1, ...], tgt_data)
-            idx += 1
-
-    # truncate to size
-    imgs = imgs[:idx]
-    masks = masks[:idx]
-
-    # Shuffle data
-    print('\nShuffling ... ', end='')
-    idx_arr = np.arange(len(imgs))
-    np.random.shuffle(idx_arr)
-    imgs = imgs[idx_arr]
-    masks = masks[idx_arr]
-    print('done.')
-
-    return {'img': imgs, 'mask': masks}
-
-
-# -----------------------------
-# Oversample subimages for class balancing
-# -----------------------------
-def undersample(dloader, dsize, rates, cf):
-
-    # initialize main image arrays
-    e_size = params.patch_size
-    imgs = np.empty((dsize, cf.in_channels, e_size, e_size), dtype=np.uint8)
-    masks = np.empty((dsize, e_size, e_size), dtype=np.uint8)
-    idx = 0
-
-    # iterate data loader
-    for i, data in tqdm(enumerate(dloader), total=dsize // cf.batch_size, unit=' batches'):
-        input, target = data
-        for j in range(rates[i]):
-            # print('Oversample rate: {}'.format(rate))
-            random_state = np.random.RandomState(j)
-            alpha_affine = input.shape[-1] * params.alpha
-            inp_data, tgt_data = utils.elastic_transform(input.numpy(), target.numpy(), alpha_affine, random_state)
+            alpha_affine = img.shape[-1] * params.alpha
+            inp_data, tgt_data = utils.elastic_transform(img.numpy(), mask.numpy(), alpha_affine, random_state)
             inp_data = torch.as_tensor(inp_data, dtype=torch.uint8).unsqueeze(0)
             tgt_data = torch.as_tensor(tgt_data, dtype=torch.uint8).unsqueeze(0)
             np.copyto(imgs[idx:idx + 1, ...], inp_data)
@@ -186,13 +151,10 @@ def profile(dloader, dsize, cf):
     for i, data in tqdm(enumerate(dloader), total=dsize // cf.batch_size, unit=' batches'):
         _, target = data
 
-        # check if merged class profile
-        if cf.n_classes == 4:
-            target = utils.merge_classes(target)
-
         # convert to one-hot encoding
         target_1hot = torch.nn.functional.one_hot(target, num_classes=cf.n_classes).permute(0, 3, 1, 2)
-        px_dist += [np.sum(target_1hot.numpy(), axis=(2, 3))]
+        px_dist_sample = [np.sum(target_1hot.numpy(), axis=(2, 3))]
+        px_dist += px_dist_sample
 
     # Calculate sample pixel distribution / sample pixel count
     px_dist = np.concatenate(px_dist)
@@ -208,10 +170,9 @@ def profile(dloader, dsize, cf):
     weights = weights / np.max(weights)
 
     # Gibbs class variance
+    m2 = (cf.n_classes / (cf.n_classes - 1)) * (1 - np.sum(probs ** 2))
 
-    M2 = (cf.n_classes / (cf.n_classes - 1)) * (1 - np.sum(probs ** 2))
-
-    print('\nM2: {}\n'.format(M2))
+    print('\nM2: {}\n'.format(m2))
     print('{:20s} {:3s} \t {:3s}\n'.format('Class', 'Probs', 'Weights'))
     for i, w in enumerate(weights):
         print('{:20s} {:3f} \t {:3f}'.format(params.category_labels_alt[i], probs[i], w))
@@ -230,17 +191,17 @@ def main(cf, parser):
     # -----------------------------
     # Extraction
     # -----------------------------
-    if cf.action == params.EXTRACT:
+    if cf.mode == params.EXTRACT:
 
         # Extract subimages for training
-        print("Subimage extraction for {} dataset starting ... ".format(cf.dset))
+        print("Subimage extraction for {} images in {} dataset starting ... ".format(cf.capture, cf.dset))
 
         # All files as source for extraction
         files = []
         i = 0
 
         # Set database path
-        db_path = params.get_path('db', cf.dset, cf.capture, cf.stage)
+        db_path = params.get_path('db', cf.dset, cf.capture, cf.mode)
 
         # iterate over available datasets
         for dset in params.dsets:
@@ -249,8 +210,8 @@ def main(cf, parser):
             if 'combined' == cf.dset or dset == cf.dset:
 
                 # get image/mask file list
-                img_dir = params.get_path('raw', dset, cf.capture, cf.mode, 'img')
-                mask_dir = params.get_path('raw', dset, cf.capture, cf.mode, 'mask')
+                img_dir = params.get_path('raw', dset, cf.capture, params.TRAIN, 'img')
+                mask_dir = params.get_path('raw', dset, cf.capture, params.TRAIN, 'mask')
                 img_files = utils.load_files(img_dir, ['.tif', '.tiff'])
                 mask_files = utils.load_files(mask_dir, ['.png'])
 
@@ -279,37 +240,87 @@ def main(cf, parser):
         db = DB(cf)
         db.save(data, path=db_path)
 
+        # Create metadata profile
+        print("\nStarting {}/{} pixel class profiling ... ".format(cf.capture, cf.mode))
+
+        # Load extraction data
+        cf.batch_size = 1
+        dloader, dset_size, db_size = load_data(cf, params.EXTRACT)
+        print('\tExtraction Dataset size: {} (dataloader batch size: {})'.format(dset_size, cf.batch_size))
+
+        # Profile extracted data
+        metadata_path = params.get_path('metadata', cf.dset, cf.capture, params.EXTRACT)
+        metadata = profile(dloader, dset_size, cf)
+
+        # save augmentation profile data to file
+        if not os.path.exists(metadata_path) or \
+                input("\tData file {} exists. Overwrite? (\'Y\' or \'N\'): ".format(metadata_path)) == 'Y':
+            print('\nCopying profile metadata to {} ... '.format(metadata_path), end='')
+            np.save(metadata_path, metadata)
+            print('done.')
+
     # -----------------------------
     # Augmentation
     # -----------------------------
-    elif cf.action == params.AUGMENT:
+    elif cf.mode == params.AUGMENT:
 
         # Data augmentation based on pixel profile
         print('\nStarting {} data augmentation ...'.format(cf.capture))
+        # set batch size to single
         cf.batch_size = 1
-        dloader, dsize = load_data(cf, 'preprocess')
-        print('\tOriginal dataset size: {}'.format(dsize))
+        # turn off multi-processing
+        cf.n_workers = 0
+
+        # Get extraction data
+        dloader, dset_size, db_size = load_data(cf, params.EXTRACT)
+        print('\tExtracted (original) dataset size: {}'.format(dset_size))
         print('\tClasses: {}'.format(cf.n_classes))
         print('\tInput channels: {}'.format(cf.in_channels))
-        metadata_path = params.get_path('metadata', cf.capture, 'sample_rates')
+
+        # Load profile metadata
+        metadata_path = params.get_path('metadata', cf.dset, cf.capture, 'sample_rates')
+        print('\nLoading sample rates at {} ... '.format(metadata_path), end='')
         metadata = np.load(metadata_path, allow_pickle=True)
         sample_rates = metadata.item().get('rates')
+        print('done.')
 
-        # over-sample underrepresented data
-        aug_data = oversample(dloader, dsize, sample_rates, cf)
-        print('Oversampled dataset size: {}'.format(len(aug_data['img'])))
-        db_path = params.get_path('db', cf.capture, cf.action)
+        # over-sample minority classes (uses pre-calculated sample rates)
+        print('\nOversampling ... '.format(metadata_path), end='')
+        aug_data = oversample(dloader, dset_size, sample_rates, cf)
+        print('\nAugmented dataset size: {}'.format(len(aug_data['img'])))
+        db_path = params.get_path('db', cf.dset, cf.capture, cf.mode)
         db = DB(cf)
         db.save(aug_data, db_path)
+
+        # Create metadata profile
+        print("\nStarting {}/{} pixel class profiling ... ".format(cf.capture, cf.mode))
+
+        # Load augmentation data
+        dloader, dset_size, db_size = load_data(cf, params.AUGMENT)
+        print('\tAugmentation Dataset size: {} / Batch size: {}'.format(dset_size, cf.batch_size))
+
+        # Profile augmentation data
+        aug_metadata_path = params.get_path('metadata', cf.dset, cf.capture, cf.mode)
+        aug_metadata = profile(dloader, dset_size, cf)
+
+        # save augmentation profile data to file
+        if not os.path.exists(aug_metadata_path) or \
+                input("\tData file {} exists. Overwrite? (\'Y\' or \'N\'): ".format(aug_metadata_path)) == 'Y':
+            print('\nCopying profile metadata to {} ... '.format(aug_metadata_path), end='')
+            np.save(aug_metadata_path, aug_metadata)
+            print('done.')
 
     # -----------------------------
     # Profiling
     # profile subimage pixel distributions to analyze class imbalance [NCWH format]
     # -----------------------------
-    elif cf.action == params.PROFILE:
+    elif cf.mode == params.PROFILE:
 
-        print("Starting {}/{} pixel class profiling ... ".format(cf.capture, cf.stage))
-        metadata_path = params.get_path('metadata', cf.dset, cf.capture, cf.stage)
+        # set batch size to single
+        cf.batch_size = 1
+
+        print("Starting {}/{} pixel class profiling ... ".format(cf.capture, cf.mode))
+        metadata_path = params.get_path('metadata', cf.dset, cf.capture, cf.db)
 
         # Load extraction/augmentation data
         dloader, dsize = load_data(cf, 'preprocess')
@@ -325,7 +336,7 @@ def main(cf, parser):
             print('done.')
 
     else:
-        print("Unknown preprocessing action: \"{}\"".format(cf.action))
+        print("Unknown preprocessing action: \"{}\"".format(cf.mode))
         parser.print_usage()
 
 
@@ -338,7 +349,7 @@ if __name__ == "__main__":
     cf, unparsed, parser = get_config(params.PREPROCESS)
 
     ''' Parse model configuration '''
-    if cf.h or not cf.action or not cf.dset:
+    if cf.h or not cf.mode or not cf.dset:
         parser.print_usage()
         sys.exit(0)
 

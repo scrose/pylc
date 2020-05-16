@@ -7,4 +7,4 @@
 module load cuda eigen python/3.6
 virtualenv --no-download /home/srose/scratch/vir_env
 source /home/srose/scratch/vir_env/bin/activate
-python ./train.py --model deeplab --capture historic_merged --label hist_merged_1
+python ./train.py --model deeplab --capture repeat --label repeat_augment_2 --augment True

@@ -129,7 +129,7 @@ class DB(object):
 
             # partition dataset for worker pool
             if worker:
-                per_worker = int(math.ceil((self.dset_size) / float(worker.num_workers)))
+                per_worker = int(math.ceil(self.dset_size / float(worker.num_workers)))
                 self.start += worker.id * per_worker
                 self.end = min(self.start + per_worker, self.end)
                 self.start = self.end if self.end < self.start else self.start
@@ -214,22 +214,32 @@ def load_data(config, mode):
 
         return tr_dloader, va_dloader, tr_dset.db.dset_size, va_dset.db.dset_size, tr_dset.db.size
 
+    # data extraction dataset
+    elif mode == params.EXTRACT:
+        extr_dset = MLPDataset(config, db_path=params.get_path('db', config.dset, config.capture, params.EXTRACT))
+        extr_dloader = torch.utils.data.DataLoader(extr_dset,
+                                                  batch_size=config.batch_size,
+                                                  num_workers=config.n_workers,
+                                                  pin_memory=torch.cuda.is_available(),
+                                                  drop_last=False)
+
+        return extr_dloader, extr_dset.db.dset_size, extr_dset.db.size
+
     # data augmentation dataset
-    elif mode == 'augment':
-        aug_dset = MLPDataset(config, db_path=params.get_path('db', config.dset, config.capture, 'augment'))
+    elif mode == params.AUGMENT:
+        aug_dset = MLPDataset(config, db_path=params.get_path('db', config.dset, config.capture, params.AUGMENT))
         aug_dloader = torch.utils.data.DataLoader(aug_dset,
                                                   batch_size=config.batch_size,
                                                   num_workers=config.n_workers,
                                                   pin_memory=torch.cuda.is_available(),
-                                                  drop_last=True)
+                                                  drop_last=False)
 
         return aug_dloader, aug_dset.db.dset_size, aug_dset.db.size
 
     # preprocess datasets
     elif mode == 'preprocess':
 
-        pre_dset = MLPDataset(config, db_path=params.get_path('db', config.dset, config.capture, config.stage))
-        print(pre_dset.db_path)
+        pre_dset = MLPDataset(config, db_path=params.get_path('db', config.dset, config.capture, config.db))
         pre_dloader = torch.utils.data.DataLoader(pre_dset,
                                                   batch_size=config.batch_size,
                                                   num_workers=0,

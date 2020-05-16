@@ -36,6 +36,7 @@ class Parameters:
         self.NORMAL = 'normal'
         self.OVERFIT = 'overfit'
         self.dsets = ['jean', 'fortin']
+        self.COMBINED = 'combined'
 
         # general data paths
         self.src_db = None
@@ -80,7 +81,69 @@ class Parameters:
         random.seed(self.seed)  # set the seed
         # print(f"random seed (note down for reproducibility): {seed}")
 
-        # Mask categories:
+        # ===================================
+        # DST-A Land Cover Categories (LCC-A)
+        # 1. '#000000' [0,0,0] (black - solid): Not categorized
+        # 2. '#ffa500' [255, 165, 0] (orange) Broadleaf/Mixedwood forest
+        # 3. '#228b22' [34, 139, 34] (dark green - approx): Coniferous forest
+        # 4. '#7cfc00' [124, 252, 0] (light green - approx): Herbaceous/Shrub
+        # 5. '#873434' [139, 69, 19] (sanguine brown - approx): Sand/gravel/rock
+        # 6. '#5f9ea0' [95, 158, 160] (turquoise) Wetland
+        # 7. '#0000ff' [0,0,255] (blue - solid): Water
+        # 8. '#2dbdff' [45, 189, 255] (light blue - approx): Snow/Ice
+        # 9. '#ff0004' [255, 0, 4] (red - solid): Regenerating area
+
+        self.mask_categories_alt = {
+            '#000000': 'Not categorized',
+            '#ffa500': 'Broadleaf/Mixedwood forest',
+            '#228b22': 'Coniferous forest',
+            '#7cfc00': 'Herbaceous/Shrub',
+            '#8b4513': 'Sand/gravel/rock',
+            '#5f9ea0': 'Wetland',
+            '#0000ff': 'Water',
+            '#2dbdff': 'Snow/Ice',
+            '#ff0004': 'Regenerating Area',
+        }
+
+        self.category_labels_alt = [
+            'Not categorized',
+            'Broadleaf/Mixedwood forest',
+            'Coniferous forest',
+            'Herbaceous/Shrub',
+            'Sand/gravel/rock',
+            'Wetland',
+            'Water',
+            'Snow/Ice',
+            'Regenerating Area',
+        ]
+
+        self.palette_alt = np.array(
+            [[0, 0, 0],
+             [255, 165, 0],
+             [34, 139, 34],
+             [124, 252, 0],
+             [139, 69, 19],
+             [95, 158, 160],
+             [0, 0, 255],
+             [45, 189, 255],
+             [255, 0, 4],
+             ])
+
+        # merged classes
+        self.categories_merged_alt = [
+            np.array([0]),
+            np.array([1, 2]),
+            np.array([3]),
+            np.array([4, 5]),
+            np.array([6]),
+            np.array([7]),
+            np.array([8]),
+            np.array([9]),
+            np.array([10]),
+        ]
+
+        # ===================================
+        # DST-A Land Cover Categories (LCC-A)
         # 1. '#000000' [0,0,0] (black - solid): Not categorized
         # 2. '#ffaa00' [] Broadleaf forest
         # 3. '#d5d500' [] Mixedwood forest
@@ -135,6 +198,9 @@ class Parameters:
              [255, 0, 255],
              ])
 
+        # ===================================
+        # Merged Land Cover Categories (LCC-Merged)
+
         # merged classes
         self.categories_merged = [
             np.array([0]),
@@ -164,57 +230,6 @@ class Parameters:
             'Non-Vegetation',
             'Regenerating Area']
 
-        # Alternate palette
-
-        self.mask_categories_alt = {
-            '#000000': 'Not categorized',
-            '#ffa500': 'Broadleaf/Mixedwood forest',
-            '#228b22': 'Coniferous forest',
-            '#7cfc00': 'Herbaceous/Shrub',
-            '#8b4513': 'Sand/gravel/rock',
-            '#5f9ea0': 'Wetland',
-            '#0000ff': 'Water',
-            '#2dbdff': 'Snow/Ice',
-            '#ff0004': 'Regenerating Area',
-        }
-
-        self.category_labels_alt = [
-            'Not categorized',
-            'Broadleaf/Mixedwood forest',
-            'Coniferous forest',
-            'Herbaceous/Shrub',
-            'Sand/gravel/rock',
-            'Wetland',
-            'Water',
-            'Snow/Ice',
-            'Regenerating Area',
-        ]
-
-        self.palette_alt = np.array(
-            [[0, 0, 0],
-             [255, 165, 0],
-             [34, 139, 34],
-             [124, 252, 0],
-             [139, 69, 19],
-             [95, 158, 160],
-             [0, 0, 255],
-             [45, 189, 255],
-             [255, 0, 4],
-             ])
-
-        # merged classes
-        self.categories_merged_alt = [
-            np.array([0]),
-            np.array([1, 2]),
-            np.array([3]),
-            np.array([4, 5]),
-            np.array([6]),
-            np.array([7]),
-            np.array([8]),
-            np.array([9]),
-            np.array([10]),
-        ]
-
         # Merged classes
         self.palette_merged = np.array(
             [[0, 0, 0],
@@ -223,11 +238,13 @@ class Parameters:
              [255, 0, 255],
              ])
 
+        # ===================================
         # Data augmentation
         self.min_sample_rate = 0
         self.max_sample_rate = 40
+
         # Affine coefficient (elastic deformation)
-        self.alpha = 0.2
+        self.alpha = 0.19
 
         # Network hyperparameters
         self.dropout = 0.5

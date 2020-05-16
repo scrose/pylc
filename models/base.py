@@ -41,14 +41,19 @@ class Model:
         # build network
         self.build()
 
-        # initialize loss parameters
-        self.init_class_weight()
-        self.crit = MultiLoss(self.config.n_classes, self.cls_weight)
-        self.loss = RunningLoss(self.config)
+        # global iteration counter
         self.iter = 0
 
-        # Check for existing training results. If it exists, resume from
-        # previous training. If not, delete existing checkpoint.
+        # initialize loss parameters
+        self.cls_weight = self.init_class_weight()
+
+        # load loss handlers
+        self.crit = MultiLoss(self.config.n_classes, self.cls_weight)
+        self.loss = RunningLoss(self.config)
+
+        # ---- Model Training
+        # Check for existing checkpoint. If exists, resume from
+        # previous training. If not, delete the checkpoint.
         if config.type == params.TRAIN:
             self.augment = config.augment
             self.epoch = 0
@@ -58,7 +63,8 @@ class Model:
             self = self.ckpt.load(self)
             self.net.train()
 
-        # inference
+        # ----- Model Testing
+        # Initialize model test
         elif config.type == params.TEST:
             self.test = Evaluator(config)
             # self.net = torch.nn.DataParallel(self.net)
@@ -68,10 +74,19 @@ class Model:
 
     # Retrieve preprocessed class weights
     def init_class_weight(self):
-        path = params.get_path('metadata', self.config.dset, self.config.capture, 'train')
-        cls_weight = np.load(path, allow_pickle=True)
-        self.cls_weight = cls_weight.item().get('weights')
 
+        path = ''
+
+        # select dataset metadata file
+        if self.config.type == params.TRAIN:
+            path = params.get_path('metadata', params.COMBINED, self.config.capture, 'train')
+        if self.config.type == params.TEST:
+            path = params.get_path('metadata', params.COMBINED, self.config.capture, 'train')
+        else:
+            print("Error: Class weights could not be initialized.")
+
+        cls_weight = np.load(path, allow_pickle=True)
+        return cls_weight.item().get('weights')
 
     def activ_func(self, activ_type):
         return  torch.nn.ModuleDict([
@@ -124,10 +139,12 @@ class Model:
         # Enable CUDA on model
         if torch.cuda.is_available():
             print("\nCUDA enabled.")
+
         # Parallelize model on multiple GPUs
         if torch.cuda.device_count() > 1:
             print("\t{} GPUs in use.".format(torch.cuda.device_count()))
             #self.net = torch.nn.DataParallel(self.net)
+
         # Check multiprocessing enabled
         if torch.utils.data.get_worker_info():
             print('\tMulti-process data loading: {} workers enabled.'.format(torch.utils.data.get_worker_info().num_workers))
@@ -143,9 +160,8 @@ class Model:
             print('Optimizer is not defined.')
             exit()
 
-
-
     def init_sched(self):
+
         # (Optional) Scheduled learning rate step
         if self.config.sched == 'step_lr':
             return torch.optim.lr_scheduler.StepLR(self.optim, step_size=1, gamma=params.gamma)
@@ -158,9 +174,8 @@ class Model:
             print('Optimizer scheduler is not defined.')
             exit()
 
-
-
     def train(self, x, y):
+
         '''model training step'''
         # normalize input
         x -= 147
@@ -186,6 +201,7 @@ class Model:
         # zero gradients, compute, step, log losses,
         self.optim.zero_grad()
         loss.backward()
+
         # in-place normalization of gradients
         torch.nn.utils.clip_grad_norm_(self.net.parameters(), 0.5)
 
@@ -199,10 +215,10 @@ class Model:
 
         self.iter += 1
 
-
-
     def eval(self, x, y, test=False):
-        '''model test/validation step'''
+
+        """model test/validation step"""
+
         self.net.eval()
         # normalize
         x -= 147
@@ -218,6 +234,7 @@ class Model:
         if self.in_channels == 1:
             x = torch.cat((x, x, x), 1)
 
+        # run forward pass
         with torch.no_grad():
             y_hat = self.net.forward(x)
             ce = self.crit.ce_loss(y_hat, y).cpu().numpy()
@@ -227,14 +244,15 @@ class Model:
         if test:
             self.test.results += [y_hat]
 
-
     def log(self):
-        '''log ce/dice losses at defined intervals'''
+
+        """log ce/dice losses at defined intervals"""
+
         self.loss.log(self.iter, self.net.training)
         self.loss.save()
 
-
     def save(self, test=False):
+
         if test:
             self.test.save()
             self.loss.save()
@@ -245,16 +263,14 @@ class Model:
         for param_group in self.optim.param_groups:
             return param_group['lr']
 
-
+    """summarize model parameters"""
     def summary(self):
-        '''summarize model parameters'''
         try:
             from torchsummary import summary
             summary(self.net, input_size=(self.in_channels, params.input_size, params.input_size))
         except ImportError as e:
             print('Summary not available.')
             pass  # module doesn't exist, deal with it.
-
 
 
 class Checkpoint:
@@ -277,9 +293,8 @@ class Checkpoint:
         dir_path = os.path.join(params.paths['eval'][config.capture], config.label)
         self.model_file = os.path.join(utils.mk_path(dir_path), 'model.pth')
 
-
     def load(self, model):
-        ''' load checkpoint file for losses'''
+        """ load checkpoint file for losses"""
         if os.path.exists(self.ckpt_file):
             if self.config.resume:
                 print('Checkpoint found at {}! Resuming.'.format(self.ckpt_file))
@@ -291,7 +306,6 @@ class Checkpoint:
             else:
                 os.remove(self.ckpt_file)
         return model
-
 
     def save(self, model, is_best=False):
         # Save checkpoint state
@@ -309,7 +323,6 @@ class Checkpoint:
             }, self.model_file)
 
 
-
 class Evaluator:
     """
     Handles model test/evaluation
@@ -319,15 +332,14 @@ class Evaluator:
         self.report_intv = 3
         self.results = []
         # initialize save files
-        dir_path = os.path.join(params.paths['eval'][config.capture], config.label)
-        self.output_file = os.path.join(utils.mk_path(dir_path), 'output.pth')
-        self.model_file = os.path.join(utils.mk_path(dir_path), 'model.pth')
-
+        self.output_file = os.path.join(config.dir_path, config.label, 'output.pth')
+        self.model_file = os.path.join(config.dir_path, config.label, 'model.pth')
 
     def load(self, model):
-        ''' load model file for evaluation'''
+
+        """ load model file for evaluation"""
+
         if os.path.exists(self.model_file):
-            print('Loading pretrained model at {} ... '.format(self.model_file))
             model_pretrained = torch.load(self.model_file, map_location=params.device)
             try:
                 model.net.load_state_dict(model_pretrained["model"])
@@ -339,9 +351,6 @@ class Evaluator:
             exit()
         return model
 
-
     def save(self):
         # Save test results
-        torch.save({
-        "results": self.results,
-        }, self.output_file)
+        torch.save({"results": self.results}, self.output_file)
