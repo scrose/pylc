@@ -23,6 +23,7 @@ class Normalizer:
             ['none', None]
         ])[self.type]
 
+
 class Model:
     """
     Tracks model for training/validation/testing
@@ -55,7 +56,6 @@ class Model:
         # Check for existing checkpoint. If exists, resume from
         # previous training. If not, delete the checkpoint.
         if config.type == params.TRAIN:
-            self.augment = config.augment
             self.epoch = 0
             self.optim = self.init_optim()
             self.sched = self.init_sched()
@@ -81,7 +81,7 @@ class Model:
         if self.config.type == params.TRAIN:
             path = params.get_path('metadata', params.COMBINED, self.config.capture, 'train')
         if self.config.type == params.TEST:
-            path = params.get_path('metadata', params.COMBINED, self.config.capture, 'train')
+            path = params.get_path('metadata', params.COMBINED, self.config.capture, 'test')
         else:
             print("Error: Class weights could not be initialized.")
 
@@ -286,9 +286,11 @@ class Checkpoint:
         self.model = None
         self.optim = None
         self.config = config
+
         # save checkpoint in save folder
         dir_path = os.path.join(params.paths['save'][config.capture], config.label)
         self.ckpt_file = os.path.join(utils.mk_path(dir_path), 'checkpoint.pth')
+
         # save best model file in evaluation folder
         dir_path = os.path.join(params.paths['eval'][config.capture], config.label)
         self.model_file = os.path.join(utils.mk_path(dir_path), 'model.pth')

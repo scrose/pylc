@@ -93,7 +93,7 @@ def get_parser(action):
                          choices=["normal", "overfit", "summary"],
                          help="Training mode.")
 
-        arg.add_argument('--db', type=str2bool,
+        arg.add_argument('--db', type=str,
                          default='extract',
                          choices=['extract', 'augment'],
                          help='Select the training database.')
@@ -183,10 +183,6 @@ def get_parser(action):
         arg.add_argument("--batch_size", type=int,
                          default=6,
                          help="Size of each test batch")
-
-        arg.add_argument("--n_workers", type=int,
-                         default=6,
-                         help="Number of workers for multiprocessing.")
 
         arg.add_argument("--report", type=int,
                          default=5,

@@ -107,11 +107,11 @@ def main(config):
     # initialize config parameters based on capture type
     config = init_capture(config)
     print("\nTraining Experiment {}".format(config.label))
-    print("\n\tCapture Type: {}".format(config.capture))
-    print("\n\tDatabase: {}".format(config.db))
-    print("\n\tModel: {}".format(config.model))
-    print('\n\tInput channels: {}'.format(config.in_channels))
-    print('\n\tClasses: {}'.format(config.n_classes))
+    print("\tCapture Type: {}".format(config.capture))
+    print("\tDatabase: {}".format(config.db))
+    print("\tModel: {}".format(config.model))
+    print('\tInput channels: {}'.format(config.in_channels))
+    print('\tClasses: {}'.format(config.n_classes))
 
     # Build model from hyperparameters
     model = Model(config)

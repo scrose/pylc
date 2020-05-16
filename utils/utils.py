@@ -95,9 +95,11 @@ def merge_classes(data_tensor, merged_classes):
 
 # -----------------------------------
 # Convert RBG mask array to class-index encoded values
-# input form: NCWH with RGB-value encoding, where C = RGB (3)
-# Palette parameters in form [CC'], where C = number of classes, C' = 3 (RGB)
-# output form: NCWH with one-hot encoded classes, where C = number of classes
+# Input format:
+#  - [NCWH] with RGB-value encoding, where C = RGB (3)
+#  - Palette parameters in form [CC'], where C = number of classes, C' = 3 (RGB)
+# Output format:
+#  - [NCWH] with one-hot encoded classes, where C = number of classes
 # -----------------------------------
 def class_encode(input_data, palette):
 
@@ -156,7 +158,9 @@ def elastic_transform(image, mask, alpha_affine, random_state=None):
     return image, mask
 
 
+# -----------------------------------
 # Show image sample
+# -----------------------------------
 def show_sample(x, y, pad=False, save_dir='./eval'):
     import cv2, os, datetime
     import matplotlib.pyplot as plt
@@ -195,13 +199,16 @@ def show_sample(x, y, pad=False, save_dir='./eval'):
     plt.savefig(os.path.join(save_dir, str(fname + '.png')), dpi=200)
 
 
+# -----------------------------------
 # Load image pairs by extension
+# -----------------------------------
 def load_files(path, exts):
     assert os.path.exists(path), 'Directory path {} does not exist.'.format(path)
     return list(sorted([f for f in os.listdir(path) if any(ext in f for ext in exts)]))
 
-
+# -----------------------------------
 # Create directory
+# -----------------------------------
 def mk_path(path):
     # Make path if directory does not exist
     if not os.path.exists(path):
