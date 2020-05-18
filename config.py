@@ -154,15 +154,15 @@ def get_parser(action):
                          help="Run mode")
 
         arg.add_argument('--dir_path', type=str,
-                         default='/Users/boutrous/Workspace/MLP/experiments/',
+                         default='./data/eval/',
                          help='Experiment files directory.')
 
         arg.add_argument('--img_path', type=str,
-                         default='/Users/boutrous/Workspace/MLP/mountain-legacy-project/data/raw/jean/repeat/test/img/ri-0042.tif',
+                         default='./data/raw/jean/repeat/test/img/ri-0042.tif',
                          help='Path to test image.')
 
         arg.add_argument('--mask_path', type=str,
-                         default='/Users/boutrous/Workspace/MLP/mountain-legacy-project/data/raw/jean/repeat/test/mask/ri-0042.png',
+                         default='./data/raw/jean/repeat/test/mask/ri-0042.png',
                          help='Path to mask image.')
 
         arg.add_argument('--model', type=str,
