@@ -26,6 +26,11 @@ def get_parser(action):
                      default='',
                      help='Show configuration parameters.')
 
+    arg.add_argument('--db', type=str,
+                     default='extract',
+                     choices=['extract', 'augment'],
+                     help='Select the training database.')
+
     arg.add_argument('--db_path', type=str,
                      default='',
                      help='Path to main data directory for paths.json.')
@@ -68,11 +73,6 @@ def get_parser(action):
                          choices=["extract", "profile", "augment"],
                          help="Preprocess action to run.")
 
-        arg.add_argument("--db", type=str,
-                         default='extract',
-                         choices=["extract", "augment"],
-                         help="Database to process.")
-
         arg.add_argument("--pad", type=str2bool,
                          default=False,
                          help="Pad extracted images (Optional - use for UNet model).")
@@ -92,11 +92,6 @@ def get_parser(action):
                          default="normal",
                          choices=["normal", "overfit", "summary"],
                          help="Training mode.")
-
-        arg.add_argument('--db', type=str,
-                         default='extract',
-                         choices=['extract', 'augment'],
-                         help='Select the training database.')
 
         arg.add_argument('--pretrained', type=str,
                          default='',
