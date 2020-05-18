@@ -375,6 +375,11 @@ def main(cf, parser):
         sample_rates = aug_optim.get('rates')
         print('done.')
 
+        print('\nAugmentation Optimization Summary:')
+        print('\tThreshold: {}\n \tRate Coefficient: {}\n\tAugmentation Samples: {}\n\tOversample Max: {}\n\n'.format(
+            aug_optim.get('threshold'), aug_optim.get('rate_coef'),
+            aug_optim.get('aug_n_samples'), aug_optim.get('rate_max')))
+
         # over-sample minority classes (uses pre-calculated sample rates)
         print('\nOversampling ... '.format(metadata_path), end='')
         aug_data = oversample(dloader, dset_size, sample_rates, cf)
