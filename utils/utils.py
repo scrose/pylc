@@ -206,6 +206,7 @@ def load_files(path, exts):
     assert os.path.exists(path), 'Directory path {} does not exist.'.format(path)
     return list(sorted([f for f in os.listdir(path) if any(ext in f for ext in exts)]))
 
+
 # -----------------------------------
 # Create directory
 # -----------------------------------

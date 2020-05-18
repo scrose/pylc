@@ -84,7 +84,9 @@ class Model:
             path = params.get_path('metadata', params.COMBINED, self.config.capture, params.TEST)
         else:
             print("Error: Class weights could not be initialized.")
+            exit(1)
 
+        print("\nLoading class weights from {}.".format(path))
         cls_weight = np.load(path, allow_pickle=True)
         return cls_weight.item().get('weights')
 

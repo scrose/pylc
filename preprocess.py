@@ -58,14 +58,14 @@ def extract_subimages(files, cf):
         # Merge dataset if palette mapping is provided
         print('\tConverting masks to class index encoding ... ', end='')
         if 'fortin' == dset:
-            # Encode masks to 1-hot encoding [NWH format] 11-class palette
+            # Encode masks to class encoding [NWH format] using LCC-B palette
             mask_data = utils.class_encode(mask_data, params.palette)
             print('done.')
             print('\tMerging current palette to alt palette ... ', end='')
             mask_data = utils.merge_classes(mask_data, params.categories_merged_alt)
             print('done.')
         else:
-            # Encode masks to 1-hot encoding [NWH format] 9-class palette
+            # Encode masks to class encoding [NWH format] using LCC-A palette
             mask_data = utils.class_encode(mask_data, params.palette_alt)
             print('done.')
 
@@ -138,8 +138,8 @@ def oversample(dloader, dsize, rates, cf):
 # -----------------------------
 # Calculates class distribution for extraction dataset
 # Also: calculates sample metrics and statistics
-# Input: class-encoded mask data
-# Output: pixel distribution, class weights, other metrics/analytics
+# Input: [Tensor] class-encoded mask data
+# Output: [Numpy] pixel distribution, class weights, other metrics/analytics
 # -----------------------------
 def profile(dloader, dsize, cf):
     # Obtain overall class stats for dataset
@@ -391,7 +391,7 @@ def main(cf, parser):
         print('\tAugmentation Dataset size: {} / Batch size: {}'.format(dset_size, cf.batch_size))
 
         # Profile augmentation data
-        aug_metadata_path = params.get_path('metadata', cf.dset, cf.capture, cf.mode)
+        aug_metadata_path = params.get_path('metadata', cf.dset, cf.capture, params.AUGMENT)
         aug_metadata = profile(dloader, dset_size, cf)
 
         # save augmentation profile data to file
