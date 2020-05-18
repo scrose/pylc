@@ -112,10 +112,10 @@ class Parameters:
 
         self.mask_categories_alt = {
             '#000000': 'Not categorized',
-            '#ffa500': 'Broadleaf/Mixedwood forest',
-            '#228b22': 'Coniferous forest',
+            '#ffa500': 'Broadleaf/Mixedwood',
+            '#228b22': 'Coniferous',
             '#7cfc00': 'Herbaceous/Shrub',
-            '#8b4513': 'Sand/gravel/rock',
+            '#8b4513': 'Sand/Gravel/Rock',
             '#5f9ea0': 'Wetland',
             '#0000ff': 'Water',
             '#2dbdff': 'Snow/Ice',

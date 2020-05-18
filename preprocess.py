@@ -416,7 +416,7 @@ def main(cf, parser):
         # set batch size to single
         cf.batch_size = 1
 
-        print("Starting {}/{} pixel class profiling ... ".format(cf.capture, cf.mode))
+        print("Starting {}/{} pixel class profiling ... ".format(cf.capture, cf.db))
         metadata_path = params.get_path('metadata', cf.dset, cf.capture, cf.db)
 
         # Load extraction/augmentation data
