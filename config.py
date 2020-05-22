@@ -31,10 +31,6 @@ def get_parser(action):
                      choices=['extract', 'augment'],
                      help='Select the training database.')
 
-    arg.add_argument('--db_path', type=str,
-                     default='',
-                     help='Path to main data directory for paths.json.')
-
     arg.add_argument("--dset", type=str,
                      default="combined",
                      choices=["fortin", "jean", "combined"],
@@ -92,6 +88,10 @@ def get_parser(action):
                          default="normal",
                          choices=["normal", "overfit", "summary"],
                          help="Training mode.")
+
+        arg.add_argument('--db_path', type=str,
+                         default='',
+                         help='Path to training database (overrides default in paths.json).')
 
         arg.add_argument('--pretrained', type=str,
                          default='',

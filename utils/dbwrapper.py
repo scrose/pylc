@@ -17,7 +17,7 @@ class MLPDataset(torch.utils.data.IterableDataset):
         config: User configuration
     '''
 
-    def __init__(self, config, db_path = None, partition = None):
+    def __init__(self, config, db_path=None, partition=None):
         super(MLPDataset).__init__()
 
         # initialize dataset parameters
@@ -195,12 +195,16 @@ def load_data(config, mode):
 
     # Training datasets
     if mode == 'train':
-        # load datasets and loaders
+
+        # Check for db path override
+        if config.db_path:
+            db_path = config.db_path
+        else:
+            db_path = params.get_path('db', config.dset, config.capture, config.db)
+
         # Note training/validation dataset partition fraction set in parameters
-        tr_dset = MLPDataset(config, db_path=params.get_path('db', config.dset, config.capture, config.db),
-                             partition=(0, 1 - params.partition))
-        va_dset = MLPDataset(config, db_path=params.get_path('db', config.dset, config.capture, config.db),
-                             partition=(1 - params.partition, 1.))
+        tr_dset = MLPDataset(config, db_path=db_path, partition=(0, 1 - params.partition))
+        va_dset = MLPDataset(config, db_path=db_path, partition=(1 - params.partition, 1.))
 
         # create data loaders
         tr_dloader = torch.utils.data.DataLoader(tr_dset,
