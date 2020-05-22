@@ -66,7 +66,7 @@ def epoch(model, dloader, n_batches):
 
         # check if training data is to be grayscaled
         if model.config.grayscale:
-            x = x.to(torch.float32).mean(dim=1)
+            x = x.to(torch.float32).mean(dim=1).unsqueeze(1)
 
         print(x.shape, y.shape)
 
@@ -88,7 +88,7 @@ def validate(model, dloader, n_batches):
 
             # check if training data is to be grayscaled
             if model.config.grayscale:
-                x = x.to(torch.float32).mean(dim=1)
+                x = x.to(torch.float32).mean(dim=1).unsqueeze(1)
 
             print(x.shape, y.shape)
 
@@ -127,6 +127,7 @@ def main(config):
     print("\tCapture Type: {}".format(config.capture))
     print("\tDatabase: {}".format(config.db))
     print("\tModel: {}".format(config.model))
+    print('\tForce Grayscale: {}'.format(config.grayscale))
     print('\tInput channels: {}'.format(config.in_channels))
     print('\tClasses: {}'.format(config.n_classes))
 
