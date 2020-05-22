@@ -84,9 +84,13 @@ def validate(model, dloader, n_batches):
     with torch.no_grad():
         for i, (x, y) in tqdm(enumerate(dloader), total=n_batches, desc="Validating: ", unit=' batches'):
 
+            print(x.shape, y.shape)
+
             # check if training data is to be grayscaled
             if model.config.grayscale:
                 x = x.to(torch.float32).mean(dim=1)
+
+            print(x.shape, y.shape)
 
             model.eval(x, y)
         model.log()
