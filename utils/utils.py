@@ -38,6 +38,7 @@ def jsd(p, q):
 # -----------------------------------
 def get_image(image_path, img_ch=3):
     assert img_ch == 3 or img_ch == 1, 'Invalid input channel number.'
+    assert os.path.exists(image_path), 'Image path {} does not exist.'.format(image_path)
     image = None
     if img_ch == 1:
         image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)

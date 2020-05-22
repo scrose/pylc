@@ -125,28 +125,20 @@
   },
   "save" : {
     "historic" : "./save/historic/",
-    "historic_aug" : "./save/historic_aug/",
-    "repeat" : "./save/repeat/",
-    "repeat_aug" : "./save/repeat_aug/"
+    "repeat" : "./save/repeat/"
   },
   "logs" : {
     "train" : {
       "historic" : "./logs/train/historic/",
-      "historic_aug" : "./logs/train/historic_aug/",
-      "repeat" : "./logs/train/repeat/",
-      "repeat_aug" : "./logs/train/repeat_aug/"
+      "repeat" : "./logs/train/repeat/"
     },
     "test" : {
       "historic" : "./logs/test/historic/",
-      "historic_aug" : "./logs/test/historic_aug/",
-      "repeat" : "./logs/test/repeat/",
-      "repeat_aug" : "./logs/test/repeat_aug/"
+      "repeat" : "./logs/test/repeat/"
     }
   },
   "eval" : {
     "historic" : "./eval/historic/",
-    "historic_aug" : "./eval/historic_aug/",
-    "repeat" : "./eval/repeat/",
-    "repeat_aug" : "./eval/repeat_aug/"
+    "repeat" : "./eval/repeat/"
   }
 }

@@ -1,9 +1,9 @@
 import math
-import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.model_zoo as model_zoo
 from models.sync_batchnorm.batchnorm import SynchronizedBatchNorm2d
+
 
 def fixed_padding(inputs, kernel_size, dilation):
     kernel_size_effective = kernel_size + (kernel_size - 1) * (dilation - 1)
@@ -243,7 +243,6 @@ class AlignedXception(nn.Module):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
 
-
     def _load_pretrained_model(self):
         pretrain_dict = model_zoo.load_url('http://data.lip6.fr/cadene/pretrainedmodels/xception-b5690688.pth')
         model_dict = {}
@@ -276,7 +275,6 @@ class AlignedXception(nn.Module):
                     model_dict[k] = v
         state_dict.update(model_dict)
         self.load_state_dict(state_dict)
-
 
 
 if __name__ == "__main__":

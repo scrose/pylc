@@ -56,10 +56,15 @@ def train(config, model):
 
 # -----------------------------
 # Training loop for single epoch
+# Input Format: [NCWH]
 # -----------------------------
 def epoch(model, dloader, n_batches):
     model.net.train()
     for i, (x, y) in tqdm(enumerate(dloader), total=n_batches, desc="Training: ", unit=' batches'):
+
+        # check if training data is to be grayscaled
+        if model.config.grayscale:
+            x = x.to(torch.float32).mean(dim=1)
 
         # train with main dataset
         model.train(x, y)
@@ -124,7 +129,7 @@ def main(config):
         params.clip = params.clip_overfit
         config.batch_size = 1
         train(config, model)
-    elif config.mode == 'summary':
+    elif config.mode == params.SUMMARY:
         # summarize the model parameters
         model.summary()
         print(model.net)

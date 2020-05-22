@@ -137,6 +137,10 @@ def get_parser(action):
                          default=20,
                          help="Report interval (unit: iterations).")
 
+        arg.add_argument("--grayscale", type=str2bool,
+                         default=False,
+                         help="Whether to reduce RGB training images to grayscale.")
+
         arg.add_argument("--resume", type=str2bool,
                          default=False,
                          help="Whether to resume training from existing checkpoint")
@@ -150,7 +154,7 @@ def get_parser(action):
 
         arg.add_argument("--mode", type=str,
                          default="normal",
-                         choices=["normal", "tune"],
+                         choices=["normal", "colourized", "tune"],
                          help="Run mode")
 
         arg.add_argument('--dir_path', type=str,
@@ -158,11 +162,11 @@ def get_parser(action):
                          help='Experiment files directory.')
 
         arg.add_argument('--img_path', type=str,
-                         default='./data/raw/jean/repeat/test/img/ri-0042.tif',
+                         default='',
                          help='Path to test image.')
 
         arg.add_argument('--mask_path', type=str,
-                         default='./data/raw/jean/repeat/test/mask/ri-0042.png',
+                         default='',
                          help='Path to mask image.')
 
         arg.add_argument('--model', type=str,

@@ -8,6 +8,7 @@ from models.utils.aspp import build_aspp
 from models.backbone import resnet
 from models.decoder import build_decoder
 
+
 class DeepLab(nn.Module):
     def __init__(self, activ_func, normalizer, backbone='resnet', output_stride=16, n_classes=11, freeze_bn=False):
         super(DeepLab, self).__init__()
@@ -23,7 +24,6 @@ class DeepLab(nn.Module):
         x = self.aspp(x)
         x = self.decoder(x, low_level_feat)
         x = F.interpolate(x, size=input.size()[2:], mode='bilinear', align_corners=True)
-
         return x
 
     def freeze_bn(self):

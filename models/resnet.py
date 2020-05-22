@@ -26,7 +26,6 @@ def activation_func(activation):
     ])[activation]
 
 
-
 class ResNet(nn.Module):
 
     def __init__(self, in_channels, n_classes, *args, **kwargs):
@@ -40,7 +39,6 @@ class ResNet(nn.Module):
         print(x.shape, x)
         exit()
         return x
-
 
 
 class ResidualBlock(nn.Module):
@@ -64,7 +62,6 @@ class ResidualBlock(nn.Module):
         return self.in_channels != self.out_channels
 
 
-
 class ResNetResidualBlock(ResidualBlock):
     def __init__(self, in_channels, out_channels, expansion=1, downsampling=1, conv=conv3x3, *args, **kwargs):
         super().__init__(in_channels, out_channels)
@@ -73,7 +70,6 @@ class ResNetResidualBlock(ResidualBlock):
             nn.Conv2d(self.in_channels, self.expanded_channels, kernel_size=1,
                       stride=self.downsampling, bias=False),
             nn.BatchNorm2d(self.expanded_channels)) if self.should_apply_shortcut else None
-
 
     @property
     def expanded_channels(self):
@@ -216,7 +212,6 @@ class ResNetEncoder(nn.Module):
                           block=block, *args, **kwargs)
               for (in_channels, out_channels), n in zip(self.in_out_block_sizes, depths[1:])]
         ])
-
 
     def forward(self, x):
         x = self.gate(x)

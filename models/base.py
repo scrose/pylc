@@ -98,9 +98,10 @@ class Model:
             ['none', torch.nn.Identity()]
         ])[activ_type]
 
-
     def build(self):
-        '''build neural network model from hyperparameters'''
+
+        """build neural network model from hyperparameters"""
+
         # UNet
         if self.config.model == 'unet':
             self.net = UNet(
@@ -113,6 +114,7 @@ class Model:
                 )
             self.net = self.net.to(params.device)
             self.crop_target = True
+
         # Alternate Residual UNet
         elif self.config.model == 'resunet':
             self.net = ResUNet(
@@ -125,7 +127,8 @@ class Model:
                 )
             self.net = self.net.to(params.device)
             self.crop_target = True
-        # Alternate UNet (small)
+
+        # DeepLab3+
         elif self.config.model == 'deeplab':
             self.net = DeepLab(
                 activ_func=self.activ_func('relu'),
@@ -151,8 +154,8 @@ class Model:
         if torch.utils.data.get_worker_info():
             print('\tMulti-process data loading: {} workers enabled.'.format(torch.utils.data.get_worker_info().num_workers))
 
-
     def init_optim(self):
+
         # select optimizer
         if self.config.optim == 'adam':
             return torch.optim.AdamW(self.net.parameters(), lr=self.config.lr, weight_decay=params.weight_decay)
@@ -178,7 +181,8 @@ class Model:
 
     def train(self, x, y):
 
-        '''model training step'''
+        """model training step"""
+
         # normalize input
         x -= 147
         x /= 68
@@ -222,6 +226,7 @@ class Model:
         """model test/validation step"""
 
         self.net.eval()
+
         # normalize
         x -= 147
         x /= 68
@@ -266,6 +271,7 @@ class Model:
             return param_group['lr']
 
     """summarize model parameters"""
+
     def summary(self):
         try:
             from torchsummary import summary
@@ -276,9 +282,8 @@ class Model:
 
 
 class Checkpoint:
-    """
-    Tracks model for training/validation/testing
-    """
+
+    """ Tracks model for training/validation/testing """
 
     def __init__(self, config):
 
@@ -336,7 +341,7 @@ class Evaluator:
         self.report_intv = 3
         self.results = []
         # initialize save files
-        self.output_file = os.path.join(config.dir_path, config.label, 'output.pth')
+        self.output_file = os.path.join(config.dir_path, config.label, config.dset + '_output.pth')
         self.model_file = os.path.join(config.dir_path, config.label, 'model.pth')
 
     def load(self, model):

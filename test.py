@@ -34,9 +34,22 @@ def test(config, model):
 
     """ Test trained model """
 
+    if config.mode == params.COLOURIZED:
+        # Load colourized image data
+        print("\nLoading colourized image data.")
+        img_data = torch.load(config.img_path).permute(0, 3, 2, 1).int()
+        print(img_data.shape)
+        img_data = torch.reshape(img_data, (img_data.shape[0]*img_data.shape[1], img_data.shape[2], img_data.shape[3]))
+        img_data = img_data.permute(1, 0, 2)
+
     # Load test image data subimages [NCWH]
-    img_data = torch.as_tensor(utils.get_image(config.img_path, config.in_channels), dtype=torch.float32)
+    else:
+        img_data = torch.as_tensor(utils.get_image(config.img_path, config.in_channels), dtype=torch.float32)
+
     print('\tTest image {} / Shape: {}'.format(config.img_path, img_data.shape))
+
+    # Create image tiles
+    print("\nCreating test image tiles ... ")
     img_data = img_data.unfold(0, params.patch_size, params.patch_size).unfold(1, params.patch_size, params.patch_size)
     img_data = torch.reshape(img_data, (img_data.shape[0]*img_data.shape[1], config.in_channels, params.patch_size, params.patch_size) )
     print('\tImage Patches {} / Shape: {}'.format(img_data.shape[0], img_data.shape))
@@ -62,13 +75,9 @@ def test(config, model):
         print('done.')
 
     print('\tMask Patches {} / Shape: {}'.format(mask_data.shape[0], mask_data.shape))
-
     assert img_data.shape[0] == mask_data.shape[0], 'Image dimensions must match mask dimensions.'
-
     n_samples = int(img_data.shape[0] * config.clip)
-
     print('\n\tNumber of samples: {} (clip: {})'.format(n_samples, config.clip))
-
     assert img_data.shape[0] == mask_data.shape[0], 'Different number of image and mask samples generated.'
 
     print('\nApplying model ... ')
@@ -79,13 +88,11 @@ def test(config, model):
             x = img_data[i].unsqueeze(0).float()
             y = mask_data[i].unsqueeze(0).long()
 
-            if model.n_classes == 4:
-                y = utils.merge_classes(y)
-
             model.eval(x, y, test=True)
             model.log()
-
             model.iter += 1
+
+            # (Optional) clip the dataset to show limited samples
             if model.iter == int(config.clip * n_samples):
                 model.save(test=True)
                 print("Output data saved to {}.".format(model.test.output_file))
@@ -127,7 +134,9 @@ def main(config):
     print("\nPretrained model loaded.", end='')
 
     if config.mode == params.NORMAL:
-        print("\nRunning test ... ")
+        test(config, model)
+    elif config.mode == params.COLOURIZED:
+        config.in_channels = 3
         test(config, model)
     else:
         raise ValueError("Unknown run mode \"{}\"".format(config.mode))

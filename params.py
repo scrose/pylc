@@ -43,6 +43,8 @@ class Parameters:
         self.RATES = 'rates'
         self.TUNE = 'tune'
         self.NORMAL = 'normal'
+        self.SUMMARY = 'summary'
+        self.COLOURIZED = 'colourized'
         self.OVERFIT = 'overfit'
         self.dsets = ['jean', 'fortin']
         self.COMBINED = 'combined'
@@ -124,10 +126,10 @@ class Parameters:
 
         self.category_labels_alt = [
             'Not categorized',
-            'Broadleaf/Mixedwood forest',
-            'Coniferous forest',
+            'Broadleaf/Mixedwood',
+            'Coniferous',
             'Herbaceous/Shrub',
-            'Sand/gravel/rock',
+            'Sand/Gravel/Rock',
             'Wetland',
             'Water',
             'Snow/Ice',
