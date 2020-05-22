@@ -92,15 +92,14 @@ def init_capture(config):
     if config.capture == 'historic':
         config.n_classes = 9
         config.in_channels = 1
-    elif config.capture == 'historic_merged':
-        config.n_classes = 4
-        config.in_channels = 1
     elif config.capture == 'repeat':
         config.n_classes = 9
         config.in_channels = 3
-    elif config.capture == 'repeat_merged':
-        config.n_classes = 4
-        config.in_channels = 3
+
+    # Reduce to single channel
+    if config.grayscale:
+        config.in_channels = 1
+
     return config
 
 
