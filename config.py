@@ -110,6 +110,14 @@ def get_parser(action):
                          choices=['unet', 'resnet', 'resunet', 'deeplab'],
                          help='Network model architecture.')
 
+        arg.add_argument("--ce_weight", type=float,
+                         default=0.5,
+                         help="Weight applied to Cross Entropy losses for backpropagation.")
+
+        arg.add_argument("--dice_weight", type=float,
+                         default=0.5,
+                         help="Weight applied to Dice losses for backpropagation.")
+
         arg.add_argument('--up_mode', type=str,
                          default='upsample',
                          choices=["upconv", "upsample"],

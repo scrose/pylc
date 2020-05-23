@@ -49,7 +49,7 @@ class Model:
         self.cls_weight = self.init_class_weight()
 
         # load loss handlers
-        self.crit = MultiLoss(self.config.n_classes, self.cls_weight)
+        self.crit = MultiLoss(self.config, self.cls_weight)
         self.loss = RunningLoss(self.config)
 
         # ---- Model Training

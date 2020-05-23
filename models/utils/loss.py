@@ -14,16 +14,16 @@ class MultiLoss(object):
     """A simple wrapper for loss computation."""
 
     def __init__(self,
-                 n_classes,
+                 config,
                  cls_weight,
                  eps=1e-10,
                  gamma=0.9
                  ):
         super(MultiLoss, self).__init__()
-        self.n_classes = n_classes
+        self.n_classes = config.n_classes
         self.cls_weight = cls_weight
-        self.dice_weight = params.dice_weight
-        self.ce_weight = params.ce_weight
+        self.dice_weight = config.dice_weight
+        self.ce_weight = config.ce_weight
         self.eps = eps
         self.gamma = gamma
 
@@ -61,9 +61,13 @@ class MultiLoss(object):
         assert y_pred.size(2) == y_true.size(1)
         assert y_pred.size(3) == y_true.size(2)
 
-        return self.ce_loss(y_pred, y_true)
+        # Combine ratio of losses (specified in parameters)
+        ce_loss = self.ce_loss(y_pred, y_true)
+        dice_loss = self.dice_loss(y_pred, y_true)
 
-    # Multiclass (soft) dice loss function
+        return self.ce_weight * ce_loss + self.dice_weight * dice_loss
+
+        # Multiclass (soft) dice loss function
     def dice_loss(self, y_pred, y_true):
         """Computes the Sørensen–Dice loss.
         Note that PyTorch optimizers minimize a loss. In this
