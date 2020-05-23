@@ -417,7 +417,12 @@ def main(cf, parser):
         cf.batch_size = 1
 
         print("Starting {}/{} pixel class profiling ... ".format(cf.capture, cf.db))
-        metadata_path = params.get_path('metadata', cf.dset, cf.capture, cf.db)
+        print("Profiling Data: {}/{}".format(cf.capture, cf.dset))
+        print('\tDatabase: {}'.format(cf.db))
+        print('\tClasses: {}'.format(cf.n_classes))
+
+        metadata_path = params.get_path(params.META, cf.dset, cf.capture, cf.db)
+        print('\tDB Path: {}'.format(metadata_path))
 
         # Load extraction/augmentation data
         dloader, dsize = load_data(cf, 'preprocess')

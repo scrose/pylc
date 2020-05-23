@@ -113,7 +113,7 @@
         "extract": "data/metadata/combined/historic/mlp_extract_profile.npy",
         "sample_rates": "data/metadata/combined/historic/mlp_sample_rates.npy",
         "augment": "data/metadata/combined/historic/mlp_augment_profile.npy",
-        "merge": "data/metadata/historic/mlp_merge_profile.npy",
+        "merge": "data/metadata/combined/historic/mlp_merge_profile.npy",
         "train": "data/metadata/combined/historic/mlp_train_profile.npy"
       },
       "repeat": {

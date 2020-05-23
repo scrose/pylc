@@ -38,7 +38,7 @@ def get_parser(action):
 
     arg.add_argument('--capture', type=str,
                      default='repeat',
-                     choices=["repeat", "historic", "repeat_merged", "historic_merged", "custom"],
+                     choices=["repeat", "historic", "custom"],
                      help='Image capture/mask type.')
 
     arg.add_argument('--label', type=str,

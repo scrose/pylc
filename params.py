@@ -36,6 +36,7 @@ class Parameters:
         self.VALID = 'valid'
         self.TEST = 'test'
         self.PREPROCESS = 'preprocess'
+        self.META = 'metadata'
         self.AUGMENT = 'augment'
         self.EXTRACT = 'extract'
         self.AUGMENT = 'augment'
