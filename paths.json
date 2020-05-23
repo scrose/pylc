@@ -70,7 +70,8 @@
     "combined": {
       "historic": {
         "extract": "data/db/combined/historic/mlp_extract.h5",
-        "augment": "data/db/combined/historic/mlp_augment.h5"
+        "augment": "data/db/combined/historic/mlp_augment.h5",
+        "merge": "data/db/combined/historic/mlp_merged.h5"
       },
       "repeat": {
         "extract": "data/db/combined/repeat/mlp_extract.h5",

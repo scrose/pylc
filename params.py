@@ -44,10 +44,12 @@ class Parameters:
         self.TUNE = 'tune'
         self.NORMAL = 'normal'
         self.SUMMARY = 'summary'
-        self.COLOURIZED = 'colourized'
+        self.MERGE = 'merge'
         self.OVERFIT = 'overfit'
-        self.dsets = ['jean', 'fortin']
         self.COMBINED = 'combined'
+
+        # list of available datasets
+        self.dsets = ['jean', 'fortin']
 
         # general data paths
         self.src_db = None

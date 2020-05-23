@@ -125,7 +125,7 @@ def main(config):
     config = init_capture(config)
 
     print("\nRunning test on {} model\n\tMode: {}\n\tCapture Type: {}".format(config.model, config.mode, config.capture))
-    print('\tTrial: {}\n\tDataset: {}'.format(config.label, config.dset))
+    print('\tExperiment: {}\n\tDataset: {}'.format(config.label, config.dset))
     print('\tInput channels: {}\n\tClasses: {}'.format(config.in_channels, config.n_classes))
     print('\tTest Image: {}'.format(config.img_path))
     print('\tTest Mask: {}'.format(config.mask_path))

@@ -432,10 +432,74 @@ def main(cf, parser):
             np.save(metadata_path, metadata)
             print('done.')
 
+    # -----------------------------
+    # Merge Historic with Grayscaled Repeat databases
+    # -----------------------------
+    # Merge extraction/augmentation databases
+    # -----------------------------
+    elif cf.mode == params.MERGE:
+
+        # set batch size to single
+        cf.batch_size = 1
+        idx = 0
+
+        # initialize merged database
+        db = DB(cf)
+        db_path_merged = params.get_path('db', params.COMBINED, cf.capture, params.MERGE)
+
+        print("Merging databases: \n\tHistoric: {}\n\tRepeat: {} ... ".format(cf.db_historic, cf.db_repeat))
+        print('\tMerged Capture: {}'.format(cf.capture))
+        print('\tMerged Classes: {}'.format(cf.n_classes))
+        print('\tMerged Channels: {}'.format(cf.in_channels))
+
+        # Load databases into loader
+        dloader_1, dset_size_1, db_size_1, dloader_2, dset_size_2, db_size_2 = load_data(cf, params.MERGE)
+        print('\tDataset 1 (Historic) size: {} / Batch size: {}'.format(dset_size_1, cf.batch_size))
+        print('\tDataset 2 (Repeat) size: {} / Batch size: {}'.format(dset_size_2, cf.batch_size))
+
+        # iterate data loader
+        # initialize main image arrays
+        patch_size = params.patch_size
+        merged_imgs = np.empty((dset_size_1 + dset_size_2, cf.in_channels, patch_size, patch_size), dtype=np.uint8)
+        merged_masks = np.empty((dset_size_1 + dset_size_2, patch_size, patch_size), dtype=np.uint8)
+
+        # copy database 1 to merged database
+        print('\nCopying Historic database ... ', end='')
+        for i, data in tqdm(enumerate(dloader_1), total=dset_size_1 // cf.batch_size, unit=' batches'):
+            img, mask = data
+            np.copyto(merged_imgs[idx:idx + 1, ...], img.numpy().astype(np.uint8))
+            np.copyto(merged_masks[idx:idx + 1, ...], mask.numpy().astype(np.uint8))
+            idx += 1
+
+        print('\nCopying + grayscaling Repeat database ... ', end='')
+        for i, data in tqdm(enumerate(dloader_2), total=dset_size_2 // cf.batch_size, unit=' batches'):
+            img, mask = data
+
+            # Grayscale image
+            img_gray = img.to(torch.float32).mean(dim=1).unsqueeze(1).to(torch.uint8)
+
+            np.copyto(merged_imgs[idx:idx + 1, ...], img_gray.numpy().astype(np.uint8))
+            np.copyto(merged_masks[idx:idx + 1, ...], mask.numpy().astype(np.uint8))
+            idx += 1
+
+        # Shuffle data
+        print('\nShuffling ... ', end='')
+        idx_arr = np.arange(len(merged_imgs))
+        np.random.shuffle(idx_arr)
+        merged_imgs = merged_imgs[idx_arr]
+        merged_masks = merged_masks[idx_arr]
+        print('done.')
+
+        data = {'img': merged_imgs, 'mask': merged_masks}
+
+        # save merged database file
+        db.save(data, path=db_path_merged)
+
+
+    # mode is not found
     else:
         print("Unknown preprocessing action: \"{}\"".format(cf.mode))
         parser.print_usage()
-
 
 # -----------------------------
 # Main Execution Routine

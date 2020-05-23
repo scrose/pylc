@@ -62,13 +62,9 @@ def epoch(model, dloader, n_batches):
     model.net.train()
     for i, (x, y) in tqdm(enumerate(dloader), total=n_batches, desc="Training: ", unit=' batches'):
 
-        print(x.shape, y.shape)
-
-        # check if training data is to be grayscaled
-        if model.config.grayscale:
+        # check if training data is RGB to be grayscaled
+        if model.config.grayscale and x.shape[1] == 3:
             x = x.to(torch.float32).mean(dim=1).unsqueeze(1)
-
-        print(x.shape, y.shape)
 
         # train with main dataset
         model.train(x, y)
@@ -84,13 +80,9 @@ def validate(model, dloader, n_batches):
     with torch.no_grad():
         for i, (x, y) in tqdm(enumerate(dloader), total=n_batches, desc="Validating: ", unit=' batches'):
 
-            print(x.shape, y.shape)
-
-            # check if training data is to be grayscaled
-            if model.config.grayscale:
+            # check if training data is RGB to be grayscaled
+            if model.config.grayscale and x.shape[1] == 3:
                 x = x.to(torch.float32).mean(dim=1).unsqueeze(1)
-
-            print(x.shape, y.shape)
 
             model.eval(x, y)
         model.log()

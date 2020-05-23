@@ -242,6 +242,22 @@ def load_data(config, mode):
 
         return aug_dloader, aug_dset.db.dset_size, aug_dset.db.size
 
+    # merge two existing databases
+    elif mode == params.MERGE:
+        db1 = MLPDataset(config, db_path=config.db_historic)
+        db2 = MLPDataset(config, db_path=config.db_repeat)
+        db1_dloader = torch.utils.data.DataLoader(db1,
+                                                   batch_size=config.batch_size,
+                                                   num_workers=config.n_workers,
+                                                   pin_memory=torch.cuda.is_available(),
+                                                   drop_last=False)
+        db2_dloader = torch.utils.data.DataLoader(db2,
+                                          batch_size=config.batch_size,
+                                          num_workers=config.n_workers,
+                                          pin_memory=torch.cuda.is_available(),
+                                          drop_last=False)
+        return db1_dloader, db1.db.dset_size, db1.db.size, db2_dloader, db2.db.dset_size, db2.db.size
+
     # preprocess datasets
     elif mode == 'preprocess':
 

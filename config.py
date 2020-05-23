@@ -57,6 +57,10 @@ def get_parser(action):
                      default=6,
                      help="Number of workers for multiprocessing.")
 
+    arg.add_argument('--db_path', type=str,
+                     default='',
+                     help='Path to training database (overrides default in paths.json).')
+
     # ----------------------------------------
     # Arguments for preprocessing
     if action == 'preprocess':
@@ -66,7 +70,7 @@ def get_parser(action):
 
         arg.add_argument("--mode", type=str,
                          default=None,
-                         choices=["extract", "profile", "augment"],
+                         choices=["extract", "profile", "augment", "merge"],
                          help="Preprocess action to run.")
 
         arg.add_argument("--pad", type=str2bool,
@@ -76,6 +80,14 @@ def get_parser(action):
         arg.add_argument("--batch_size", type=int,
                          default=50,
                          help="Size of each data batch (Default: 50)")
+
+        arg.add_argument("--db_historic", type=str,
+                         default='',
+                         help="Path to historic images database file.")
+
+        arg.add_argument("--db_repeat", type=str,
+                         default='',
+                         help="Path to repeat images database file.")
 
     # ----------------------------------------
     # Arguments for training
@@ -88,10 +100,6 @@ def get_parser(action):
                          default="normal",
                          choices=["normal", "overfit", "summary"],
                          help="Training mode.")
-
-        arg.add_argument('--db_path', type=str,
-                         default='',
-                         help='Path to training database (overrides default in paths.json).')
 
         arg.add_argument('--pretrained', type=str,
                          default='',
