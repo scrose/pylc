@@ -28,7 +28,7 @@ def get_parser(action):
 
     arg.add_argument('--db', type=str,
                      default='extract',
-                     choices=['extract', 'augment'],
+                     choices=['extract', 'augment', 'merge'],
                      help='Select the training database.')
 
     arg.add_argument("--dset", type=str,
