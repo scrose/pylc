@@ -201,7 +201,7 @@ class Model:
         ce = self.crit.ce_loss(y_hat, y)
         dice = self.crit.dice_loss(y_hat, y)
 
-        loss = params.ce_weight*ce + params.dice_weight*dice
+        loss = self.config.ce_weight*ce + self.config.dice_weight*dice
         self.loss.intv += [(ce.item(), dice.item())]
 
         # zero gradients, compute, step, log losses,
