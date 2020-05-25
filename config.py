@@ -110,6 +110,11 @@ def get_parser(action):
                          choices=['unet', 'resnet', 'resunet', 'deeplab'],
                          help='Network model architecture.')
 
+        arg.add_argument('--backbone', type=str,
+                         default='resnet',
+                         choices=["resnet", "xception"],
+                         help='Network model encoder.')
+
         arg.add_argument("--ce_weight", type=float,
                          default=0.5,
                          help="Weight applied to Cross Entropy losses for backpropagation.")
@@ -177,6 +182,14 @@ def get_parser(action):
                          default='./data/eval/',
                          help='Experiment files directory.')
 
+        arg.add_argument("--ce_weight", type=float,
+                         default=0.5,
+                         help="Weight applied to Cross Entropy losses for backpropagation.")
+
+        arg.add_argument("--dice_weight", type=float,
+                         default=0.5,
+                         help="Weight applied to Dice losses for backpropagation.")
+
         arg.add_argument('--img_path', type=str,
                          default='',
                          help='Path to test image.')
@@ -189,6 +202,11 @@ def get_parser(action):
                          default='deeplab',
                          choices=["unet", "deeplab"],
                          help='Network model architecture.')
+
+        arg.add_argument('--backbone', type=str,
+                         default='resnet',
+                         choices=["resnet", "xception"],
+                         help='Network model encoder.')
 
         arg.add_argument('--up_mode', type=str,
                          default='upconv',

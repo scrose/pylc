@@ -119,6 +119,9 @@ def main(config):
     print("\tCapture Type: {}".format(config.capture))
     print("\tDatabase: {}".format(config.db))
     print("\tModel: {}".format(config.model))
+    # show encoder backbone for Deeplab
+    if config.model == 'deeplab':
+        print("\tBackbone: {}".format(config.backbone))
     print('\tForce Grayscale: {}'.format(config.grayscale))
     print('\tInput channels: {}'.format(config.in_channels))
     print('\tClasses: {}'.format(config.n_classes))

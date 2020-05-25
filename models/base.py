@@ -91,7 +91,7 @@ class Model:
         return cls_weight.item().get('weights')
 
     def activ_func(self, activ_type):
-        return  torch.nn.ModuleDict([
+        return torch.nn.ModuleDict([
             ['relu', torch.nn.ReLU(inplace=True)],
             ['leaky_relu', torch.nn.LeakyReLU(negative_slope=0.01, inplace=True)],
             ['selu', torch.nn.SELU(inplace=True)],
@@ -128,24 +128,27 @@ class Model:
             self.net = self.net.to(params.device)
             self.crop_target = True
 
-        # DeepLab3+
+        # Deeplabv3+
         elif self.config.model == 'deeplab':
             self.net = DeepLab(
                 activ_func=self.activ_func('relu'),
                 normalizer=torch.nn.BatchNorm2d,
+                backbone=self.config.backbone,
                 n_classes=self.n_classes
                 )
             self.net = self.net.to(params.device)
             self.crop_target = False
+
+        # Unknown model requested
         else:
             print('Model {} not available.'.format(self.config.model))
             exit(1)
 
-        # Enable CUDA on model
+        # Enable CUDA
         if torch.cuda.is_available():
             print("\nCUDA enabled.")
 
-        # Parallelize model on multiple GPUs
+        # Parallelize model on multiple GPUs (disabled)
         if torch.cuda.device_count() > 1:
             print("\t{} GPUs in use.".format(torch.cuda.device_count()))
             #self.net = torch.nn.DataParallel(self.net)

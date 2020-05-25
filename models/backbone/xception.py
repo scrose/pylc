@@ -93,10 +93,9 @@ class Block(nn.Module):
 
 class AlignedXception(nn.Module):
     """
-    Modified Alighed Xception
+    Modified Aligned Xception
     """
-    def __init__(self, output_stride, BatchNorm,
-                 pretrained=True):
+    def __init__(self, output_stride, BatchNorm, pretrained=False):
         super(AlignedXception, self).__init__()
 
         if output_stride == 16:

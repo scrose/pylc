@@ -34,17 +34,7 @@ def test(config, model):
 
     """ Test trained model """
 
-    if config.mode == params.COLOURIZED:
-        # Load colourized image data
-        print("\nLoading colourized image data.")
-        img_data = torch.load(config.img_path).permute(0, 3, 2, 1).int()
-        print(img_data.shape)
-        img_data = torch.reshape(img_data, (img_data.shape[0]*img_data.shape[1], img_data.shape[2], img_data.shape[3]))
-        img_data = img_data.permute(1, 0, 2)
-
-    # Load test image data subimages [NCWH]
-    else:
-        img_data = torch.as_tensor(utils.get_image(config.img_path, config.in_channels), dtype=torch.float32)
+    img_data = torch.as_tensor(utils.get_image(config.img_path, config.in_channels), dtype=torch.float32)
 
     print('\tTest image {} / Shape: {}'.format(config.img_path, img_data.shape))
 
