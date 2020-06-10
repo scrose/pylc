@@ -35,7 +35,7 @@ def train(config, model):
         # log learning rate
         model.loss.lr += [(model.iter, model.get_lr())]
 
-        print('\nEpoch {} / {} for Experiment \'{}\''.format(e + epoch_offset + 1, config.n_epochs, config.label))
+        print('\nEpoch {} / {} for Experiment \'{}\''.format(e + epoch_offset + 1, config.n_epochs, config.id))
         print('\tBatch size: {}'.format(config.batch_size))
         print('\tTraining dataset size: {} / batches: {}'.format(tr_size, tr_batches))
 
@@ -115,7 +115,7 @@ def main(config):
 
     # initialize config parameters based on capture type
     config = init_capture(config)
-    print("\nTraining Experiment {}".format(config.label))
+    print("\nTraining Experiment {}".format(config.id))
     print("\tCapture Type: {}".format(config.capture))
     print("\tDatabase: {}".format(config.db))
     print("\tModel: {}".format(config.model))
@@ -158,5 +158,4 @@ if __name__ == "__main__":
     main(config)
 
 
-#
 # train.py ends here

@@ -48,9 +48,10 @@ class Parameters:
         self.MERGE = 'merge'
         self.OVERFIT = 'overfit'
         self.COMBINED = 'combined'
+        self.GRAYSCALE = 'grayscale'
 
         # list of available datasets
-        self.dsets = ['jean', 'fortin']
+        self.dsets = ['dst-a', 'dst-b']
 
         # general data paths
         self.src_db = None
@@ -74,7 +75,7 @@ class Parameters:
         self.patch_size = 512
 
         # patch stride: smaller than input_size for overlapping tiles
-        self.stride_size = 496
+        self.stride_size = 512
 
         # number of pixels to pad *after* resize to image with by mirroring (edge's of
         # patches tend not to be analyzed well, so padding allows them to appear more centered
@@ -97,6 +98,9 @@ class Parameters:
         self.seed = random.randrange(sys.maxsize)
         random.seed(self.seed)  # set the seed
         # print(f"random seed (note down for reproducibility): {seed}")
+
+        # Extraction scaling
+        self.scales = [0.2, 0.5, 1.]
 
         # ===================================
         # Land Cover Categories (LCC-A, LCC-B, LCC-merged)
@@ -268,7 +272,7 @@ class Parameters:
 
         self.aug_n_samples_max = 4000
         self.min_sample_rate = 0
-        self.max_sample_rate = 5
+        self.max_sample_rate = 7
         self.sample_rate_coef = np.arange(1, 21, 1)
         self.sample_threshold = np.arange(0, 3., 0.1)
 

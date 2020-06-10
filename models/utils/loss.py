@@ -85,8 +85,8 @@ class MultiLoss(object):
         y_true_1hot = torch.nn.functional.one_hot(y_true, num_classes=self.n_classes).permute(0, 3, 1, 2)
         probs = torch.nn.functional.softmax(y_pred, dim=1).to(params.device)
 
-        intersection = torch.sum(probs * y_true_1hot, axis=(0, 2, 3))
-        cardinality = torch.sum(probs + y_true_1hot, axis=(0, 2, 3))
+        intersection = torch.sum(probs * y_true_1hot, dim=(0, 2, 3))
+        cardinality = torch.sum(probs + y_true_1hot, dim=(0, 2, 3))
         dice_loss = (2. * intersection + params.dice_smooth) / (cardinality + params.dice_smooth)
 
         return 1 - dice_loss.mean()
@@ -109,7 +109,7 @@ class RunningLoss(object):
         self.is_best = False
         self.lr = []
         # initialize save files
-        dir_path = os.path.join(params.paths['logs'][config.type][config.capture], config.label)
+        dir_path = os.path.join(params.paths['logs'][config.type][config.capture], config.id)
         self.output_file = os.path.join(utils.mk_path(dir_path), 'losses.pth')
         self.load(config)
 

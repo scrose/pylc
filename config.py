@@ -41,9 +41,9 @@ def get_parser(action):
                      choices=["repeat", "historic", "custom"],
                      help='Image capture/mask type.')
 
-    arg.add_argument('--label', type=str,
+    arg.add_argument('--id', type=str,
                      default='trial',
-                     help='Label to append to output files.')
+                     help='Reference ID for experiment.')
 
     arg.add_argument("--n_classes", type=int,
                      default=9,
@@ -70,7 +70,7 @@ def get_parser(action):
 
         arg.add_argument("--mode", type=str,
                          default=None,
-                         choices=["extract", "profile", "augment", "merge"],
+                         choices=["extract", "profile", "augment", "merge", "grayscale"],
                          help="Preprocess action to run.")
 
         arg.add_argument("--pad", type=str2bool,
@@ -81,13 +81,13 @@ def get_parser(action):
                          default=50,
                          help="Size of each data batch (Default: 50)")
 
-        arg.add_argument("--db_historic", type=str,
-                         default='',
-                         help="Path to historic images database file.")
+        arg.add_argument("--scale", type=bool,
+                         default=True,
+                         help="Apply image scaling before extraction.")
 
-        arg.add_argument("--db_repeat", type=str,
+        arg.add_argument("--dbs", type=list,
                          default='',
-                         help="Path to repeat images database file.")
+                         help="List of database paths to merge.")
 
     # ----------------------------------------
     # Arguments for training
@@ -207,6 +207,10 @@ def get_parser(action):
                          default='resnet',
                          choices=["resnet", "xception"],
                          help='Network model encoder.')
+
+        arg.add_argument('--validate', type=str2bool,
+                         default=False,
+                         help='Validate test results.')
 
         arg.add_argument('--up_mode', type=str,
                          default='upconv',

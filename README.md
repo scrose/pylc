@@ -1,30 +1,29 @@
 # Mountain Legacy Project
-Implementation of Answer-aware Question Generation Encoder-Decoder
+Implementation of Semantic Segmentation for Oblique Landscape Photography
 
 ## Overview
 
 The Mountain Legacy Project (MLP) is an ongoing repeat photography project based on over 120,000 historical 
-terrestrial oblique photographs.   The original photographs were taken systematically by surveyors from the 
+terrestrial oblique photographs. The original photographs were taken systematically by surveyors from the 
 late 19th to mid 20th centuries to create topographic maps of the Canadian mountain west (Deville 1895; 
-Bridgland 1916, 1924).The photographs have been preserved on large format glass plates, mainly at Library 
-and Archives Canada.  Over the years, the MLP has repeated over 7000 of the historic images, and has 
+Bridgland 1916, 1924). The photographs have been preserved on large format glass plates, mainly at Library 
+and Archives Canada.  Over the years, the MLP has repeated over 8,000 of the historic captures, and has 
 built a suite of custom tools for classification and analysis of oblique images (Gat et al.  2011; 
-Jean et al.  2015b; Sanseverino et al.  2016) We propose a multi-class approach for segmentation of 
-high-resolution, grayscale and colour landscape photography,  specifically applicable to oblique 
-mountain landscapes. This approach is potentially generalizable for segmentation of other amorphous 
-landscape images.
+Jean et al. 2015b; Sanseverino et al.  2016). The following documents a multi-class image segmentation 
+using deep learning neural networks applied to high-resolution, grayscale and colour landscape photography, 
+specifically optimized for segmenting oblique mountain landscapes. 
 
 
 ## Datasets
 
 Training data consists of historic and repeat capture image files and corresponding segmentation mask files. 
-These datasets can be downloaded from publicly available online repositories <link>. 
+These datasets can be downloaded from publicly available online thorugh the repository links below. 
 
 Data files and file directories are set in the *paths.json* metadata file.
 
 
 
-### The Mountain Habitats Segmentation and Change Detection Dataset
+### [DST-A] The Mountain Habitats Segmentation and Change Detection Dataset
 
 *Jean, Frédéric; Branzan Albu, Alexandra; Capson, David; Higgs, Eric; Fisher, Jason T.; Starzomski, Brian M.*
 
@@ -40,7 +39,7 @@ The dataset is released under the Creative Commons Attribution-Non Commercial 4.
 
 
 
-### MLP Dataset 2 (Julie Fortin, 2018)
+### [DST-B] (Julie Fortin, 2018)
 
 
 ## Requirements
@@ -55,7 +54,7 @@ The dataset is released under the Creative Commons Attribution-Non Commercial 4.
 
 1. UNet
 
-2. DeepLab V3+ß
+2. DeepLab V3+
   
 
 
@@ -65,26 +64,43 @@ The dataset is released under the Creative Commons Attribution-Non Commercial 4.
 python main.py -h # prints usage help and configuration options
 ```
 
-1. Download Dataset(s)
-
-
+### Download Dataset(s)
 
 ```
 mkdir data/raw
-mkdir data/processed
-mkdir eval
-wget https://rajpurkar.github.io/SQuAD-explorer/dataset/train-v1.1.json data/raw/
-wget https://rajpurkar.github.io/SQuAD-explorer/dataset/dev-v1.1.json data/raw/
-python main.py --mode preprocess
 ```
 
-2. Preprocess
+### Preprocess
+
+#### Extraction
+
+Extraction is a necessary step to creating usable training data for the DCNN models. Tile extraction is used to partition raw high-resolution source images and masks into smaller square image tiles that can be used in memory. Images are scaled by a factor of 0.2, 0.5 and 1.0 before tiling to improve scale invariance of the model. Image data is saved to Hierarchical Data Format database. Mask data is also profiled for analysis and data augmentation. See parameters for dimensions and stride.
+
 
 ```
-python preprocess.py
+python preprocess.py --mode extract --capture [historic, repeat] --id [FILENAME] --dset [dst-A, dst-B, combined] ----in_channels [1, 3]
 ```
 
-3. Train model
+#### Profiling
+
+Extraction automatically initiates a statistical profiling of the pixel classes in the mask data, and computes other metadata. Saved in a separate file, this metadata is used to calculate sample rates for data augmentation to balance the pixel semantic class distribution. A data profile can also be created by running the following:
+```
+python preprocess.py --mode profile --capture [historic, repeat] --id [FILENAME]
+```
+
+
+#### Augmentation
+
+Data augmentation can be used to mitigate pixel class imbalance and improve model performance without additional segmentation annotation. Augmentation generates perturbed versions of the existing dataset tiles.
+
+```
+python preprocess.py --mode augment --capture [historic, repeat] --id [FILENAME] --in_channels 3
+```
+
+#### Merging 
+
+
+### Training
 
 ```
 python main.py --mode train 
@@ -107,12 +123,9 @@ python main.py -h # prints usage help and configuration options
 
 See Also: params.py for list of hyperparameters.
 
-# CSC586C Project: Final Report
-## Comparative analysis of three computational models to solve SVD for large dense matrices
-
 #### Student: Spencer Rose
-#### Instructor: Sean Chester
-#### University of Victoria (Spring 2020)
+#### Supervisor: Yvonne Coady
+#### University of Victoria
 
 
 ## Abstract

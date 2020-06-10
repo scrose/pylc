@@ -102,11 +102,12 @@ class Buffer(object):
 
 
 class DB(object):
-    '''
+
+    """
     Wrapper for H5PY database datasets
     -----------------------------------
     Represents an abstract HDF5 dataset.
-    '''
+    """
 
     def __init__(self, config, path=None, partition=None, worker=None):
         # Get db size and shape (if source database provided)
@@ -191,7 +192,7 @@ creates training and validation data loaders
 """
 
 
-def load_data(config, mode):
+def load_data(config, mode, db_path=None):
 
     # Training datasets
     if mode == 'train':
@@ -220,48 +221,32 @@ def load_data(config, mode):
 
         return tr_dloader, va_dloader, tr_dset.db.dset_size, va_dset.db.dset_size, tr_dset.db.size
 
-    # data extraction dataset
-    elif mode == params.EXTRACT:
-        extr_dset = MLPDataset(config, db_path=params.get_path('db', config.dset, config.capture, params.EXTRACT))
-        extr_dloader = torch.utils.data.DataLoader(extr_dset,
-                                                  batch_size=config.batch_size,
-                                                  num_workers=config.n_workers,
-                                                  pin_memory=torch.cuda.is_available(),
-                                                  drop_last=False)
+    # data extraction or merge
+    elif mode == params.EXTRACT or mode == params.MERGE:
+        dset = MLPDataset(config, db_path=db_path)
+        dloader = torch.utils.data.DataLoader(dset,
+                                              batch_size=config.batch_size,
+                                              num_workers=config.n_workers,
+                                              pin_memory=torch.cuda.is_available(),
+                                              drop_last=False)
 
-        return extr_dloader, extr_dset.db.dset_size, extr_dset.db.size
+        return dloader, dset.db.dset_size, dset.db.size
 
     # data augmentation dataset
     elif mode == params.AUGMENT:
-        aug_dset = MLPDataset(config, db_path=params.get_path('db', config.dset, config.capture, params.AUGMENT))
+        aug_dset = MLPDataset(config, db_path=db_path)
         aug_dloader = torch.utils.data.DataLoader(aug_dset,
                                                   batch_size=config.batch_size,
-                                                  num_workers=config.n_workers,
+                                                  num_workers=0,
                                                   pin_memory=torch.cuda.is_available(),
                                                   drop_last=False)
 
         return aug_dloader, aug_dset.db.dset_size, aug_dset.db.size
 
-    # merge two existing databases
-    elif mode == params.MERGE:
-        db1 = MLPDataset(config, db_path=config.db_historic)
-        db2 = MLPDataset(config, db_path=config.db_repeat)
-        db1_dloader = torch.utils.data.DataLoader(db1,
-                                                   batch_size=config.batch_size,
-                                                   num_workers=config.n_workers,
-                                                   pin_memory=torch.cuda.is_available(),
-                                                   drop_last=False)
-        db2_dloader = torch.utils.data.DataLoader(db2,
-                                          batch_size=config.batch_size,
-                                          num_workers=config.n_workers,
-                                          pin_memory=torch.cuda.is_available(),
-                                          drop_last=False)
-        return db1_dloader, db1.db.dset_size, db1.db.size, db2_dloader, db2.db.dset_size, db2.db.size
-
     # preprocess datasets
-    elif mode == 'preprocess':
-
-        pre_dset = MLPDataset(config, db_path=params.get_path('db', config.dset, config.capture, config.db))
+    # Note: disable multi-processing for profiling data
+    elif mode == params.PROFILE:
+        pre_dset = MLPDataset(config, db_path=db_path)
         pre_dloader = torch.utils.data.DataLoader(pre_dset,
                                                   batch_size=config.batch_size,
                                                   num_workers=0,

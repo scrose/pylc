@@ -2,7 +2,7 @@
 import os
 import torch
 import numpy as np
-from functools import partial
+import cv2
 from models.unet import UNet
 from models.res_unet import ResUNet
 from models.deeplab import DeepLab
@@ -66,9 +66,9 @@ class Model:
         # ----- Model Testing
         # Initialize model test
         elif config.type == params.TEST:
-            self.test = Evaluator(config)
+            self.evaluator = Evaluator(config)
             # self.net = torch.nn.DataParallel(self.net)
-            self = self.test.load(self)
+            self = self.evaluator.load(self)
             # self.net.summary()
             self.net.eval()
 
@@ -252,7 +252,27 @@ class Model:
             self.loss.intv += [(ce, dice)]
 
         if test:
-            self.test.results += [y_hat]
+            self.evaluator.results += [y_hat]
+
+    def test(self, x):
+
+        """model test forward"""
+
+        self.net.eval()
+
+        # normalize
+        x -= 147
+        x /= 68
+        x = x.to(params.device)
+
+        # stack single-channel input tensors
+        if self.in_channels == 1:
+            x = torch.cat((x, x, x), 1)
+
+        # run forward pass
+        with torch.no_grad():
+            y_hat = self.net.forward(x)
+            self.evaluator.results += [y_hat]
 
     def log(self):
 
@@ -263,11 +283,19 @@ class Model:
 
     def save(self, test=False):
 
+        """save output tiles to file"""
+
         if test:
-            self.test.save()
+            self.evaluator.save()
             self.loss.save()
         else:
             self.ckpt.save(self, is_best=self.loss.is_best)
+
+    def save_image(self, w, h, w_full, h_full, offset, stride):
+
+        """save predicted mask image to file"""
+
+        self.evaluator.save_image(w, h, w_full, h_full, offset, stride)
 
     def get_lr(self):
         for param_group in self.optim.param_groups:
@@ -298,11 +326,11 @@ class Checkpoint:
         self.config = config
 
         # save checkpoint in save folder
-        dir_path = os.path.join(params.paths['save'][config.capture], config.label)
+        dir_path = os.path.join(params.paths['save'][config.capture], config.id)
         self.ckpt_file = os.path.join(utils.mk_path(dir_path), 'checkpoint.pth')
 
         # save best model file in evaluation folder
-        dir_path = os.path.join(params.paths['eval'][config.capture], config.label)
+        dir_path = os.path.join(params.paths['eval'][config.capture], config.id)
         self.model_file = os.path.join(utils.mk_path(dir_path), 'model.pth')
 
     def load(self, model):
@@ -337,15 +365,21 @@ class Checkpoint:
 
 class Evaluator:
     """
-    Handles model test/evaluation
+    Handles model test/evaluation functionality
     """
 
     def __init__(self, config):
+
+        # Report interval
         self.report_intv = 3
         self.results = []
-        # initialize save files
-        self.output_file = os.path.join(config.dir_path, config.label, config.dset + '_output.pth')
-        self.model_file = os.path.join(config.dir_path, config.label, 'model.pth')
+        self.config = config
+
+        # initialize model/output files for prediction results
+        self.fname = os.path.basename(config.img_path).replace('.', '_')
+        self.output_file = os.path.join(config.dir_path, config.id, self.fname + '_output.pth')
+        self.model_file = os.path.join(config.dir_path, config.id, 'model.pth')
+        self.img_file = os.path.join(config.dir_path, config.id, self.fname + '_mask.png')
 
     def load(self, model):
 
@@ -364,5 +398,20 @@ class Evaluator:
         return model
 
     def save(self):
-        # Save test results
+
+        """Save full prediction test results"""
+
         torch.save({"results": self.results}, self.output_file)
+
+    def save_image(self, w, h, w_full, h_full, offset, stride):
+
+        """Save prediction mask image"""
+
+        # Reconstruct seg-mask from predicted tiles
+        tiles = np.concatenate(self.results, axis=0)
+        mask_img = utils.reconstruct(tiles, w, h, w_full, h_full, offset, self.config.n_classes, stride)
+
+        # Save output mask image to file (RGB -> BGR conversion)
+        # Note that the default color format in OpenCV is often
+        # referred to as RGB but it is actually BGR (the bytes are reversed).
+        cv2.imwrite(self.img_file, cv2.cvtColor(mask_img, cv2.COLOR_RGB2BGR))
