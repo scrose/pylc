@@ -22,7 +22,7 @@ from params import params
 def train(config, model):
 
     # Load training dataset (db)
-    db_path = os.path.join(params.get_path('db', config.capture), config.id + '.h5')
+    db_path = os.path.join(params.get_path('db', config.capture), config.db + '.h5')
     tr_dloader, va_dloader, tr_size, va_size, db_size = load_data(config, mode=params.TRAIN, db_path=db_path)
     tr_batches = tr_size//config.batch_size
     va_batches = va_size//config.batch_size

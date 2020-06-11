@@ -79,7 +79,7 @@ class Model:
 
         # select dataset metadata file
         if self.config.type == params.TRAIN or self.config.type == params.TEST:
-            path = os.path.join(params.get_path('metadata', self.config.capture), self.config.id + '.npy')
+            path = os.path.join(params.get_path('metadata', self.config.capture), self.config.db + '.npy')
         else:
             print("Error: Class weights could not be initialized.")
             exit(1)
