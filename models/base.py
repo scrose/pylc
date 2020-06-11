@@ -78,10 +78,8 @@ class Model:
         path = ''
 
         # select dataset metadata file
-        if self.config.type == params.TRAIN:
-            path = params.get_path('metadata', params.COMBINED, self.config.capture, self.config.db)
-        elif self.config.type == params.TEST:
-            path = params.get_path('metadata', params.COMBINED, self.config.capture, self.config.db)
+        if self.config.type == params.TRAIN or self.config.type == params.TEST:
+            path = os.path.join(params.get_path('metadata', self.config.capture), self.config.id + '.h5')
         else:
             print("Error: Class weights could not be initialized.")
             exit(1)
