@@ -85,9 +85,10 @@ def get_parser(action):
                          default=True,
                          help="Apply image scaling before extraction.")
 
-        arg.add_argument("--dbs", type=list,
+        arg.add_argument("--dbs", type=str,
                          default='',
-                         help="List of database paths to merge.")
+                         help="List of database paths to merge.",
+                         nargs='+')
 
     # ----------------------------------------
     # Arguments for training

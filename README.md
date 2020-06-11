@@ -94,7 +94,7 @@ python preprocess.py --mode profile --capture [historic, repeat] --id [FILENAME]
 Data augmentation can be used to mitigate pixel class imbalance and improve model performance without additional segmentation annotation. Augmentation generates perturbed versions of the existing dataset tiles.
 
 ```
-python preprocess.py --mode augment --capture [historic, repeat] --id [FILENAME] --in_channels 3
+python preprocess.py --mode augment --capture [historic, repeat] --id [FILENAME] --in_channels [1, 3]
 ```
 
 #### Merging 

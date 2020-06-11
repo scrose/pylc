@@ -635,12 +635,13 @@ if __name__ == "__main__":
     conf, unparsed, _parser = get_config(params.PREPROCESS)
 
     ''' Parse model configuration '''
-    if conf.h or not conf.mode or not conf.dset or not conf.id:
+    if conf.h or not conf.mode or not conf.id:
         _parser.print_usage()
         sys.exit(0)
 
     # If we have unparsed arguments, print usage and exit
     if len(unparsed) > 0:
+        print("Unparsed arguments: {}".format(unparsed))
         _parser.print_usage()
         sys.exit(1)
 
