@@ -19,17 +19,17 @@ from params import params
 # -----------------------------
 # Training main execution loop
 # -----------------------------
-def train(conf, model):
+def train(config, model):
 
     # Load training dataset (db)
-    db_path = os.path.join(params.get_path('db', conf.capture), conf.id + '.h5')
-    tr_dloader, va_dloader, tr_size, va_size, db_size = load_data(conf, mode=params.TRAIN, db_path=db_path)
-    tr_batches = tr_size//conf.batch_size
-    va_batches = va_size//conf.batch_size
+    db_path = os.path.join(params.get_path('db', config.capture), config.id + '.h5')
+    tr_dloader, va_dloader, tr_size, va_size, db_size = load_data(config, mode=params.TRAIN, db_path=db_path)
+    tr_batches = tr_size//config.batch_size
+    va_batches = va_size//config.batch_size
 
     # get offset epoch if resuming from checkpoint
     epoch_offset = model.epoch
-    for e in range(conf.n_epochs - epoch_offset):
+    for e in range(config.n_epochs - epoch_offset):
         # initial validation step
         if e == 0:
             model = validate(model, va_dloader, va_batches)
@@ -37,8 +37,8 @@ def train(conf, model):
         # log learning rate
         model.loss.lr += [(model.iter, model.get_lr())]
 
-        print('\nEpoch {} / {} for Experiment \'{}\''.format(e + epoch_offset + 1, conf.n_epochs, conf.id))
-        print('\tBatch size: {}'.format(conf.batch_size))
+        print('\nEpoch {} / {} for Experiment \'{}\''.format(e + epoch_offset + 1, config.n_epochs, config.id))
+        print('\tBatch size: {}'.format(config.batch_size))
         print('\tTraining dataset size: {} / batches: {}'.format(tr_size, tr_batches))
 
         print('\tValidation dataset size: {} / batches: {}'.format(va_size, va_batches))
@@ -65,7 +65,7 @@ def epoch(model, dloader, n_batches):
     for i, (x, y) in tqdm(enumerate(dloader), total=n_batches, desc="Training: ", unit=' batches'):
 
         # check if training data is RGB to be grayscaled
-        if model.conf.grayscale and x.shape[1] == 3:
+        if model.config.grayscale and x.shape[1] == 3:
             x = x.to(torch.float32).mean(dim=1).unsqueeze(1)
 
         # train with main dataset
@@ -83,7 +83,7 @@ def validate(model, dloader, n_batches):
         for i, (x, y) in tqdm(enumerate(dloader), total=n_batches, desc="Validating: ", unit=' batches'):
 
             # check if training data is RGB to be grayscaled
-            if model.conf.grayscale and x.shape[1] == 3:
+            if model.config.grayscale and x.shape[1] == 3:
                 x = x.to(torch.float32).mean(dim=1).unsqueeze(1)
 
             model.eval(x, y)
@@ -95,61 +95,61 @@ def validate(model, dloader, n_batches):
 # -----------------------------
 # Initialize parameters for capture type
 # -----------------------------
-def init_capture(conf):
-    if conf.capture == 'historic':
-        conf.n_classes = 9
-        conf.in_channels = 1
-    elif conf.capture == 'repeat':
-        conf.n_classes = 9
-        conf.in_channels = 3
+def init_capture(config):
+    if config.capture == 'historic':
+        config.n_classes = 9
+        config.in_channels = 1
+    elif config.capture == 'repeat':
+        config.n_classes = 9
+        config.in_channels = 3
 
     # Reduce to single channel
-    if conf.grayscale:
-        conf.in_channels = 1
+    if config.grayscale:
+        config.in_channels = 1
 
-    return conf
+    return config
 
 
 # -----------------------------
 # Main Execution Routine
 # -----------------------------
-def main(conf):
+def main(config):
 
-    # initialize conf parameters based on capture type
-    conf = init_capture(conf)
-    print("\nTraining Experiment {}".format(conf.id))
-    print("\tCapture Type: {}".format(conf.capture))
-    print("\tDatabase: {}".format(conf.db))
-    print("\tModel: {}".format(conf.model))
+    # initialize config parameters based on capture type
+    config = init_capture(config)
+    print("\nTraining Experiment {}".format(config.id))
+    print("\tCapture Type: {}".format(config.capture))
+    print("\tDatabase: {}".format(config.db))
+    print("\tModel: {}".format(config.model))
     # show encoder backbone for Deeplab
-    if conf.model == 'deeplab':
-        print("\tBackbone: {}".format(conf.backbone))
-    print('\tForce Grayscale: {}'.format(conf.grayscale))
-    print('\tInput channels: {}'.format(conf.in_channels))
-    print('\tClasses: {}'.format(conf.n_classes))
+    if config.model == 'deeplab':
+        print("\tBackbone: {}".format(config.backbone))
+    print('\tForce Grayscale: {}'.format(config.grayscale))
+    print('\tInput channels: {}'.format(config.in_channels))
+    print('\tClasses: {}'.format(config.n_classes))
 
     # Build model from hyperparameters
-    model = Model(conf)
+    model = Model(config)
 
-    if conf.mode == params.NORMAL:
-        params.clip = conf.clip
-        train(conf, model)
-    elif conf.mode == params.OVERFIT:
+    if config.mode == params.NORMAL:
+        params.clip = config.clip
+        train(config, model)
+    elif config.mode == params.OVERFIT:
         # clip the dataset
         params.clip = params.clip_overfit
-        conf.batch_size = 1
-        train(conf, model)
-    elif conf.mode == params.SUMMARY:
+        config.batch_size = 1
+        train(config, model)
+    elif config.mode == params.SUMMARY:
         # summarize the model parameters
         model.summary()
         print(model.net)
     else:
-        raise ValueError("Unknown run mode \"{}\"".format(conf.mode))
+        raise ValueError("Unknown run mode \"{}\"".format(config.mode))
 
 
 if __name__ == "__main__":
 
-    ''' Parse model confuration '''
+    ''' Parse model configuration '''
     config, unparsed, parser = get_config(params.TRAIN)
 
     # If we have unparsed arguments, or help request print usage and exit
