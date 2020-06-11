@@ -97,14 +97,19 @@ Data augmentation can be used to mitigate pixel class imbalance and improve mode
 python preprocess.py --mode augment --capture [historic, repeat] --id [FILENAME] --in_channels [1, 3]
 ```
 
-#### Merging 
+```
+python preprocess.py --id repeat_extract_aug --capture repeat --mode grayscale --in_channels 3
+```
 
+#### Merging 
+```
+python preprocess.py --mode merge --capture [historic, repeat] --id [FILENAME] --dbs [DATABASES] --in_channels [1, 3] 
+```
 
 ### Training
 
 ```
-python main.py --mode train 
-python main.py -h # to view configuration options
+python train.py --mode [normal, clipped, summary] --capture [historic, repeat] --db [DATABASE] --id [FILENAME]
 
 ```
 

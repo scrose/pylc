@@ -27,9 +27,8 @@ def get_parser(action):
                      help='Show configuration parameters.')
 
     arg.add_argument('--db', type=str,
-                     default='extract',
-                     choices=['extract', 'augment', 'merge'],
-                     help='Select the training database.')
+                     default='',
+                     help='Image/mask database.')
 
     arg.add_argument("--dset", type=str,
                      default="combined",

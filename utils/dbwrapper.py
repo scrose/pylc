@@ -201,7 +201,7 @@ def load_data(config, mode, db_path=None):
         if config.db_path:
             db_path = config.db_path
         else:
-            db_path = params.get_path('db', config.dset, config.capture, config.db)
+            db_path = params.get_path('db', config.capture, config.db)
 
         # Note training/validation dataset partition fraction set in parameters
         tr_dset = MLPDataset(config, db_path=db_path, partition=(0, 1 - params.partition))
