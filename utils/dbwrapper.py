@@ -7,7 +7,8 @@ from params import params
 
 
 class MLPDataset(torch.utils.data.IterableDataset):
-    '''
+
+    """
     Wrapper for MLP dataset
     -----------------------------------
     Represents an abstract HDF5 dataset.
@@ -15,7 +16,7 @@ class MLPDataset(torch.utils.data.IterableDataset):
     Input params:
         mode: Run mode for the dataset
         config: User configuration
-    '''
+    """
 
     def __init__(self, config, db_path=None, partition=None):
         super(MLPDataset).__init__()
@@ -184,18 +185,17 @@ class DB(object):
             exit()
 
 
-""" 
------------------------------
-Data Loader
------------------------------
-creates training and validation data loaders 
-"""
-
-
 def load_data(config, mode, db_path):
 
+    """
+    -----------------------------
+    Data Loader
+    -----------------------------
+    creates training and validation data loaders
+    """
+
     # Training datasets
-    if mode == 'train':
+    if mode == params.TRAIN:
 
         # Note training/validation dataset partition fraction set in parameters
         tr_dset = MLPDataset(config, db_path=db_path, partition=(0, 1 - params.partition))

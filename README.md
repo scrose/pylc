@@ -113,11 +113,10 @@ python train.py --mode [normal, clipped, summary] --capture [historic, repeat] -
 
 ```
 
-4. Test model
+### Training
 
 ```
-python main.py --mode test 
-python main.py -h # to view configuration options
+python test.py --capture historic --in_channels 1 --dir_path [EXPERIMENT] --img_path [FILE_PATH] --mask_path [FILE PATH] --id [FILENAME]
 ```
 
 ## Parameters

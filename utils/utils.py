@@ -53,7 +53,7 @@ def get_image(image_path, img_ch=3, scale=None, interpolate=cv2.INTER_AREA):
         # adjust scale to minimum size (tile dimensions)
         if min_dim < params.patch_size:
             scale = params.patch_size / min_dim
-        dim = (int(scale * height), int(scale * width))
+        dim = (int(scale * width), int(scale * height))
         img = cv2.resize(img, dim, interpolation=interpolate)
     return img
 

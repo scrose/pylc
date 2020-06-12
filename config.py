@@ -178,9 +178,27 @@ def get_parser(action):
                          choices=["normal", "colourized", "tune"],
                          help="Run mode")
 
-        arg.add_argument('--dir_path', type=str,
+        arg.add_argument('--img_path', type=str,
+                         default='',
+                         help='Path to test image.')
+
+        arg.add_argument('--mask_path', type=str,
+                         default='',
+                         help='Path to mask image.')
+
+        arg.add_argument('--output_path', type=str,
                          default='./data/eval/',
                          help='Experiment files directory.')
+
+        arg.add_argument('--model', type=str,
+                         default='deeplab',
+                         choices=['unet', 'resnet', 'resunet', 'deeplab'],
+                         help='Network model architecture.')
+
+        arg.add_argument('--backbone', type=str,
+                         default='resnet',
+                         choices=["resnet", "xception"],
+                         help='Network model encoder.')
 
         arg.add_argument("--ce_weight", type=float,
                          default=0.5,
@@ -190,48 +208,21 @@ def get_parser(action):
                          default=0.5,
                          help="Weight applied to Dice losses for backpropagation.")
 
-        arg.add_argument('--img_path', type=str,
-                         default='',
-                         help='Path to test image.')
-
-        arg.add_argument('--mask_path', type=str,
-                         default='',
-                         help='Path to mask image.')
-
-        arg.add_argument('--model', type=str,
-                         default='deeplab',
-                         choices=["unet", "deeplab"],
-                         help='Network model architecture.')
-
-        arg.add_argument('--backbone', type=str,
-                         default='resnet',
-                         choices=["resnet", "xception"],
-                         help='Network model encoder.')
+        arg.add_argument("--resample", type=float,
+                         default=None,
+                         help="Scales input image by scaling factor.")
 
         arg.add_argument('--validate', type=str2bool,
                          default=False,
                          help='Validate test results.')
 
-        arg.add_argument('--up_mode', type=str,
-                         default='upconv',
-                         choices=["upconv", "upsample"],
-                         help='Interpolation for UNet upsampling.')
-
-        arg.add_argument("--batch_size", type=int,
-                         default=6,
-                         help="Size of each test batch")
-
         arg.add_argument("--report", type=int,
                          default=5,
                          help="Report interval (unit: iterations).")
 
-        arg.add_argument("--resume", type=str2bool,
-                         default=False,
-                         help="Whether to resume testing.")
-
         arg.add_argument("--clip", type=float,
                          default=1.,
-                         help="Fraction of dataset to use in testing.")
+                         help="Fraction of dataset to use in training.")
 
     return parser
 

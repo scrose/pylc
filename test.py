@@ -39,6 +39,16 @@ def test(conf, model):
     print('\tHeight: {}px'.format(h_full))
     print('\tChannels: {}'.format(conf.in_channels))
 
+    if conf.resample:
+        img = utils.get_image(conf.img_path, conf.in_channels, scale=conf.resample)
+        w_full = img.shape[1]
+        h_full = img.shape[0]
+
+        print('\n---\nResampled:')
+        print('\tScaling: {}'.format(conf.resample))
+        print('\tWidth: {}px'.format(w_full))
+        print('\tHeight: {}px'.format(h_full))
+
     # Set stride to half tile size
     stride = params.patch_size // 2
 
@@ -159,6 +169,7 @@ def main(conf):
 
     # initialize conf parameters based on capture type
     conf = init_capture(conf)
+    model = Model(conf)
 
     print("\n---\nBeginning test on {} model".format(conf.model))
     print("\tMode: {}".format(conf.mode))
@@ -168,7 +179,6 @@ def main(conf):
     print('\tTest Image: {}'.format(conf.img_path))
     print('\tTest Mask: {}'.format(conf.mask_path))
 
-    model = Model(conf)
     print("\nPretrained model loaded.", end='')
 
     if conf.mode == params.NORMAL:

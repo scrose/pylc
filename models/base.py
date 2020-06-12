@@ -10,12 +10,13 @@ from models.utils.loss import MultiLoss, RunningLoss
 import utils.utils as utils
 from params import params
 
+
 class Normalizer:
     def __init__(self, norm_type):
         self.type = norm_type
 
     def apply(self, n_features):
-        return  torch.nn.ModuleDict([
+        return torch.nn.ModuleDict([
             ['batch', torch.nn.BatchNorm2d(n_features)],
             ['instance', torch.nn.InstanceNorm2d(n_features)],
             ['layer', torch.nn.LayerNorm(n_features)],
@@ -109,7 +110,7 @@ class Model:
                 activ_func=self.activ_func('selu'),
                 normalizer=Normalizer('instance'),
                 dropout=params.dropout
-                )
+            )
             self.net = self.net.to(params.device)
             self.crop_target = True
 
@@ -122,7 +123,7 @@ class Model:
                 activ_func=self.activ_func('relu'),
                 normalizer=Normalizer('layer'),
                 dropout=params.dropout
-                )
+            )
             self.net = self.net.to(params.device)
             self.crop_target = True
 
@@ -133,7 +134,7 @@ class Model:
                 normalizer=torch.nn.BatchNorm2d,
                 backbone=self.config.backbone,
                 n_classes=self.n_classes
-                )
+            )
             self.net = self.net.to(params.device)
             self.crop_target = False
 
@@ -149,11 +150,12 @@ class Model:
         # Parallelize model on multiple GPUs (disabled)
         if torch.cuda.device_count() > 1:
             print("\t{} GPUs in use.".format(torch.cuda.device_count()))
-            #self.net = torch.nn.DataParallel(self.net)
+            # self.net = torch.nn.DataParallel(self.net)
 
         # Check multiprocessing enabled
         if torch.utils.data.get_worker_info():
-            print('\tMulti-process data loading: {} workers enabled.'.format(torch.utils.data.get_worker_info().num_workers))
+            print('\tMulti-process data loading: {} workers enabled.'.format(
+                torch.utils.data.get_worker_info().num_workers))
 
     def init_optim(self):
 
@@ -172,10 +174,13 @@ class Model:
         if self.config.sched == 'step_lr':
             return torch.optim.lr_scheduler.StepLR(self.optim, step_size=1, gamma=params.gamma)
         elif self.config.sched == 'cyclic_lr':
-            return torch.optim.lr_scheduler.CyclicLR(self.optim, params.lr_min, params.lr_max, step_size_up=2000, step_size_down=None)
+            return torch.optim.lr_scheduler.CyclicLR(self.optim, params.lr_min, params.lr_max, step_size_up=2000,
+                                                     step_size_down=None)
         elif self.config.sched == 'anneal':
-            steps_per_epoch = int(self.config.clip*29000 // self.config.batch_size)
-            scheduler = torch.optim.lr_scheduler.OneCycleLR(self.optim, max_lr=params.lr_max, steps_per_epoch=steps_per_epoch, epochs=self.config.n_epochs)
+            steps_per_epoch = int(self.config.clip * 29000 // self.config.batch_size)
+            scheduler = torch.optim.lr_scheduler.OneCycleLR(self.optim, max_lr=params.lr_max,
+                                                            steps_per_epoch=steps_per_epoch,
+                                                            epochs=self.config.n_epochs)
         else:
             print('Optimizer scheduler is not defined.')
             exit()
@@ -202,7 +207,7 @@ class Model:
         ce = self.crit.ce_loss(y_hat, y)
         dice = self.crit.dice_loss(y_hat, y)
 
-        loss = self.config.ce_weight*ce + self.config.dice_weight*dice
+        loss = self.config.ce_weight * ce + self.config.dice_weight * dice
         self.loss.intv += [(ce.item(), dice.item())]
 
         # zero gradients, compute, step, log losses,
@@ -311,7 +316,6 @@ class Model:
 
 
 class Checkpoint:
-
     """ Tracks model for training/validation/testing """
 
     def __init__(self, config):
@@ -324,12 +328,12 @@ class Checkpoint:
         self.config = config
 
         # save checkpoint in save folder
-        dir_path = os.path.join(params.paths['save'][config.capture], config.id)
-        self.ckpt_file = os.path.join(utils.mk_path(dir_path), 'checkpoint.pth')
+        output_path = os.path.join(params.paths['save'][config.capture], config.id)
+        self.ckpt_file = os.path.join(utils.mk_path(output_path), 'checkpoint.pth')
 
         # save best model file in evaluation folder
-        dir_path = os.path.join(params.paths['eval'][config.capture], config.id)
-        self.model_file = os.path.join(utils.mk_path(dir_path), 'model.pth')
+        output_path = os.path.join(params.paths['eval'][config.capture], config.id)
+        self.model_file = os.path.join(utils.mk_path(output_path), 'model.pth')
 
     def load(self, model):
         """ load checkpoint file for losses"""
@@ -375,9 +379,11 @@ class Evaluator:
 
         # initialize model/output files for prediction results
         self.fname = os.path.basename(config.img_path).replace('.', '_')
-        self.output_file = os.path.join(config.dir_path, config.id, self.fname + '_output.pth')
-        self.model_file = os.path.join(config.dir_path, config.id, 'model.pth')
-        self.img_file = os.path.join(config.dir_path, config.id, self.fname + '_mask.png')
+        if config.resample:
+            self.fname += '_resampled-' + str(config.resample) + '_'
+        self.output_file = os.path.join(config.output_path, config.id, self.fname + '_output.pth')
+        self.model_file = os.path.join(config.output_path, config.id, 'model.pth')
+        self.img_file = os.path.join(config.output_path, config.id, self.fname + '_mask.png')
 
     def load(self, model):
 

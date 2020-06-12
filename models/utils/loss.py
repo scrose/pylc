@@ -114,8 +114,8 @@ class RunningLoss(object):
         self.load(config)
 
     def load(self, config):
-        ''' load log file for losses'''
-        if os.path.exists(self.output_file):
+        """ load log file for losses"""
+        if config.mode == params.TRAIN and os.path.exists(self.output_file):
             print('Loss logs found at {} ... '.format(self.output_file), end='')
             if config.resume:
                 print('Resuming.')
