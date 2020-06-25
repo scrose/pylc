@@ -46,7 +46,7 @@ def train(config, model):
 
         model = epoch(model, tr_dloader, tr_batches)
         print("\n\n[Train] Losses: \n\tCE avg: %4.4f \n\tFocal: %4.4f \n\tDice: %4.4f\n" %
-              (model.loss.avg_ce, model.loss.avg_dice, model.loss.avg_fl))
+              (model.loss.avg_ce, model.loss.avg_fl, model.loss.avg_dice))
 
         model = validate(model, va_dloader, va_batches)
         print("\n[Valid] Losses: \n\tCE avg: %4.4f \n\tFL avg: %4.4f \n\tDSC avg: %4.4f (DSC Best: %4.4f)\n" %
