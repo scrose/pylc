@@ -298,6 +298,7 @@ class Parameters:
         # Focal Loss
         self.fl_gamma = 2
         self.fl_alpha = 0.25
+        self.fl_reduction = 'mean'
 
     # ===================================
     # Utility Functions

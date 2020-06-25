@@ -211,9 +211,9 @@ class Model:
         y_hat = self.net.forward(x)
 
         # compute losses
-        loss, ce, dsc, fl = self.crit.forward(y_hat, y)
+        loss = self.crit.forward(y_hat, y)
 
-        self.loss.intv += [(ce.item(), dsc.item(), fl.item())]
+        self.loss.intv += [(self.crit.ce.item(), self.crit.dsc.item(), self.crit.fl.item())]
 
         # zero gradients, compute, step, log losses,
         self.optim.zero_grad()
