@@ -316,7 +316,7 @@ class Model:
         """
         if img.shape[1] == 1:
             mean = np.mean(self.px_mean.numpy())
-            std = self.px_std.numpy()
+            std = np.mean(self.px_std.numpy())
             return torch.tensor((img.numpy().astype('float32') - mean) / std) / 255
         else:
             return torch.tensor((img.numpy().astype('float32') - self.px_mean) / self.px_std) / 255
