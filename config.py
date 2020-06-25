@@ -115,6 +115,10 @@ def get_parser(action):
                          choices=["resnet", "xception"],
                          help='Network model encoder.')
 
+        arg.add_argument("--cls_weight", type=str2bool,
+                         default=False,
+                         help="Weight applied to classes in loss computations.")
+
         arg.add_argument("--ce_weight", type=float,
                          default=0.5,
                          help="Weight applied to Cross Entropy losses for back-propagation.")
