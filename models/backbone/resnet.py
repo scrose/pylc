@@ -148,7 +148,7 @@ class ResNet(nn.Module):
         self.load_state_dict(state_dict)
 
 
-def ResNet101(output_stride, BatchNorm, in_channels=3, pretrained=True):
+def ResNet101(output_stride, BatchNorm, in_channels=3, pretrained=False):
     """Constructs a ResNet-101 model.
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
