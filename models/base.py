@@ -1,5 +1,7 @@
 # Adapted from https://discuss.pytorch.org/t/unet-implementation/426
 import os
+import sys
+
 import torch
 import numpy as np
 import cv2
@@ -41,17 +43,23 @@ class Model:
         self.mode = config.type
 
         # build network
+        self.net = None
+        self.crop_target = False
         self.build()
 
         # global iteration counter
         self.iter = 0
 
-        # initialize loss parameters
-        self.cls_weight = self.init_class_weight()
+        # initialize preprocessed dataset metadata -> parameters
+        if not config.mode == params.SUMMARY:
+            self.metadata = self.init_metadata()
+            self.cls_weight = self.metadata.item().get('weights')
+            self.px_mean = self.metadata.item().get('px_mean')
+            self.px_std = self.metadata.item().get('px_std')
 
-        # load loss handlers
-        self.crit = MultiLoss(self.config, self.cls_weight)
-        self.loss = RunningLoss(self.config)
+            # load loss handlers
+            self.crit = MultiLoss(self.config, self.cls_weight)
+            self.loss = RunningLoss(self.config)
 
         # ---- Model Training
         # Check for existing checkpoint. If exists, resume from
@@ -73,22 +81,20 @@ class Model:
             # self.net.summary()
             self.net.eval()
 
-    # Retrieve preprocessed class weights
-    def init_class_weight(self):
+    # Retrieve preprocessed metadata
+    def init_metadata(self):
 
-        path = ''
+        path = os.path.join(params.get_path('metadata', self.config.capture), self.config.db + '.npy')
 
         # select dataset metadata file
-        if self.config.type == params.TRAIN or self.config.type == params.TEST:
-            path = os.path.join(params.get_path('metadata', self.config.capture), self.config.db + '.npy')
+        if os.path.isfile(path):
+            print("\nLoading dataset metadata from {}.".format(path))
+            return np.load(path, allow_pickle=True)
         else:
-            print("Error: Class weights could not be initialized.")
-            exit(1)
+            print("Error: Metadata file {} not found. Parameters could not be initialized.".format(path))
+            sys.exit(0)
 
-        print("\nLoading class weights from {}.".format(path))
-        cls_weight = np.load(path, allow_pickle=True)
-        return cls_weight.item().get('weights')
-
+    # Network layer activation functions
     def activ_func(self, activ_type):
         return torch.nn.ModuleDict([
             ['relu', torch.nn.ReLU(inplace=True)],
@@ -127,7 +133,7 @@ class Model:
             self.net = self.net.to(params.device)
             self.crop_target = True
 
-        # Deeplabv3+
+        # DeeplabV3+
         elif self.config.model == 'deeplab':
             self.net = DeepLab(
                 activ_func=self.activ_func('relu'),
@@ -136,7 +142,6 @@ class Model:
                 n_classes=self.n_classes
             )
             self.net = self.net.to(params.device)
-            self.crop_target = False
 
         # Unknown model requested
         else:
@@ -174,8 +179,7 @@ class Model:
         if self.config.sched == 'step_lr':
             return torch.optim.lr_scheduler.StepLR(self.optim, step_size=1, gamma=params.gamma)
         elif self.config.sched == 'cyclic_lr':
-            return torch.optim.lr_scheduler.CyclicLR(self.optim, params.lr_min, params.lr_max, step_size_up=2000,
-                                                     step_size_down=None)
+            return torch.optim.lr_scheduler.CyclicLR(self.optim, params.lr_min, params.lr_max, step_size_up=2000)
         elif self.config.sched == 'anneal':
             steps_per_epoch = int(self.config.clip * 29000 // self.config.batch_size)
             scheduler = torch.optim.lr_scheduler.OneCycleLR(self.optim, max_lr=params.lr_max,
@@ -189,26 +193,29 @@ class Model:
 
         """model training step"""
 
-        # normalize input
-        x -= 147
-        x /= 68
+        # normalize input [NCWH]
+        x = self.normalize_image(x)
         x = x.to(params.device)
         y = y.to(params.device)
 
-        # crop target image to fit output size (e.g. UNet model)
+        print(x.shape)
+        exit()
+
+        # crop target mask to fit output size (e.g. UNet model)
         if self.crop_target:
             y = y[:, params.crop_left:params.crop_right, params.crop_up:params.crop_down]
 
         # stack single-channel input tensors
-        if self.in_channels == 1:
-            x = torch.cat((x, x, x), 1)
+        # if self.in_channels == 1:
+        #     x = torch.cat((x, x, x), 1)
 
+        # forward pass
         y_hat = self.net.forward(x)
-        ce = self.crit.ce_loss(y_hat, y)
-        dice = self.crit.dice_loss(y_hat, y)
 
-        loss = self.config.ce_weight * ce + self.config.dice_weight * dice
-        self.loss.intv += [(ce.item(), dice.item())]
+        # compute losses
+        loss, ce, dsc, fl = self.crit.forward(y_hat, y)
+
+        self.loss.intv += [(ce.item(), dsc.item(), fl.item())]
 
         # zero gradients, compute, step, log losses,
         self.optim.zero_grad()
@@ -234,8 +241,7 @@ class Model:
         self.net.eval()
 
         # normalize
-        x -= 147
-        x /= 68
+        x = self.normalize_image(x)
         x = x.to(params.device)
         y = y.to(params.device)
 
@@ -252,7 +258,8 @@ class Model:
             y_hat = self.net.forward(x)
             ce = self.crit.ce_loss(y_hat, y).cpu().numpy()
             dice = self.crit.dice_loss(y_hat, y).cpu().numpy()
-            self.loss.intv += [(ce, dice)]
+            focal = self.crit.focal_loss(y_hat, y).cpu().numpy()
+            self.loss.intv += [(ce, dice, focal)]
 
         if test:
             self.evaluator.results += [y_hat]
@@ -264,8 +271,7 @@ class Model:
         self.net.eval()
 
         # normalize
-        x -= 147
-        x /= 68
+        x = self.normalize_image(x)
         x = x.to(params.device)
 
         # stack single-channel input tensors
@@ -304,8 +310,18 @@ class Model:
         for param_group in self.optim.param_groups:
             return param_group['lr']
 
-    """summarize model parameters"""
+    def normalize_image(self, img):
+        """ Normalize input image data [NCWH]
+            - uses precomputed mean/std of pixel intensities
+        """
+        if img.shape[1] == 1:
+            mean = np.mean(self.px_mean.numpy())
+            std = self.px_std.numpy()
+            return torch.tensor((img.numpy().astype('float32') - mean) / std) / 255
+        else:
+            return torch.tensor((img.numpy().astype('float32') - self.px_mean) / self.px_std) / 255
 
+    """summarize model parameters"""
     def summary(self):
         try:
             from torchsummary import summary

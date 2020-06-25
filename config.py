@@ -69,7 +69,7 @@ def get_parser(action):
 
         arg.add_argument("--mode", type=str,
                          default=None,
-                         choices=["extract", "profile", "augment", "merge", "grayscale"],
+                         choices=["extract", "profile", "show_profile", "augment", "merge", "grayscale"],
                          help="Preprocess action to run.")
 
         arg.add_argument("--pad", type=str2bool,
@@ -107,8 +107,8 @@ def get_parser(action):
 
         arg.add_argument('--model', type=str,
                          default='deeplab',
-                         choices=['unet', 'resnet', 'resunet', 'deeplab'],
-                         help='Network model architecture.')
+                         choices=['unet', 'resunet', 'deeplab'],
+                         help='Network architecture.')
 
         arg.add_argument('--backbone', type=str,
                          default='resnet',
@@ -117,11 +117,15 @@ def get_parser(action):
 
         arg.add_argument("--ce_weight", type=float,
                          default=0.5,
-                         help="Weight applied to Cross Entropy losses for backpropagation.")
+                         help="Weight applied to Cross Entropy losses for back-propagation.")
 
         arg.add_argument("--dice_weight", type=float,
                          default=0.5,
-                         help="Weight applied to Dice losses for backpropagation.")
+                         help="Weight applied to Dice losses for back-propagation.")
+
+        arg.add_argument("--focal_weight", type=float,
+                         default=0.5,
+                         help="Weight applied to Focal losses for back-propagation.")
 
         arg.add_argument('--up_mode', type=str,
                          default='upsample',

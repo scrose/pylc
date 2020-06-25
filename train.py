@@ -45,7 +45,8 @@ def train(config, model):
         print('\tCurrent learning rate: {}'.format(model.loss.lr[-1][1]))
 
         model = epoch(model, tr_dloader, tr_batches)
-        print("\n[Train] CE avg: %4.4f / Dice: %4.4f\n" % (model.loss.avg_ce, model.loss.avg_dice))
+        print("\n[Train] CE avg: %4.4f / Dice: %4.4f / Focal: %4.4f\n" %
+              (model.loss.avg_ce, model.loss.avg_dice, model.loss.avg_fl))
 
         model = validate(model, va_dloader, va_batches)
         print("\n[Valid] CE avg: %4.4f / Dice avg: %4.4f / Best: %4.4f\n" %
@@ -64,10 +65,6 @@ def epoch(model, dloader, n_batches):
     model.net.train()
     for i, (x, y) in tqdm(enumerate(dloader), total=n_batches, desc="Training: ", unit=' batches'):
 
-        # check if training data is RGB to be grayscaled
-        if model.config.grayscale and x.shape[1] == 3:
-            x = x.to(torch.float32).mean(dim=1).unsqueeze(1)
-
         # train with main dataset
         model.train(x, y)
 
@@ -81,11 +78,6 @@ def validate(model, dloader, n_batches):
     model.net.eval()
     with torch.no_grad():
         for i, (x, y) in tqdm(enumerate(dloader), total=n_batches, desc="Validating: ", unit=' batches'):
-
-            # check if training data is RGB to be grayscaled
-            if model.config.grayscale and x.shape[1] == 3:
-                x = x.to(torch.float32).mean(dim=1).unsqueeze(1)
-
             model.eval(x, y)
         model.log()
         model.save()
@@ -111,36 +103,49 @@ def init_capture(config):
 
 
 # -----------------------------
+# Initialize parameters for capture type
+# -----------------------------
+def print_params(config):
+    if config.id:
+        print("\nTraining Experiment {}".format(config.id))
+    print("\tCapture Type: {}".format(config.capture))
+    if config.db:
+        print("\tDatabase: {}".format(config.db))
+    print("\tModel: {}".format(config.model))
+    # show encoder backbone for Deeplab
+    if config.model == 'deeplab':
+        print("\tBackbone: {}".format(config.backbone))
+    if config.grayscale:
+        print('\tForce Grayscale: {}'.format(config.grayscale))
+    print('\tInput channels: {}'.format(config.in_channels))
+    print('\tClasses: {}'.format(config.n_classes))
+
+
+# -----------------------------
 # Main Execution Routine
 # -----------------------------
 def main(config):
 
     # initialize config parameters based on capture type
     config = init_capture(config)
-    print("\nTraining Experiment {}".format(config.id))
-    print("\tCapture Type: {}".format(config.capture))
-    print("\tDatabase: {}".format(config.db))
-    print("\tModel: {}".format(config.model))
-    # show encoder backbone for Deeplab
-    if config.model == 'deeplab':
-        print("\tBackbone: {}".format(config.backbone))
-    print('\tForce Grayscale: {}'.format(config.grayscale))
-    print('\tInput channels: {}'.format(config.in_channels))
-    print('\tClasses: {}'.format(config.n_classes))
 
     # Build model from hyperparameters
     model = Model(config)
 
     if config.mode == params.NORMAL:
+        print_params(config)
         params.clip = config.clip
         train(config, model)
     elif config.mode == params.OVERFIT:
+        print_params(config)
         # clip the dataset
         params.clip = params.clip_overfit
         config.batch_size = 1
         train(config, model)
     elif config.mode == params.SUMMARY:
         # summarize the model parameters
+        print("\nModel summary for: {}".format(config.model))
+        print_params(config)
         model.summary()
         print(model.net)
     else:

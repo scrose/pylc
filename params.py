@@ -102,6 +102,12 @@ class Parameters:
         # Extraction scaling
         self.scales = [0.2, 0.5, 1.]
 
+        # Image normalization
+        self.gs_mean = 0.456
+        self.gs_std = 0.225
+        self.rgb_mean = [0.485, 0.456, 0.406]
+        self.rgb_std = [0.229, 0.224, 0.225]
+
         # ===================================
         # Land Cover Categories (LCC-A, LCC-B, LCC-merged)
         # ===================================
@@ -119,7 +125,7 @@ class Parameters:
         # 8. '#2dbdff' [45, 189, 255] (light blue - approx): Snow/Ice
         # 9. '#ff0004' [255, 0, 4] (red - solid): Regenerating area
 
-        self.mask_categories_alt = {
+        self.categories_lcc_a = {
             '#000000': 'Not categorized',
             '#ffa500': 'Broadleaf/Mixedwood',
             '#228b22': 'Coniferous',
@@ -131,7 +137,7 @@ class Parameters:
             '#ff0004': 'Regenerating Area',
         }
 
-        self.category_labels_alt = [
+        self.labels_lcc_a = [
             'Not categorized',
             'Broadleaf/Mixedwood',
             'Coniferous',
@@ -143,7 +149,7 @@ class Parameters:
             'Regenerating Area',
         ]
 
-        self.palette_alt = np.array(
+        self.palette_lcc_a = np.array(
             [[0, 0, 0],
              [255, 165, 0],
              [34, 139, 34],
@@ -156,7 +162,7 @@ class Parameters:
              ])
 
         # merged classes
-        self.categories_merged_alt = [
+        self.categories_merged_lcc_a = [
             np.array([0]),
             np.array([1, 2]),
             np.array([3]),
@@ -183,7 +189,7 @@ class Parameters:
         # 10. '#b0fffd' [176,255,253] (French pass - approx): Snow/Ice
         # 11. '#ff00ff' [255,0,255] (magenta - solid): Regenerating area
 
-        self.mask_categories = {
+        self.mask_categories_lcc_b = {
             '#000000': 'Not categorized',
             '#ffaa00': 'Broadleaf forest',
             '#d5d500': 'Mixedwood forest',
@@ -197,7 +203,7 @@ class Parameters:
             '#ff00ff': 'Regenerating Area',
         }
 
-        self.category_labels = [
+        self.category_labels_lcc_b = [
             'Not categorized',
             'Broadleaf forest',
             'Mixedwood forest',
@@ -211,7 +217,7 @@ class Parameters:
             'Regenerating Area'
         ]
 
-        self.palette = np.array(
+        self.palette_lcc_b = np.array(
             [[0, 0, 0],
              [255, 170, 0],
              [213, 213, 0],
@@ -230,7 +236,7 @@ class Parameters:
         # ------------------------------------
 
         # merged classes
-        self.categories_merged = [
+        self.categories_lcc_merged = [
             np.array([0]),
             np.array([1, 2, 3, 4, 5]),
             np.array([6, 7, 8, 9]),
@@ -238,33 +244,25 @@ class Parameters:
         ]
 
         # Merged classes
-        self.palette_merged = np.array(
+        self.palette_lcc_merged = np.array(
             [[0, 0, 0],
              [65, 220, 102],
              [135, 52, 52],
              [255, 0, 255],
              ])
 
-        self.mask_categories_merged = {
+        self.mask_categories_lcc_merged = {
             '#000000': 'Not categorized',
             '#41dc66': 'Vegetation',
             '#873434': 'Non-Vegetation',
             '#ff00ff': 'Regenerating Area',
         }
 
-        self.category_labels_merged = [
+        self.labels_lcc_merged = [
             'Not categorized',
             'Vegetation',
             'Non-Vegetation',
             'Regenerating Area']
-
-        # Merged classes
-        self.palette_merged = np.array(
-            [[0, 0, 0],
-             [65, 220, 102],
-             [135, 52, 52],
-             [255, 0, 255],
-             ])
 
         # ===================================
         # Data Augmentation Parameters
@@ -296,6 +294,10 @@ class Parameters:
         self.weight_decay = 5e-5
         self.grad_steps = 16
         self.test_intv = 70
+
+        # Focal Loss
+        self.fl_gamma = 2
+        self.fl_alpha = 0.25
 
     # ===================================
     # Utility Functions

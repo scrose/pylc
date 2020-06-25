@@ -303,7 +303,7 @@ def reconstruct(tiles, w, h, w_full, h_full, offset, n_classes, stride):
 
     # Colourize and resize mask to full size
     mask_fullsized = np.expand_dims(mask_fullsized, axis=0)
-    _mask_pred = colourize(np.argmax(mask_fullsized, axis=1), n_classes, palette=params.palette_alt)
+    _mask_pred = colourize(np.argmax(mask_fullsized, axis=1), n_classes, palette=params.palette_lcc_a)
     mask_resized = cv2.resize(_mask_pred[0].astype('float32'), (w_full, h_full), interpolation=cv2.INTER_AREA)
 
     return mask_resized

@@ -16,23 +16,18 @@ class MultiLoss(object):
     def __init__(self,
                  config,
                  cls_weight,
-                 eps=1e-10,
-                 gamma=0.9
+                 eps=1e-10
                  ):
         super(MultiLoss, self).__init__()
         self.n_classes = config.n_classes
         self.cls_weight = cls_weight
-        self.dice_weight = config.dice_weight
+        self.dsc_weight = config.dice_weight
         self.ce_weight = config.ce_weight
+        self.fl_weight = config.focal_weight
         self.eps = eps
-        self.gamma = gamma
 
-        if self.n_classes == 4:
-            categories = params.category_labels_merged
-        elif self.n_classes == 11:
-            categories = params.category_labels
-        else:
-            categories = params.category_labels_alt
+        # Use LCC-A categorization scheme
+        categories = params.labels_lcc_a
 
         # initialize cross entropy loss weights
         if isinstance(self.cls_weight, np.ndarray):
@@ -42,17 +37,18 @@ class MultiLoss(object):
 
         # Print the loaded class weights for training
         print('\nLoss Weights Loaded')
+        print('\tCE: {:20f}'.format(self.ce_weight))
+        print('\tDSC: {:20f}'.format(self.dsc_weight))
+        print('\tFL: {:20f}'.format(self.fl_weight))
         print('\n{:20s}{:>15s}\n'.format('Class', 'Weight'))
         for i, w in enumerate(self.cls_weight):
             print('{:20s}{:15f}'.format(categories[i], w))
         print()
 
-        # initialize cross-entropy loss function
-        self.ce_loss = torch.nn.CrossEntropyLoss()
+        # initialize cross-entropy loss function with class weights
+        self.ce_loss = torch.nn.CrossEntropyLoss(self.cls_weight)
 
-    def forward(self,
-                y_pred,
-                y_true):
+    def forward(self, y_pred, y_true):
 
         # mask predictions are assumed to be BxCxWxH
         # mask targets are assumed to be BxWxH with values equal to the class
@@ -62,14 +58,18 @@ class MultiLoss(object):
         assert y_pred.size(3) == y_true.size(2)
 
         # Combine ratio of losses (specified in parameters)
-        ce_loss = self.ce_loss(y_pred, y_true)
-        dice_loss = self.dice_loss(y_pred, y_true)
+        ce = self.ce_loss(y_pred, y_true)
+        dsc = self.dice_loss(y_pred, y_true)
+        fl = self.focal_loss(y_pred, y_true)
 
-        return self.ce_weight * ce_loss + self.dice_weight * dice_loss
+        # Apply loss weights
+        weighted_loss = self.ce_weight * ce + self.dsc_weight * dsc + self.fl_weight * fl
 
-        # Multiclass (soft) dice loss function
+        return weighted_loss, ce, dsc, fl
+
+    # Multiclass (soft) dice loss function
     def dice_loss(self, y_pred, y_true):
-        """Computes the Sørensen–Dice loss.
+        """ Computes the Sørensen–Dice loss.
         Note that PyTorch optimizers minimize a loss. In this
         case, we would like to maximize the dice loss so we
         return the negated dice loss.
@@ -85,11 +85,39 @@ class MultiLoss(object):
         y_true_1hot = torch.nn.functional.one_hot(y_true, num_classes=self.n_classes).permute(0, 3, 1, 2)
         probs = torch.nn.functional.softmax(y_pred, dim=1).to(params.device)
 
+        # compute mean of y_true U y_pred / (y_pred + y_true)
         intersection = torch.sum(probs * y_true_1hot, dim=(0, 2, 3))
         cardinality = torch.sum(probs + y_true_1hot, dim=(0, 2, 3))
         dice_loss = (2. * intersection + params.dice_smooth) / (cardinality + params.dice_smooth)
 
+        # loss is negative = 1 - DSC
         return 1 - dice_loss.mean()
+
+    def focal_loss(self, y_pred, y_true):
+        """ Computes Focal loss.
+        Reference: Lin, Tsung-Yi, Priya Goyal, Ross Girshick, Kaiming He,
+        and Piotr Dollár. "Focal loss for dense object detection."
+        In Proceedings of the IEEE international conference on computer
+        vision, pp. 2980-2988. 2017.
+
+        Args:
+            y_true: a tensor of shape [B, H, W].
+            y_pred: a tensor of shape [B, C, H, W]. Corresponds to
+                the raw output or logits of the model.
+            eps: added to the denominator for numerical stability.
+        Returns:
+            focal_loss: the Focal Loss of prediction / ground-truth
+        """
+
+        # Compute multi-class cross-entropy loss (no class weights)
+        # important to add reduction='none' to keep per-batch-item loss
+        ce_loss = torch.nn.functional.cross_entropy(y_pred, y_true, reduction='none')
+        pt = torch.exp(-ce_loss)
+
+        # mean over the batch
+        focal_loss = (params.fl_alpha * (1 - pt)**params.fl_gamma * pt)
+
+        return focal_loss.mean()
 
 
 class RunningLoss(object):
@@ -103,12 +131,14 @@ class RunningLoss(object):
         self.valid = []
         self.test = []
         self.intv = []
-        self.avg_ce = 0
+        self.avg_ce = 0.
         self.avg_dice = 1.
         self.best_dice = 1.
+        self.avg_fl = 0.
         self.is_best = False
         self.lr = []
-        # initialize save files
+
+        # initialize log files
         dir_path = os.path.join(params.paths['logs'][config.type][config.capture], config.id)
         self.output_file = os.path.join(utils.mk_path(dir_path), 'losses.pth')
         self.load(config)
@@ -129,22 +159,22 @@ class RunningLoss(object):
                 os.remove(self.output_file)
 
     def log(self, iter, training):
-        ''' log running losses'''
+        """ log running losses"""
         if self.intv:
             # get interval average for losses
-            (self.avg_ce, self.avg_dice) = tuple([sum(l) / len(self.intv) for l in zip(*self.intv)])
+            (self.avg_ce, self.avg_dice, self.avg_fl) = tuple([sum(l) / len(self.intv) for l in zip(*self.intv)])
             self.intv = []
             if training:
-                self.train += [(iter,) + (self.avg_ce, self.avg_dice)]
+                self.train += [(iter,) + (self.avg_ce, self.avg_dice, self.avg_fl)]
             else:
-                self.valid += [(iter,) + (self.avg_ce, self.avg_dice)]
+                self.valid += [(iter,) + (self.avg_ce, self.avg_dice, self.avg_fl)]
                 # set current validation accuracy to new average dice coefficient
                 self.is_best = self.avg_dice < self.best_dice
                 if self.is_best:
                     self.best_dice = self.avg_dice
 
     def save(self, test=False):
-        '''Save loss values to disk'''
+        """Save loss values to disk"""
         if not test:
             torch.save({
                 "train": self.train,

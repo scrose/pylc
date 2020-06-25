@@ -31,9 +31,11 @@ def show_profile(prof, title="Profile"):
     print('\tJSD: {}'.format(prof['jsd']))
     print('\n-----\n{:20s} {:3s} \t {:3s}\n'.format('Class', 'Probs', 'Weights'))
     for i, w in enumerate(prof['weights']):
-        print('{:20s} {:3f} \t {:3f}'.format(params.category_labels_alt[i], prof['probs'][i], w))
+        print('{:20s} {:3f} \t {:3f}'.format(params.labels_lcc_a[i], prof['probs'][i], w))
     print('\nTotal samples: {}'.format(prof['n_samples']))
-    print('Sample Size: {} x {} = {} pixels'.format(patch_size, patch_size, patch_size*patch_size))
+    print('\tPx mean: {}'.format(prof['px_mean']))
+    print('\tPx std: {}'.format(prof['px_std']))
+    print('\tSample Size: {} x {} = {} pixels'.format(patch_size, patch_size, patch_size*patch_size))
 
 
 # -----------------------------
@@ -95,14 +97,14 @@ def extract_subimages(files, cf):
             print('\tConverting masks to class index encoding ... ', end='')
             if 'dst-b' == dset:
                 # Encode masks to class encoding [NWH format] using LCC-B palette
-                mask_data = utils.class_encode(mask_data, params.palette)
+                mask_data = utils.class_encode(mask_data, params.palette_lcc_b)
                 print('done.')
                 print('\tConverting LCC-B palette to LCC-A palette ... ', end='')
-                mask_data = utils.merge_classes(mask_data, params.categories_merged_alt)
+                mask_data = utils.merge_classes(mask_data, params.categories_merged_lcc_a)
                 print('done.')
             else:
                 # Encode masks to class encoding [NWH format] using LCC-A palette
-                mask_data = utils.class_encode(mask_data, params.palette_alt)
+                mask_data = utils.class_encode(mask_data, params.palette_lcc_a)
                 print('done.')
 
             np.copyto(imgs[idx:idx + size, ...], img_data)
@@ -142,7 +144,6 @@ def oversample(dloader, dsize, rates, cf):
         np.copyto(imgs[idx:idx + 1, ...], img.numpy().astype(np.uint8))
         np.copyto(masks[idx:idx + 1, ...], mask.numpy().astype(np.uint8))
         idx += 1
-
         # append augmented data
         for j in range(rates[i]):
             random_state = np.random.RandomState(j)
@@ -173,24 +174,40 @@ def oversample(dloader, dsize, rates, cf):
 # Profile image dataset
 # -----------------------------
 # Calculates class distribution for extraction dataset
-# Also: calculates sample metrics and statistics
-# Input: [Tensor] class-encoded mask data
+# Also:
+#  - calculates sample metrics and statistics
+#  - calcualate image mean / standard deviation
+# Input:
+#  - [Pytorch Dataloader] image/mask data <- database
+#  - [int] dataset size
+#  - [dict] Configuration settings
 # Output: [Numpy] pixel distribution, class weights, other metrics/analytics
 # -----------------------------
 def profile(dloader, dsize, cf):
+
     # Obtain overall class stats for dataset
     n_samples = dsize
     px_dist = []
     px_count = params.patch_size * params.patch_size
+    px_mean = torch.zeros(cf.in_channels)
+    px_std = torch.zeros(cf.in_channels)
 
-    # get pixel counts from db
+    # load image and mask batches from database
     for i, data in tqdm(enumerate(dloader), total=dsize // cf.batch_size, unit=' batches'):
-        _, target = data
+        img, target = data
 
-        # convert to one-hot encoding
+        # Compute dataset pixel global mean / standard deviation
+        px_mean += torch.mean(img, (0, 2, 3))
+        px_std += torch.std(img, (0, 2, 3))
+
+        # convert mask to one-hot encoding
         target_1hot = torch.nn.functional.one_hot(target, num_classes=cf.n_classes).permute(0, 3, 1, 2)
         px_dist_sample = [np.sum(target_1hot.numpy(), axis=(2, 3))]
         px_dist += px_dist_sample
+
+    # Divide by dataset size
+    px_mean /= dsize
+    px_std /= dsize
 
     # Calculate sample pixel distribution / sample pixel count
     px_dist = np.concatenate(px_dist)
@@ -222,7 +239,9 @@ def profile(dloader, dsize, cf):
         'probs': probs,
         'weights': weights,
         'm2': m2,
-        'jsd': jsd}
+        'jsd': jsd,
+        'px_mean': px_mean,
+        'px_std': px_std}
 
     show_profile(prof)
 
@@ -237,18 +256,8 @@ def profile(dloader, dsize, cf):
 # -----------------------------------
 def aug_optimize(profile_metadata, n_classes):
 
-    prof = {
-        'id': profile_metadata.item().get('id'),
-        'capture': profile_metadata.item().get('capture'),
-        'n_samples': profile_metadata.item().get('n_samples'),
-        'px_dist': profile_metadata.item().get('px_dist'),
-        'px_count': profile_metadata.item().get('px_count'),
-        'dset_px_dist': profile_metadata.item().get('dset_px_dist'),
-        'dset_px_count': profile_metadata.item().get('dset_px_count'),
-        'probs': profile_metadata.item().get('probs'),
-        'weights': profile_metadata.item().get('weights'),
-        'm2': profile_metadata.item().get('m2'),
-        'jsd': profile_metadata.item().get('jsd')}
+    # convert profile data
+    prof = get_prof(profile_metadata)
 
     # Show previous profile metadata
     show_profile(prof, title="Previous Profile")
@@ -274,7 +283,7 @@ def aug_optimize(profile_metadata, n_classes):
     print("\tSample maximum: {}".format(params.aug_n_samples_max))
     print("\tMinumum sample rate: {}".format(params.min_sample_rate))
     print("\tMaximum samples rate: {}".format(params.max_sample_rate))
-    print("\tRate coefficient range: {}-{}".format(params.sample_rate_coef[0], params.sample_rate_coef[-1]))
+    print("\tRate coefficient range: {:3f}-{:3f}".format(params.sample_rate_coef[0], params.sample_rate_coef[-1]))
     print("\tThreshold range: {}-{}".format(params.sample_threshold[0], params.sample_threshold[-1]))
 
     # rate coefficient (range of 1 - 21)
@@ -328,6 +337,23 @@ def aug_optimize(profile_metadata, n_classes):
     return profile_data[optim_idx]
 
 
+# convert numpy profile to standard dict
+def get_prof(md):
+    return {
+        'id': md.item().get('id'),
+        'capture': md.item().get('capture'),
+        'n_samples': md.item().get('n_samples'),
+        'px_dist': md.item().get('px_dist'),
+        'px_count': md.item().get('px_count'),
+        'dset_px_dist': md.item().get('dset_px_dist'),
+        'dset_px_count': md.item().get('dset_px_count'),
+        'probs': md.item().get('probs'),
+        'weights': md.item().get('weights'),
+        'm2': md.item().get('m2'),
+        'jsd': md.item().get('jsd'),
+        'px_mean': md.item().get('px_mean'),
+        'px_std': md.item().get('px_std')}
+
 # ============================
 # Main preprocessing routine
 # ============================
@@ -353,7 +379,7 @@ def main(cf, parser):
         # Initialize file paths
         # Set database path in paths.json, filename root is same as ID argument
         db_path = os.path.join(params.get_path('db', cf.capture), cf.id + '.h5')
-        metadata_path = os.path.join(params.get_path('metadata', cf.capture), cf.id + '_meta.npy')
+        metadata_path = os.path.join(params.get_path('metadata', cf.capture), cf.id + '.npy')
 
         # iterate over available datasets
         for dset in params.dsets:
@@ -435,7 +461,7 @@ def main(cf, parser):
         print('\tInput channels: {}'.format(cf.in_channels))
 
         # Load dataset metadata and calculate augmentation sample rates
-        metadata_path = os.path.join(params.get_path('metadata', cf.capture), cf.id + '_meta.npy')
+        metadata_path = os.path.join(params.get_path('metadata', cf.capture), cf.id + '.npy')
         metadata = np.load(metadata_path, allow_pickle=True)
         print('\nMetadata db path: {}'.format(metadata_path))
         aug_optim = aug_optimize(metadata, cf.n_classes)
@@ -444,7 +470,7 @@ def main(cf, parser):
         print('done.')
 
         print('\nOptimization Summary:')
-        print('\tThreshold: {}\n \tRate Coefficient: {}\n\tAugmentation Samples: {}\n\tOversample Max: {}\n\n'.format(
+        print('\tThreshold: {}\n \tRate Coefficient: {}\n\tAugmentation Samples: {}\n\n'.format(
             aug_optim.get('threshold'), aug_optim.get('rate_coef'),
             aug_optim.get('aug_n_samples'), aug_optim.get('rate_max')))
 
@@ -456,14 +482,14 @@ def main(cf, parser):
         db = DB(cf)
         db.save(aug_data, aug_db_path)
 
-        # Load augmentation data
+        # Reload augmentation data for profiling
         dloader, dset_size, db_size = load_data(cf, params.AUGMENT, aug_db_path)
 
         # Create metadata profile
         print("\nStarting profile of augmented data ... ")
 
         # Profile augmentation data
-        aug_metadata_path = os.path.join(params.get_path('metadata', cf.capture), cf.id + '_aug_meta.npy')
+        aug_metadata_path = os.path.join(params.get_path('metadata', cf.capture), cf.id + '_aug.npy')
         aug_metadata = profile(dloader, dset_size, cf)
 
         # save augmentation profile data to file
@@ -484,21 +510,24 @@ def main(cf, parser):
         cf.batch_size = 1
 
         print("Starting pixel class profile ... ")
-        print('\tID: {}'.format(cf.id))
+        print('\tProfile ID: {}'.format(cf.id))
         print("\tDataset: {}".format(cf.dset))
         print('\tCapture Type: {}'.format(cf.capture))
-        print('\tDatabase: {}'.format(cf.db))
-        print('\tClasses: {}'.format(cf.n_classes))
+        print('\tN Classes: {}'.format(cf.n_classes))
+        print('\tDatabase ID: {}'.format(cf.db))
 
         # Init file paths
-        metadata_path = os.path.join(params.get_path(params.META, cf.capture), cf.id + '_meta.npy')
-        db_path = os.path.join(params.get_path('db', cf.capture), cf.id + '.h5')
-        print('\tDB Path: {}'.format(db_path))
+        metadata_path = os.path.join(params.get_path(params.META, cf.capture), cf.id + '.npy')
+        db_path = os.path.join(params.get_path('db', cf.capture), cf.db + '.h5')
+
+        if not os.path.exists(db_path):
+            print('\tDB not found: {}'.format(db_path))
+        else:
+            print('\tDB Path: {}'.format(db_path))
 
         # Load extraction/augmentation data
         dloader, dsize = load_data(cf, params.PROFILE, db_path)
         print('\tDataset size: {} / Batch size: {}'.format(dsize, cf.batch_size))
-        print('\tClasses: {}'.format(cf.n_classes))
 
         # save profile data to file
         metadata = profile(dloader, dsize, cf)
@@ -507,6 +536,21 @@ def main(cf, parser):
             print('\nCopying metadata to {} ... '.format(metadata_path), end='')
             np.save(metadata_path, metadata)
             print('done.')
+
+    # -----------------------------
+    # Profiling
+    # -----------------------------
+    # Profiles dataset pixel distributions for analysis and data augmentation
+    # -----------------------------
+    elif cf.mode == 'show_profile':
+
+        # Load dataset metadata and write to stdout
+        metadata_path = os.path.join(params.get_path('metadata', cf.capture), cf.id + '.npy')
+        metadata = np.load(metadata_path, allow_pickle=True)
+        print('\nMetadata db path: {}'.format(metadata_path))
+        # convert profile data
+        prof = get_prof(metadata)
+        show_profile(prof)
 
     # -----------------------------
     # Merge multiple databases
