@@ -139,7 +139,8 @@ class Model:
                 activ_func=self.activ_func('relu'),
                 normalizer=torch.nn.BatchNorm2d,
                 backbone=self.config.backbone,
-                n_classes=self.n_classes
+                n_classes=self.n_classes,
+                in_channels=self.in_channels
             )
             self.net = self.net.to(params.device)
 

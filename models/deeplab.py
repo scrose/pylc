@@ -10,18 +10,19 @@ from models.decoder import build_decoder
 
 
 class DeepLab(nn.Module):
-    def __init__(self, activ_func, normalizer, backbone='resnet', output_stride=16, n_classes=11, freeze_bn=False):
+    def __init__(self, activ_func, normalizer, backbone='resnet', output_stride=16, n_classes=9, in_channels=3, freeze_bn=False):
         super(DeepLab, self).__init__()
 
         # Select encoder
         if backbone == 'resnet':
-            self.backbone = resnet.ResNet101(output_stride, normalizer)
+            self.backbone = resnet.ResNet101(output_stride, normalizer, in_channels)
         elif backbone == 'xception':
             self.backbone = xception.AlignedXception(output_stride, normalizer)
 
         self.aspp = build_aspp(backbone, output_stride, normalizer)
         self.decoder = build_decoder(n_classes, backbone, normalizer)
         self.normalizer = normalizer
+        self.in_channels = in_channels
         self.freeze_bn = freeze_bn
 
     def forward(self, input):
