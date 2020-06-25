@@ -45,12 +45,12 @@ def train(config, model):
         print('\tCurrent learning rate: {}'.format(model.loss.lr[-1][1]))
 
         model = epoch(model, tr_dloader, tr_batches)
-        print("\n[Train] CE avg: %4.4f / Dice: %4.4f / Focal: %4.4f\n" %
+        print("\n\n[Train] Losses: \n\tCE avg: %4.4f \n\tFocal: %4.4f \n\tDice: %4.4f\n" %
               (model.loss.avg_ce, model.loss.avg_dice, model.loss.avg_fl))
 
         model = validate(model, va_dloader, va_batches)
-        print("\n[Valid] CE avg: %4.4f / Dice avg: %4.4f / Best: %4.4f\n" %
-              (model.loss.avg_ce, model.loss.avg_dice, model.loss.best_dice))
+        print("\n[Valid] Losses: \n\tCE avg: %4.4f \n\tFL avg: %4.4f \n\tDSC avg: %4.4f (DSC Best: %4.4f)\n" %
+              (model.loss.avg_ce, model.loss.avg_fl, model.loss.avg_dice, model.loss.best_dice))
 
         # step learning rate
         model.sched.step()
