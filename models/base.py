@@ -198,9 +198,6 @@ class Model:
         x = x.to(params.device)
         y = y.to(params.device)
 
-        print(x.shape)
-        exit()
-
         # crop target mask to fit output size (e.g. UNet model)
         if self.crop_target:
             y = y[:, params.crop_left:params.crop_right, params.crop_up:params.crop_down]
