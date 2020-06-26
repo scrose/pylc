@@ -15,7 +15,7 @@ class DeepLab(nn.Module):
 
         # Select encoder
         if backbone == 'resnet':
-            self.backbone = resnet.ResNet101(output_stride, normalizer, in_channels)
+            self.backbone = resnet.ResNet101(output_stride, normalizer)
         elif backbone == 'xception':
             self.backbone = xception.AlignedXception(output_stride, normalizer)
 

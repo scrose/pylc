@@ -204,8 +204,8 @@ class Model:
             y = y[:, params.crop_left:params.crop_right, params.crop_up:params.crop_down]
 
         # stack single-channel input tensors (deeplab)
-        # if not self.config.type == 'unet' and self.in_channels == 1:
-        #     x = torch.cat((x, x, x), 1)
+        if self.in_channels == 1:
+            x = torch.cat((x, x, x), 1)
 
         # forward pass
         y_hat = self.net.forward(x)
@@ -248,8 +248,8 @@ class Model:
             y = y[:, params.crop_left:params.crop_right, params.crop_up:params.crop_down]
 
         # stack single-channel input tensors
-        # if self.in_channels == 1:
-        #     x = torch.cat((x, x, x), 1)
+        if self.in_channels == 1:
+            x = torch.cat((x, x, x), 1)
 
         # run forward pass
         with torch.no_grad():
@@ -273,8 +273,8 @@ class Model:
         x = x.to(params.device)
 
         # stack single-channel input tensors
-        # if self.in_channels == 1:
-        #     x = torch.cat((x, x, x), 1)
+        if self.in_channels == 1:
+            x = torch.cat((x, x, x), 1)
 
         # run forward pass
         with torch.no_grad():

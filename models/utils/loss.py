@@ -92,30 +92,30 @@ class MultiLoss(torch.nn.Module):
         return weighted_loss
 
     # Multiclass (soft) dice loss function
-    def dice_loss(self, y_pred, y_true):
+    def dice_loss(self, input, target):
         """ Computes the Sørensen–Dice loss.
         Note that PyTorch optimizers minimize a loss. In this
         case, we would like to maximize the dice loss so we
         return the negated dice loss.
         Args:
-            y_true: a tensor of shape [B, H, W].
-            y_pred: a tensor of shape [B, C, H, W]. Corresponds to
+            :param target: tensor of shape [B, H, W].
+            :param input: tensor of shape [B, C, H, W]. Corresponds to
                 the raw output or logits of the model.
             eps: added to the denominator for numerical stability.
         Returns:
             dice_loss: the Sørensen–Dice loss.
         """
 
-        y_true_1hot = torch.nn.functional.one_hot(y_true, num_classes=self.n_classes).permute(0, 3, 1, 2)
-        probs = torch.nn.functional.softmax(y_pred, dim=1).to(params.device)
+        y_true_1hot = torch.nn.functional.one_hot(target, num_classes=self.n_classes).permute(0, 3, 1, 2)
+        probs = torch.nn.functional.softmax(input, dim=1).to(params.device)
 
         # compute mean of y_true U y_pred / (y_pred + y_true)
         intersection = torch.sum(probs * y_true_1hot, dim=(0, 2, 3))
         cardinality = torch.sum(probs + y_true_1hot, dim=(0, 2, 3))
-        dice_loss = (2. * intersection + params.dice_smooth) / (cardinality + params.dice_smooth)
+        dice_loss = 1 - (2. * intersection + params.dice_smooth) / (cardinality + params.dice_smooth)
 
         # loss is negative = 1 - DSC
-        return 1 - dice_loss.mean()
+        return dice_loss.mean()
 
     def focal_loss(self, input, target):
         """ Computes Focal loss.
@@ -132,19 +132,6 @@ class MultiLoss(torch.nn.Module):
         Returns:
             focal_loss: the Focal Loss of prediction / ground-truth
         """
-
-        # Compute multi-class cross-entropy loss (no class weights)
-        # important to add reduction='none' to keep per-batch-item loss
-        # ce_loss = torch.nn.functional.cross_entropy(y_pred, y_true, reduction='none')
-        # pt = torch.exp(-ce_loss)
-        #
-        # # mean over the batch
-        # focal_loss = (params.fl_alpha * (1 - pt)**params.fl_gamma * pt)
-        #
-        # return focal_loss.mean()
-
-        eps = 1e-8
-        reduction = params.fl_reduction
 
         if not torch.is_tensor(input):
             raise TypeError("Input type is not a torch.Tensor. Got {}"
@@ -171,7 +158,7 @@ class MultiLoss(torch.nn.Module):
                     input.device, target.device))
 
         # compute softmax over the classes axis
-        input_soft: torch.Tensor = torch.nn.functional.softmax(input, dim=1) + eps
+        input_soft: torch.Tensor = torch.nn.functional.softmax(input, dim=1) + self.eps
 
         # create the labels one hot tensor
         target_one_hot: torch.Tensor = torch.nn.functional.one_hot(target, num_classes=self.n_classes).permute(0, 3, 1, 2)
@@ -182,15 +169,14 @@ class MultiLoss(torch.nn.Module):
         focal = -params.fl_alpha * weight * torch.log(input_soft)
         loss_tmp = torch.sum(target_one_hot * focal, dim=1)
 
-        if reduction == 'none':
+        if params.fl_reduction == 'none':
             loss = loss_tmp
-        elif reduction == 'mean':
+        elif params.fl_reduction == 'mean':
             loss = torch.mean(loss_tmp)
-        elif reduction == 'sum':
+        elif params.fl_reduction == 'sum':
             loss = torch.sum(loss_tmp)
         else:
-            raise NotImplementedError("Invalid reduction mode: {}"
-                                      .format(reduction))
+            raise NotImplementedError("Invalid reduction mode: {}".format(params.fl_reduction))
         return loss
 
 
