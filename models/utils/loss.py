@@ -68,6 +68,7 @@ class MultiLoss(torch.nn.Module):
 
         # initialize cross-entropy loss function with class weights
         if config.cls_weight:
+            print('\nCE losses will be weighted by class.')
             self.ce_loss = torch.nn.CrossEntropyLoss(self.cls_weight)
         else:
             self.ce_loss = torch.nn.CrossEntropyLoss()
