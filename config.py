@@ -32,7 +32,7 @@ def get_parser(action):
 
     arg.add_argument("--dset", type=str,
                      default="combined",
-                     choices=["fortin", "jean", "combined"],
+                     choices=["dst-a", "dst-b", "combined"],
                      help="Dataset selected.")
 
     arg.add_argument('--capture', type=str,

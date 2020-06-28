@@ -393,7 +393,7 @@ def main(cf, parser):
                 # get image/target file list
                 img_dir = params.get_path('raw', dset, cf.capture, params.TRAIN, 'img')
                 target_dir = params.get_path('raw', dset, cf.capture, params.TRAIN, 'mask')
-                img_files = utils.load_files(img_dir, ['.tif', '.tiff'])
+                img_files = utils.load_files(img_dir, ['.tif', '.tiff', '.jpg', '.jpeg'])
                 target_files = utils.load_files(target_dir, ['.png'])
 
                 # verify image/target pairing
