@@ -46,7 +46,7 @@ def extract_subimages(files, cf):
     # initialize main image arrays
     imgs = np.empty(
         (len(files) * n_patches_per_image, cf.in_channels, params.patch_size, params.patch_size), dtype=np.uint8)
-    masks = np.empty(
+    targets = np.empty(
         (len(files) * n_patches_per_image, params.patch_size, params.patch_size), dtype=np.uint8)
     idx = 0
 
@@ -57,7 +57,7 @@ def extract_subimages(files, cf):
         scales = [None]
 
     # Iterate over files
-    print('\nExtracting image/mask patches ... ')
+    print('\nExtracting image/target patches ... ')
     print('\tAverage patches per image: {}'.format(n_patches_per_image))
     print('\tPatch dimensions: {}px x {}px'.format(params.patch_size, params.patch_size))
     print('\tStride: {}px'.format(params.stride_size))
@@ -66,64 +66,66 @@ def extract_subimages(files, cf):
         print('\nExtraction scaling: {}'.format(scale))
         for i, fpair in enumerate(files):
 
-            # Get image and associated mask data
+            # Get image and associated target data
             img_path = fpair.get('img')
-            mask_path = fpair.get('mask')
+            target_path = fpair.get('mask')
             dset = fpair.get('dset')
 
             # Extract image subimages [NCWH format]
             img = utils.get_image(img_path, cf.in_channels, scale=scale, interpolate=cv2.INTER_AREA)
             img_data = torch.as_tensor(img, dtype=torch.uint8)
             print('\nPair {} in dataset {}:'.format(i + 1, dset))
-            print('\tImage {} / Shape: {}'.format(img_path, img_data.shape))
+            print('\tInput {} \n\tDimensions: {}'.format(img_path, img_data.shape[1], img_data.shape[2]))
             img_data = img_data.unfold(0, params.patch_size, params.stride_size).unfold(1, params.patch_size,
                                                                                         params.stride_size)
             img_data = torch.reshape(
                 img_data, (img_data.shape[0] * img_data.shape[1], cf.in_channels, params.patch_size, params.patch_size))
-            print('\tImg Patches / Shape: {}'.format(img_data.shape))
+            print('\tInput tiles \n\tDimensions: {}x{}'.format(img_data.shape[0], img_data.shape[2], img_data.shape[3]))
             size = img_data.shape[0]
 
-            # Extract mask subimages [NCWH format]
-            mask = utils.get_image(mask_path, 3, scale=scale, interpolate=cv2.INTER_NEAREST)
-            mask_data = torch.as_tensor(mask, dtype=torch.uint8)
-            print('\tMask Image {} / Shape: {}'.format(mask_path, mask_data.shape))
-            mask_data = mask_data.unfold(0, params.patch_size, params.stride_size).unfold(1, params.patch_size,
-                                                                                          params.stride_size)
-            mask_data = torch.reshape(mask_data,
-                                      (mask_data.shape[0] * mask_data.shape[1], 3, params.patch_size, params.patch_size))
-            print('\tMask Patches / Shape: {}'.format(mask_data.shape))
+            # Extract target subimages [NCWH format]
+            target = utils.get_image(target_path, 3, scale=scale, interpolate=cv2.INTER_NEAREST)
+            target_data = torch.as_tensor(target, dtype=torch.uint8)
+            print('\tTarget {} \n\tDimensions: {}'.format(img_path, target_data.shape[1], target_data.shape[2]))
+            target_data = target_data.unfold(0, params.patch_size, params.stride_size).unfold(1, params.patch_size,
+                                                                                              params.stride_size)
+            target_data = torch.reshape(target_data,
+                                      (target_data.shape[0] * target_data.shape[1], 3, params.patch_size,
+                                       params.patch_size))
+            print('\tTarget tiles \n\tDimensions: {}x{}'.format(target_data.shape[0], target_data.shape[2],
+                                                                target_data.shape[3]))
 
             # Merge dataset if palette mapping is provided
-            print('\tConverting masks to class index encoding ... ', end='')
+            print('\tConverting targets to class index encoding ... ', end='')
             if 'dst-b' == dset:
-                # Encode masks to class encoding [NWH format] using LCC-B palette
-                mask_data = utils.class_encode(mask_data, params.palette_lcc_b)
+                # Encode targets to class encoding [NWH format] using LCC-B palette
+                target_data = utils.class_encode(target_data, params.palette_lcc_b)
                 print('done.')
                 print('\tConverting LCC-B palette to LCC-A palette ... ', end='')
-                mask_data = utils.merge_classes(mask_data, params.categories_merged_lcc_a)
+                target_data = utils.merge_classes(target_data, params.categories_merged_lcc_a)
                 print('done.')
             else:
-                # Encode masks to class encoding [NWH format] using LCC-A palette
-                mask_data = utils.class_encode(mask_data, params.palette_lcc_a)
+                # Encode targets to class encoding [NWH format] using LCC-A palette
+                target_data = utils.class_encode(target_data, params.palette_lcc_a)
                 print('done.')
 
             np.copyto(imgs[idx:idx + size, ...], img_data)
-            np.copyto(masks[idx:idx + size, ...], mask_data)
+            np.copyto(targets[idx:idx + size, ...], target_data)
 
             idx = idx + size
 
     # truncate dataset
     imgs = imgs[:idx]
-    masks = masks[:idx]
+    targets = targets[:idx]
 
     print('\nShuffling extracted tiles ... ', end='')
     idx_arr = np.arange(len(imgs))
     np.random.shuffle(idx_arr)
     imgs = imgs[idx_arr]
-    masks = masks[idx_arr]
+    targets = targets[idx_arr]
     print('done.')
 
-    return {'img': imgs, 'mask': masks}
+    return {'img': imgs, 'mask': targets}
 
 
 # -----------------------------
@@ -133,41 +135,41 @@ def oversample(dloader, dsize, rates, cf):
     # initialize main image arrays
     e_size = params.patch_size
     imgs = np.empty((dsize*2, cf.in_channels, e_size, e_size), dtype=np.uint8)
-    masks = np.empty((dsize*2, e_size, e_size), dtype=np.uint8)
+    targets = np.empty((dsize*2, e_size, e_size), dtype=np.uint8)
     idx = 0
 
     # iterate data loader
     for i, data in tqdm(enumerate(dloader), total=dsize // cf.batch_size, unit=' batches'):
-        img, mask = data
+        img, target = data
 
         # copy originals to dataset
         np.copyto(imgs[idx:idx + 1, ...], img.numpy().astype(np.uint8))
-        np.copyto(masks[idx:idx + 1, ...], mask.numpy().astype(np.uint8))
+        np.copyto(targets[idx:idx + 1, ...], target.numpy().astype(np.uint8))
         idx += 1
         # append augmented data
         for j in range(rates[i]):
             random_state = np.random.RandomState(j)
             alpha_affine = img.shape[-1] * params.alpha
-            inp_data, tgt_data = utils.augment_transform(img.numpy(), mask.numpy(), alpha_affine, random_state)
+            inp_data, tgt_data = utils.augment_transform(img.numpy(), target.numpy(), alpha_affine, random_state)
             inp_data = torch.as_tensor(inp_data, dtype=torch.uint8).unsqueeze(0)
             tgt_data = torch.as_tensor(tgt_data, dtype=torch.uint8).unsqueeze(0)
             np.copyto(imgs[idx:idx + 1, ...], inp_data)
-            np.copyto(masks[idx:idx + 1, ...], tgt_data)
+            np.copyto(targets[idx:idx + 1, ...], tgt_data)
             idx += 1
 
     # truncate to size
     imgs = imgs[:idx]
-    masks = masks[:idx]
+    targets = targets[:idx]
 
     # Shuffle data
     print('\nShuffling ... ', end='')
     idx_arr = np.arange(len(imgs))
     np.random.shuffle(idx_arr)
     imgs = imgs[idx_arr]
-    masks = masks[idx_arr]
+    targets = targets[idx_arr]
     print('done.')
 
-    return {'img': imgs, 'mask': masks}
+    return {'img': imgs, 'mask': targets}
 
 
 # -----------------------------
@@ -178,7 +180,7 @@ def oversample(dloader, dsize, rates, cf):
 #  - calculates sample metrics and statistics
 #  - calcualate image mean / standard deviation
 # Input:
-#  - [Pytorch Dataloader] image/mask data <- database
+#  - [Pytorch Dataloader] image/target data <- database
 #  - [int] dataset size
 #  - [dict] Configuration settings
 # Output: [Numpy] pixel distribution, class weights, other metrics/analytics
@@ -192,7 +194,7 @@ def profile(dloader, dsize, cf):
     px_mean = torch.zeros(cf.in_channels)
     px_std = torch.zeros(cf.in_channels)
 
-    # load image and mask batches from database
+    # load image and target batches from database
     for i, data in tqdm(enumerate(dloader), total=dsize // cf.batch_size, unit=' batches'):
         img, target = data
 
@@ -200,7 +202,7 @@ def profile(dloader, dsize, cf):
         px_mean += torch.mean(img, (0, 2, 3))
         px_std += torch.std(img, (0, 2, 3))
 
-        # convert mask to one-hot encoding
+        # convert target to one-hot encoding
         target_1hot = torch.nn.functional.one_hot(target, num_classes=cf.n_classes).permute(0, 3, 1, 2)
         px_dist_sample = [np.sum(target_1hot.numpy(), axis=(2, 3))]
         px_dist += px_dist_sample
@@ -303,7 +305,7 @@ def aug_optimize(profile_metadata, n_classes):
     for i, rate_coef, in enumerate(rate_coefs):
         for j, threshold in enumerate(thresholds):
 
-            # create boolean mask to oversample
+            # create boolean target to oversample
             assert rate_coef >= 1, 'Rate coefficient must be >= one.'
             over_sample = scores > threshold
 
@@ -362,8 +364,8 @@ def main(cf, parser):
     # -----------------------------
     # Tile Extraction
     # -----------------------------
-    # Extract square image/mask tiles from raw high-resolution images. Saves to database.
-    # Mask data is also profiled for analysis and data augmentation.
+    # Extract square image/target tiles from raw high-resolution images. Saves to database.
+    # target data is also profiled for analysis and data augmentation.
     # See parameters for dimensions and stride.
     # -----------------------------
 
@@ -388,29 +390,29 @@ def main(cf, parser):
             # COMBINED uses both dst-A and dst-B
             if params.COMBINED == cf.dset or dset == cf.dset:
 
-                # get image/mask file list
+                # get image/target file list
                 img_dir = params.get_path('raw', dset, cf.capture, params.TRAIN, 'img')
-                mask_dir = params.get_path('raw', dset, cf.capture, params.TRAIN, 'mask')
+                target_dir = params.get_path('raw', dset, cf.capture, params.TRAIN, 'mask')
                 img_files = utils.load_files(img_dir, ['.tif', '.tiff'])
-                mask_files = utils.load_files(mask_dir, ['.png'])
+                target_files = utils.load_files(target_dir, ['.png'])
 
-                # verify image/mask pairing
+                # verify image/target pairing
                 for i, img_fname in enumerate(img_files):
-                    assert i < len(mask_files), 'Image {} does not have a mask.'.format(img_fname)
-                    mask_fname = mask_files[i]
-                    assert os.path.splitext(img_fname)[0] == os.path.splitext(mask_fname)[0].replace('_mask', ''), \
-                        'Image {} does not match Mask {}.'.format(img_fname, mask_fname)
+                    assert i < len(target_files), 'Image {} does not have a target.'.format(img_fname)
+                    target_fname = target_files[i]
+                    assert os.path.splitext(img_fname)[0] == os.path.splitext(target_fname)[0].replace('_mask', ''), \
+                        'Image {} does not match target {}.'.format(img_fname, target_fname)
 
-                    # re-add full path to image and associated mask data
+                    # re-add full path to image and associated target data
                     img_fname = os.path.join(img_dir, img_fname)
-                    mask_fname = os.path.join(mask_dir, mask_fname)
-                    files += [{'img': img_fname, 'mask': mask_fname, 'dset': dset}]
+                    target_fname = os.path.join(target_dir, target_fname)
+                    files += [{'img': img_fname, 'mask': target_fname, 'dset': dset}]
 
-                # Validate image-mask correspondence
-                assert i < len(mask_files), 'Mask {} does not have an image.'.format(mask_files[i])
+                # Validate image-target correspondence
+                assert i < len(target_files), 'target {} does not have an image.'.format(target_files[i])
 
-        # Extract image/mask subimages and save to database
-        print("{} image/mask pairs found.".format(len(files)))
+        # Extract image/target subimages and save to database
+        print("{} image/target pairs found.".format(len(files)))
         data = extract_subimages(files, cf)
         print('\n{} subimages generated.'.format(len(data['img'])))
         print('Extraction done.')
@@ -588,16 +590,16 @@ def main(cf, parser):
 
         # initialize main image arrays
         merged_imgs = np.empty((dset_merged_size, cf.in_channels, patch_size, patch_size), dtype=np.uint8)
-        merged_masks = np.empty((dset_merged_size, patch_size, patch_size), dtype=np.uint8)
+        merged_targets = np.empty((dset_merged_size, patch_size, patch_size), dtype=np.uint8)
 
         # Merge databases
         for dl in dloaders:
             # copy database to merged database
             print('\nCopying {} to merged database ... '.format(dl['name']), end='')
             for i, data in tqdm(enumerate(dl['dloader']), total=dl['dset_size'] // cf.batch_size, unit=' batches'):
-                img, mask = data
+                img, target = data
                 np.copyto(merged_imgs[idx:idx + 1, ...], img.numpy().astype(np.uint8))
-                np.copyto(merged_masks[idx:idx + 1, ...], mask.numpy().astype(np.uint8))
+                np.copyto(merged_targets[idx:idx + 1, ...], target.numpy().astype(np.uint8))
                 idx += 1
 
         # Shuffle data
@@ -605,10 +607,10 @@ def main(cf, parser):
         idx_arr = np.arange(len(merged_imgs))
         np.random.shuffle(idx_arr)
         merged_imgs = merged_imgs[idx_arr]
-        merged_masks = merged_masks[idx_arr]
+        merged_targets = merged_targets[idx_arr]
         print('done.')
 
-        data = {'img': merged_imgs, 'mask': merged_masks}
+        data = {'img': merged_imgs, 'mask': merged_targets}
 
         # save merged database file
         db_base.save(data, path=db_path_merged)
@@ -641,11 +643,11 @@ def main(cf, parser):
 
         # initialize main image arrays
         gray_imgs = np.empty((dset_size, 1, patch_size, patch_size), dtype=np.uint8)
-        masks = np.empty((dset_size, patch_size, patch_size), dtype=np.uint8)
+        targets = np.empty((dset_size, patch_size, patch_size), dtype=np.uint8)
 
         # Apply grayscaling to images (if single channel)
         for i, data in tqdm(enumerate(dloader), total=dset_size // cf.batch_size, unit=' batches'):
-            img, mask = data
+            img, target = data
 
             if img.shape[1] == 3:
                 img = img.to(torch.float32).mean(dim=1).unsqueeze(1).to(torch.uint8)
@@ -654,10 +656,10 @@ def main(cf, parser):
                 exit(0)
 
             np.copyto(gray_imgs[idx:idx + 1, ...], img.numpy().astype(np.uint8))
-            np.copyto(masks[idx:idx + 1, ...], mask.numpy().astype(np.uint8))
+            np.copyto(targets[idx:idx + 1, ...], target.numpy().astype(np.uint8))
             idx += 1
 
-        data = {'img': gray_imgs, 'mask': masks}
+        data = {'img': gray_imgs, 'mask': targets}
 
         # save merged database file
         db_base.save(data, path=db_path_grayscale)

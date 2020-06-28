@@ -50,6 +50,8 @@ class Parameters:
         self.COMBINED = 'combined'
         self.GRAYSCALE = 'grayscale'
 
+        self.resnet101 = '/home/srose/scratch/srose/mountain-legacy-project/data/pretrained/resnet101-5d3b4d8f.pth'
+
         # list of available datasets
         self.dsets = ['dst-a', 'dst-b']
 

@@ -2,6 +2,7 @@ import math
 import torch.nn as nn
 import torch.utils.model_zoo as model_zoo
 from models.sync_batchnorm.batchnorm import SynchronizedBatchNorm2d
+from params import params
 
 
 class Bottleneck(nn.Module):
@@ -138,8 +139,9 @@ class ResNet(nn.Module):
                 m.bias.data.zero_()
 
     def _load_pretrained_model(self):
-        print('\n Loading Resnet101 pretrained model.')
-        pretrain_dict = model_zoo.load_url('https://download.pytorch.org/models/resnet101-5d3b4d8f.pth')
+        print('\n Loading ResNet101 pretrained model.')
+        # pretrain_dict = model_zoo.load_url('https://download.pytorch.org/models/resnet101-5d3b4d8f.pth')
+        pretrain_dict = params.resnet101
         model_dict = {}
         state_dict = self.state_dict()
         for k, v in pretrain_dict.items():
