@@ -75,7 +75,7 @@ def extract_subimages(files, cf):
             img = utils.get_image(img_path, cf.in_channels, scale=scale, interpolate=cv2.INTER_AREA)
             img_data = torch.as_tensor(img, dtype=torch.uint8)
             print('\nPair {} in dataset {}:'.format(i + 1, dset))
-            print('\tInput {} \n\tDimensions: {}'.format(img_path, img_data.shape[1], img_data.shape[2]))
+            print('\tInput {} \n\tDimensions: {}'.format(img_path, img_data.shape[0], img_data.shape[1]))
             img_data = img_data.unfold(0, params.patch_size, params.stride_size).unfold(1, params.patch_size,
                                                                                         params.stride_size)
             img_data = torch.reshape(
@@ -86,7 +86,7 @@ def extract_subimages(files, cf):
             # Extract target subimages [NCWH format]
             target = utils.get_image(target_path, 3, scale=scale, interpolate=cv2.INTER_NEAREST)
             target_data = torch.as_tensor(target, dtype=torch.uint8)
-            print('\tTarget {} \n\tDimensions: {}'.format(img_path, target_data.shape[1], target_data.shape[2]))
+            print('\tTarget {} \n\tDimensions: {}'.format(img_path, target_data.shape[0], target_data.shape[1]))
             target_data = target_data.unfold(0, params.patch_size, params.stride_size).unfold(1, params.patch_size,
                                                                                               params.stride_size)
             target_data = torch.reshape(target_data,
