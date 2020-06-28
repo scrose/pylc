@@ -455,7 +455,7 @@ def main(cf, parser):
         cf.n_workers = 0
 
         # Load extraction database
-        db_path = os.path.join(params.get_path('db', cf.capture), cf.id + '.h5')
+        db_path = os.path.join(params.get_path('db', cf.capture), cf.db + '.h5')
         dloader, dset_size, db_size = load_data(cf, params.EXTRACT, db_path)
         print('\tExtraction db path: {}'.format(db_path))
         print('\tExtracted (original) dataset size: {}'.format(dset_size))
@@ -463,7 +463,7 @@ def main(cf, parser):
         print('\tInput channels: {}'.format(cf.in_channels))
 
         # Load dataset metadata and calculate augmentation sample rates
-        metadata_path = os.path.join(params.get_path('metadata', cf.capture), cf.id + '.npy')
+        metadata_path = os.path.join(params.get_path('metadata', cf.capture), cf.db + '.npy')
         metadata = np.load(metadata_path, allow_pickle=True)
         print('\nMetadata db path: {}'.format(metadata_path))
         aug_optim = aug_optimize(metadata, cf.n_classes)
@@ -480,7 +480,7 @@ def main(cf, parser):
         print('\nStarting data oversampling ... ')
         aug_data = oversample(dloader, dset_size, sample_rates, cf)
         print('\nAugmented dataset size: {}'.format(len(aug_data['img'])))
-        aug_db_path = os.path.join(params.get_path('db', cf.capture), cf.id + '_aug.h5')
+        aug_db_path = os.path.join(params.get_path('db', cf.capture), cf.id + '.h5')
         db = DB(cf)
         db.save(aug_data, aug_db_path)
 
@@ -491,7 +491,7 @@ def main(cf, parser):
         print("\nStarting profile of augmented data ... ")
 
         # Profile augmentation data
-        aug_metadata_path = os.path.join(params.get_path('metadata', cf.capture), cf.id + '_aug.npy')
+        aug_metadata_path = os.path.join(params.get_path('metadata', cf.capture), cf.id + '.npy')
         aug_metadata = profile(dloader, dset_size, cf)
 
         # save augmentation profile data to file
