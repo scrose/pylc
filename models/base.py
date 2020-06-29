@@ -247,8 +247,8 @@ class Model:
         if self.config.model == 'unet':
             y = y[:, params.crop_left:params.crop_right, params.crop_up:params.crop_down]
 
-        # stack single-channel input tensors
-        if self.in_channels == 1:
+        # stack single-channel input tensors (deeplab)
+        if self.in_channels == 1 and self.config.model == 'deeplab':
             x = torch.cat((x, x, x), 1)
 
         # run forward pass
