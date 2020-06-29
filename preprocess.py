@@ -14,7 +14,7 @@ import cv2
 # -----------------------------
 # Constants
 # -----------------------------
-n_patches_per_image = int(sum(100 * params.scales))
+n_patches_per_image = int(sum(200 * params.scales))
 
 
 # -----------------------------
@@ -60,6 +60,7 @@ def extract_subimages(files, cf):
     print('\nExtracting image/target patches ... ')
     print('\tAverage patches per image: {}'.format(n_patches_per_image))
     print('\tPatch dimensions: {}px x {}px'.format(params.patch_size, params.patch_size))
+    print('\tExpected tiles per image: {}'.format(n_patches_per_image))
     print('\tStride: {}px'.format(params.stride_size))
 
     for scale in scales:

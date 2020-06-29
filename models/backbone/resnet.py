@@ -1,4 +1,5 @@
 import math
+import os
 import torch
 import torch.nn as nn
 import torch.utils.model_zoo as model_zoo
@@ -140,9 +141,9 @@ class ResNet(nn.Module):
                 m.bias.data.zero_()
 
     def _load_pretrained_model(self):
-        print('\n Loading ResNet101 pretrained model at {}.'.format(params.resnet101_path))
-        # pretrain_dict = model_zoo.load_url('https://download.pytorch.org/models/resnet101-5d3b4d8f.pth')
-        pretrain_dict = torch.load(params.resnet101_path)
+        resnet_path = os.path.join(params.get_path("pretrained"), 'resnet101-5d3b4d8f.pth')
+        print('\n Loading ResNet101 pretrained model at {}.'.format(resnet_path))
+        pretrain_dict = torch.load(resnet_path)
         model_dict = {}
         state_dict = self.state_dict()
         for k, v in pretrain_dict.items():

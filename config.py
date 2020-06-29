@@ -221,7 +221,7 @@ def get_parser(action):
                          help="Scales input image by scaling factor.")
 
         arg.add_argument('--validate', type=str2bool,
-                         default=False,
+                         default=True,
                          help='Validate test results.')
 
         arg.add_argument("--report", type=int,

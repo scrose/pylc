@@ -71,5 +71,6 @@
       "historic" : "logs/test/historic/",
       "repeat" : "logs/test/repeat/"
     }
-  }
+  },
+  "pretrained" : "data/pretrained/"
 }

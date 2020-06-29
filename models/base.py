@@ -200,11 +200,11 @@ class Model:
         y = y.to(params.device)
 
         # crop target mask to fit output size (e.g. UNet model)
-        if self.crop_target:
+        if self.config.model == 'unet':
             y = y[:, params.crop_left:params.crop_right, params.crop_up:params.crop_down]
 
         # stack single-channel input tensors (deeplab)
-        if self.in_channels == 1:
+        if self.in_channels == 1 and self.config.model == 'deeplab':
             x = torch.cat((x, x, x), 1)
 
         # forward pass
@@ -243,8 +243,8 @@ class Model:
         x = x.to(params.device)
         y = y.to(params.device)
 
-        # crop target image to fit output size (e.g. UNet model)
-        if self.crop_target:
+        # crop target mask to fit output size (e.g. UNet model)
+        if self.config.model == 'unet':
             y = y[:, params.crop_left:params.crop_right, params.crop_up:params.crop_down]
 
         # stack single-channel input tensors
@@ -266,11 +266,11 @@ class Model:
 
         """model test forward"""
 
-        self.net.eval()
-
         # normalize
         x = self.normalize_image(x)
         x = x.to(params.device)
+
+        print()
 
         # stack single-channel input tensors
         if self.in_channels == 1:
@@ -317,7 +317,7 @@ class Model:
             std = np.mean(self.px_std.numpy())
             return torch.tensor((img.numpy().astype('float32') - mean) / std) / 255
         else:
-            return torch.tensor((img.numpy().astype('float32') - self.px_mean) / self.px_std) / 255
+            return ((img - self.px_mean[None, :, None, None]) / self.px_std[None, :, None, None]) / 255
 
     """summarize model parameters"""
     def summary(self):
