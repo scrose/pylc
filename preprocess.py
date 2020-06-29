@@ -577,7 +577,7 @@ def main(cf, parser):
 
         # initialize merged database
         db_base = DB(cf)
-        db_path_merged = os.path.join(params.get_path('db', cf.capture), cf.id + '_merged.h5')
+        db_path_merged = os.path.join(params.get_path('db', cf.capture), cf.id + '.h5')
         dloaders = []
 
         print("Merging {} databases: {}".format(n_dbs, cf.dbs))
