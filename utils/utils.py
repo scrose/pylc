@@ -27,8 +27,8 @@ def RGB2HEX(color):
 # JSD is a method of measuring the similarity between two probability distributions.
 # -----------------------------------
 def jsd(p, q):
-    M = 0.5*(p + q)
-    return 0.5*np.sum(np.multiply(p, np.log(p/M))) + 0.5*np.sum(np.multiply(q, np.log(q/M)))
+    m = 0.5*(p + q)
+    return 0.5*np.sum(np.multiply(p, np.log(p/m))) + 0.5*np.sum(np.multiply(q, np.log(q/m)))
 
 
 # -----------------------------------

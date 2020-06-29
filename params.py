@@ -274,7 +274,7 @@ class Parameters:
         self.min_sample_rate = 0
         self.max_sample_rate = 7
         self.sample_rate_coef = np.arange(1, 21, 1)
-        self.sample_threshold = np.arange(0, 3., 0.1)
+        self.sample_threshold = np.arange(0, 3., 0.05)
 
         # Affine coefficient (elastic deformation)
         self.alpha = 0.19

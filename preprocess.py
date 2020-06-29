@@ -75,24 +75,24 @@ def extract_subimages(files, cf):
             img = utils.get_image(img_path, cf.in_channels, scale=scale, interpolate=cv2.INTER_AREA)
             img_data = torch.as_tensor(img, dtype=torch.uint8)
             print('\nPair {} in dataset {}:'.format(i + 1, dset))
-            print('\tInput {} \n\tDimensions: {}'.format(img_path, img_data.shape[0], img_data.shape[1]))
+            print('\tInput {}, Dimensions {} x {}'.format(os.path.basename(img_path), img_data.shape[0], img_data.shape[1]))
             img_data = img_data.unfold(0, params.patch_size, params.stride_size).unfold(1, params.patch_size,
                                                                                         params.stride_size)
             img_data = torch.reshape(
                 img_data, (img_data.shape[0] * img_data.shape[1], cf.in_channels, params.patch_size, params.patch_size))
-            print('\tInput tiles \n\tDimensions: {}x{}'.format(img_data.shape[0], img_data.shape[2], img_data.shape[3]))
+            print('\tN Tiles {}, Dimensions {} x {}'.format(img_data.shape[0], img_data.shape[2], img_data.shape[3]))
             size = img_data.shape[0]
 
             # Extract target subimages [NCWH format]
             target = utils.get_image(target_path, 3, scale=scale, interpolate=cv2.INTER_NEAREST)
             target_data = torch.as_tensor(target, dtype=torch.uint8)
-            print('\tTarget {} \n\tDimensions: {}'.format(img_path, target_data.shape[0], target_data.shape[1]))
+            print('\tTarget: {}, Dimensions {} x {}'.format(os.path.basename(target_path), target_data.shape[0], target_data.shape[1]))
             target_data = target_data.unfold(0, params.patch_size, params.stride_size).unfold(1, params.patch_size,
                                                                                               params.stride_size)
             target_data = torch.reshape(target_data,
                                       (target_data.shape[0] * target_data.shape[1], 3, params.patch_size,
                                        params.patch_size))
-            print('\tTarget tiles \n\tDimensions: {}x{}'.format(target_data.shape[0], target_data.shape[2],
+            print('\tN Tiles {}, Dimensions {} x {}'.format(target_data.shape[0], target_data.shape[2],
                                                                 target_data.shape[3]))
 
             # Merge dataset if palette mapping is provided
@@ -132,6 +132,7 @@ def extract_subimages(files, cf):
 # Oversample subimages for class balancing
 # -----------------------------
 def oversample(dloader, dsize, rates, cf):
+
     # initialize main image arrays
     e_size = params.patch_size
     imgs = np.empty((dsize*2, cf.in_channels, e_size, e_size), dtype=np.uint8)
@@ -286,7 +287,7 @@ def aug_optimize(profile_metadata, n_classes):
     print("\tMinumum sample rate: {}".format(params.min_sample_rate))
     print("\tMaximum samples rate: {}".format(params.max_sample_rate))
     print("\tRate coefficient range: {:3f}-{:3f}".format(params.sample_rate_coef[0], params.sample_rate_coef[-1]))
-    print("\tThreshold range: {}-{}".format(params.sample_threshold[0], params.sample_threshold[-1]))
+    print("\tThreshold range: {:3f}-{:3f}".format(params.sample_threshold[0], params.sample_threshold[-1]))
 
     # rate coefficient (range of 1 - 21)
     rate_coefs = params.sample_rate_coef
@@ -306,7 +307,7 @@ def aug_optimize(profile_metadata, n_classes):
         for j, threshold in enumerate(thresholds):
 
             # create boolean target to oversample
-            assert rate_coef >= 1, 'Rate coefficient must be >= one.'
+            assert rate_coef >= 1, 'Rate coefficient must be >= 1.'
             over_sample = scores > threshold
 
             # calculate rates based on rate coefficient and scores
@@ -320,7 +321,8 @@ def aug_optimize(profile_metadata, n_classes):
                 aug_px_dist = np.multiply(np.expand_dims(rates, axis=1), px_dist)
                 full_px_dist = px_dist + aug_px_dist
                 full_px_probs = np.sum(full_px_dist, axis=0)/np.sum(full_px_dist)
-                jsd += [utils.jsd(full_px_probs, balanced_px_prob)]
+                jsd_sample = utils.jsd(full_px_probs, balanced_px_prob)
+                jsd += [jsd_sample]
                 profile_data += [{
                     'probs': full_px_probs,
                     'threshold': threshold,
@@ -328,7 +330,8 @@ def aug_optimize(profile_metadata, n_classes):
                     'rates': rates,
                     'n_samples': int(np.sum(full_px_dist)/px_count),
                     'aug_n_samples': np.sum(rates),
-                    'rate_max': params.max_sample_rate
+                    'rate_max': params.max_sample_rate,
+                    'jsd': jsd_sample
                 }]
 
     # Get parameters that minimize Jensen-Shannon Divergence metric
@@ -355,6 +358,7 @@ def get_prof(md):
         'jsd': md.item().get('jsd'),
         'px_mean': md.item().get('px_mean'),
         'px_std': md.item().get('px_std')}
+
 
 # ============================
 # Main preprocessing routine
@@ -425,8 +429,9 @@ def main(cf, parser):
         print("\nStarting {}/{} pixel class profiling ... ".format(cf.capture, cf.mode))
 
         # Load extraction data
+        # Important: set loader to PROFILE to force no workers and single batches
         cf.batch_size = 1
-        dloader, dset_size, db_size = load_data(cf, params.EXTRACT, db_path)
+        dloader, dset_size, db_size = load_data(cf, params.PROFILE, db_path)
         print('\tExtraction Dataset size: {} (dataloader batch size: {})'.format(dset_size, cf.batch_size))
 
         # Profile extracted data
@@ -472,11 +477,11 @@ def main(cf, parser):
         print('done.')
 
         print('\nOptimization Summary:')
-        print('\tThreshold: {}\n \tRate Coefficient: {}\n\tAugmentation Samples: {}\n\n'.format(
+        print('\tThreshold: {}\n \tRate Coefficient: {}\n\tAugmentation Samples: {}\n\tJSD: {}\n\n'.format(
             aug_optim.get('threshold'), aug_optim.get('rate_coef'),
-            aug_optim.get('aug_n_samples'), aug_optim.get('rate_max')))
+            aug_optim.get('aug_n_samples'), aug_optim.get('jsd')))
 
-        # over-sample minority classes (uses pre-calculated sample rates)
+        # Oversample minority classes (using pre-calculated sample rates)
         print('\nStarting data oversampling ... ')
         aug_data = oversample(dloader, dset_size, sample_rates, cf)
         print('\nAugmented dataset size: {}'.format(len(aug_data['img'])))
@@ -485,7 +490,7 @@ def main(cf, parser):
         db.save(aug_data, aug_db_path)
 
         # Reload augmentation data for profiling
-        dloader, dset_size, db_size = load_data(cf, params.AUGMENT, aug_db_path)
+        dloader, dset_size = load_data(cf, params.PROFILE, aug_db_path)
 
         # Create metadata profile
         print("\nStarting profile of augmented data ... ")
@@ -576,9 +581,9 @@ def main(cf, parser):
         dloaders = []
 
         print("Merging {} databases: {}".format(n_dbs, cf.dbs))
-        print('\tMerged Capture Type: {}'.format(cf.capture))
-        print('\tMerged Classes: {}'.format(cf.n_classes))
-        print('\tMerged Channels: {}'.format(cf.in_channels))
+        print('\tCapture Type: {}'.format(cf.capture))
+        print('\tClasses: {}'.format(cf.n_classes))
+        print('\tChannels: {}'.format(cf.in_channels))
 
         # Load databases into loader list
         for db in cf.dbs:

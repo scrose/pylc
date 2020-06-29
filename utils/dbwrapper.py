@@ -242,7 +242,7 @@ def load_data(config, mode, db_path):
     elif mode == params.PROFILE:
         pre_dset = MLPDataset(config, db_path=db_path)
         pre_dloader = torch.utils.data.DataLoader(pre_dset,
-                                                  batch_size=config.batch_size,
+                                                  batch_size=1,
                                                   num_workers=0,
                                                   pin_memory=torch.cuda.is_available())
         return pre_dloader, pre_dset.db.dset_size
