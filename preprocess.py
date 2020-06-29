@@ -431,7 +431,7 @@ def main(cf, parser):
         # Load extraction data
         # Important: set loader to PROFILE to force no workers and single batches
         cf.batch_size = 1
-        dloader, dset_size, db_size = load_data(cf, params.PROFILE, db_path)
+        dloader, dset_size = load_data(cf, params.PROFILE, db_path)
         print('\tExtraction Dataset size: {} (dataloader batch size: {})'.format(dset_size, cf.batch_size))
 
         # Profile extracted data
@@ -640,10 +640,10 @@ def main(cf, parser):
 
         # initialize target database
         db_base = DB(cf)
-        db_path_grayscale = os.path.join(params.get_path('db', cf.capture), cf.id + '_gray.h5')
+        db_path_grayscale = os.path.join(params.get_path('db', cf.capture), cf.id + '.h5')
 
         # Load source database
-        db_path = os.path.join(params.get_path('db', cf.capture), cf.id + '.h5')
+        db_path = os.path.join(params.get_path('db', cf.capture), cf.db + '.h5')
         dloader, dset_size, db_size = load_data(cf, params.EXTRACT, db_path)
 
         # initialize main image arrays
