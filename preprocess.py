@@ -390,6 +390,10 @@ def main(cf, parser):
         # iterate over available datasets
         for dset in params.dsets:
 
+            # ignore test dataset C
+            if dset == 'dst-c':
+                continue
+
             # Check dataset configuration against parameters
             # COMBINED uses both dst-A and dst-B
             if params.COMBINED == cf.dset or dset == cf.dset:
