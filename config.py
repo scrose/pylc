@@ -32,7 +32,7 @@ def get_parser(action):
 
     arg.add_argument("--dset", type=str,
                      default="combined",
-                     choices=["dst-a", "dst-b", "combined"],
+                     choices=["dst-a", "dst-b", "dst-c", "combined"],
                      help="Dataset selected.")
 
     arg.add_argument('--capture', type=str,
@@ -100,10 +100,6 @@ def get_parser(action):
                          default="normal",
                          choices=["normal", "overfit", "summary"],
                          help="Training mode.")
-
-        arg.add_argument('--pretrained', type=str,
-                         default='',
-                         help='Path to the pretrained network')
 
         arg.add_argument('--model', type=str,
                          default='deeplab',
@@ -174,6 +170,9 @@ def get_parser(action):
                          default=False,
                          help="Whether to resume training from existing checkpoint")
 
+        arg.add_argument('--pretrained', type=bool,
+                         default=True,
+                         help='Load pretrained network')
     # ----------------------------------------
     # Arguments for testing
     elif action == 'test':
@@ -183,7 +182,7 @@ def get_parser(action):
 
         arg.add_argument("--mode", type=str,
                          default="normal",
-                         choices=["normal", "colourized", "tune"],
+                         choices=["normal", "reconstruct", "eval"],
                          help="Run mode")
 
         arg.add_argument('--img_path', type=str,
@@ -198,6 +197,15 @@ def get_parser(action):
                          default='./data/eval/',
                          help='Experiment files directory.')
 
+        arg.add_argument('--up_mode', type=str,
+                         default='upsample',
+                         choices=["upconv", "upsample"],
+                         help='Interpolation for upsampling.')
+
+        arg.add_argument('--normalize_default', type=str2bool,
+                         default=False,
+                         help='Default input normalization (see parameter settings).')
+
         arg.add_argument('--model', type=str,
                          default='deeplab',
                          choices=['unet', 'resnet', 'resunet', 'deeplab'],
@@ -208,6 +216,18 @@ def get_parser(action):
                          choices=["resnet", "xception"],
                          help='Network model encoder.')
 
+        arg.add_argument('--pretrained', type=bool,
+                         default=False,
+                         help='Load pretrained network')
+
+        arg.add_argument("--n_channels", type=int,
+                         default=9,
+                         help="Number of semantic classes.")
+
+        arg.add_argument("--cls_weight", type=str2bool,
+                         default=False,
+                         help="Weight applied to classes in loss computations.")
+
         arg.add_argument("--ce_weight", type=float,
                          default=0.5,
                          help="Weight applied to Cross Entropy losses for backpropagation.")
@@ -215,6 +235,10 @@ def get_parser(action):
         arg.add_argument("--dice_weight", type=float,
                          default=0.5,
                          help="Weight applied to Dice losses for backpropagation.")
+
+        arg.add_argument("--focal_weight", type=float,
+                         default=0.5,
+                         help="Weight applied to Focal losses for back-propagation.")
 
         arg.add_argument("--resample", type=float,
                          default=None,

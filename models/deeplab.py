@@ -10,12 +10,13 @@ from models.decoder import build_decoder
 
 
 class DeepLab(nn.Module):
-    def __init__(self, activ_func, normalizer, backbone='resnet', output_stride=16, n_classes=9, in_channels=3, freeze_bn=False):
+    def __init__(self, activ_func, normalizer, backbone='resnet', output_stride=16,
+                 n_classes=9, in_channels=3, freeze_bn=False, pretrained=True):
         super(DeepLab, self).__init__()
 
         # Select encoder
         if backbone == 'resnet':
-            self.backbone = resnet.ResNet101(output_stride, normalizer)
+            self.backbone = resnet.ResNet101(output_stride, normalizer, pretrained=pretrained)
         elif backbone == 'xception':
             self.backbone = xception.AlignedXception(output_stride, normalizer)
 

@@ -151,12 +151,11 @@ def oversample(dloader, dsize, rates, cf):
         # append augmented data
         for j in range(rates[i]):
             random_state = np.random.RandomState(j)
-            alpha_affine = img.shape[-1] * params.alpha
-            inp_data, tgt_data = utils.augment_transform(img.numpy(), target.numpy(), alpha_affine, random_state)
+            inp_data, tgt_data = utils.augment_transform(img.numpy(), target.numpy(), random_state)
             inp_data = torch.as_tensor(inp_data, dtype=torch.uint8).unsqueeze(0)
             tgt_data = torch.as_tensor(tgt_data, dtype=torch.uint8).unsqueeze(0)
-            np.copyto(imgs[idx:idx + 1, ...], inp_data)
-            np.copyto(targets[idx:idx + 1, ...], tgt_data)
+            np.copyto(imgs[idx:idx + 1, ...], inp_data.numpy().astype(np.uint8))
+            np.copyto(targets[idx:idx + 1, ...], tgt_data.numpy().astype(np.uint8))
             idx += 1
 
     # truncate to size
@@ -477,7 +476,7 @@ def main(cf, parser):
         sample_rates = aug_optim.get('rates')
         print('done.')
 
-        print('\nOptimization Summary:')
+        print('\nEstimated Optimization:')
         print('\tThreshold: {}\n \tRate Coefficient: {}\n\tAugmentation Samples: {}\n\tJSD: {}\n\n'.format(
             aug_optim.get('threshold'), aug_optim.get('rate_coef'),
             aug_optim.get('aug_n_samples'), aug_optim.get('jsd')))

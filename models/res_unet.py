@@ -129,7 +129,6 @@ class UNetResBlock(nn.Module):
         return x
 
 
-
 class UNetUpBlock(nn.Module):
     def __init__(self, in_channels, out_channels, up_mode, padding, batch_norm, dropout, activ_func):
         super(UNetUpBlock, self).__init__()

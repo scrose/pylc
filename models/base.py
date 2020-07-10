@@ -76,12 +76,15 @@ class Model:
         # Initialize model test
         elif config.type == params.TEST:
             self.evaluator = Evaluator(config)
+            # ignore pretrained model
+            self.config.pretrained = False
             # self.net = torch.nn.DataParallel(self.net)
             self = self.evaluator.load(self)
             # self.net.summary()
             self.net.eval()
 
     # Retrieve preprocessed metadata
+    # TODO: Include metadata in model
     def init_metadata(self):
 
         path = os.path.join(params.get_path('metadata', self.config.capture), self.config.db + '.npy')
@@ -140,7 +143,8 @@ class Model:
                 normalizer=torch.nn.BatchNorm2d,
                 backbone=self.config.backbone,
                 n_classes=self.n_classes,
-                in_channels=self.in_channels
+                in_channels=self.in_channels,
+                pretrained=self.config.pretrained
             )
             self.net = self.net.to(params.device)
 
@@ -243,11 +247,11 @@ class Model:
         x = x.to(params.device)
         y = y.to(params.device)
 
-        # crop target mask to fit output size (e.g. UNet model)
+        # crop target mask to fit output size (UNet)
         if self.config.model == 'unet':
             y = y[:, params.crop_left:params.crop_right, params.crop_up:params.crop_down]
 
-        # stack single-channel input tensors (deeplab)
+        # stack single-channel input tensors (Deeplab)
         if self.in_channels == 1 and self.config.model == 'deeplab':
             x = torch.cat((x, x, x), 1)
 
@@ -267,13 +271,11 @@ class Model:
         """model test forward"""
 
         # normalize
-        x = self.normalize_image(x)
+        x = self.normalize_image(x, default=self.config.normalize_default)
         x = x.to(params.device)
 
-        print()
-
-        # stack single-channel input tensors
-        if self.in_channels == 1:
+        # stack single-channel input tensors (Deeplab)
+        if self.in_channels == 1 and self.config.model == 'deeplab':
             x = torch.cat((x, x, x), 1)
 
         # run forward pass
@@ -298,20 +300,22 @@ class Model:
         else:
             self.ckpt.save(self, is_best=self.loss.is_best)
 
-    def save_image(self, w, h, w_full, h_full, offset, stride):
+    def save_image(self):
 
         """save predicted mask image to file"""
 
-        self.evaluator.save_image(w, h, w_full, h_full, offset, stride)
+        self.evaluator.save_image()
 
     def get_lr(self):
         for param_group in self.optim.param_groups:
             return param_group['lr']
 
-    def normalize_image(self, img):
+    def normalize_image(self, img, default=False):
         """ Normalize input image data [NCWH]
             - uses precomputed mean/std of pixel intensities
         """
+        if default:
+            return torch.tensor((img.numpy().astype('float32') - params.px_mean_default) / params.px_std_default)
         if img.shape[1] == 1:
             mean = np.mean(self.px_mean.numpy())
             std = np.mean(self.px_std.numpy())
@@ -320,6 +324,7 @@ class Model:
             return ((img - self.px_mean[None, :, None, None]) / self.px_std[None, :, None, None]) / 255
 
     """summarize model parameters"""
+
     def summary(self):
         try:
             from torchsummary import summary
@@ -390,14 +395,12 @@ class Evaluator:
         self.report_intv = 3
         self.results = []
         self.config = config
+        self.metadata = None
+        self.model_file = os.path.join(config.output_path, 'model.pth')
 
-        # initialize model/output files for prediction results
-        self.fname = os.path.basename(config.img_path).replace('.', '_')
-        if config.resample:
-            self.fname += '_resampled-' + str(config.resample) + '_'
-        self.output_file = os.path.join(config.output_path, config.id, self.fname + '_output.pth')
-        self.model_file = os.path.join(config.output_path, config.id, 'model.pth')
-        self.img_file = os.path.join(config.output_path, config.id, self.fname + '_mask.png')
+        # Make output and mask directories for results
+        self.masks_path = utils.mk_path(os.path.join(config.output_path, 'masks'))
+        self.output_path = utils.mk_path(os.path.join(config.output_path, 'outputs'))
 
     def load(self, model):
 
@@ -408,28 +411,36 @@ class Evaluator:
             try:
                 model.net.load_state_dict(model_pretrained["model"])
             except:
-                print('An error occurred loading the {} pretrained model.'.format(model.config.model))
+                print('An error occurred loading the {} pretrained model at: \n{}'.format(
+                    model.config.model, self.model_file))
                 exit()
         else:
             print('Model file: {} does not exist ... exiting.'.format(self.model_file))
             exit()
         return model
 
-    def save(self):
+    def reset(self):
+        self.results = []
 
-        """Save full prediction test results"""
+    def save(self, fname):
 
-        torch.save({"results": self.results}, self.output_file)
+        """Save full prediction test results with metadata for reconstruction"""
+        # Build output file path
+        output_file = os.path.join(self.output_path, fname + '_output.pth')
+        torch.save({"results": self.results, "metadata": self.metadata}, output_file)
 
-    def save_image(self, w, h, w_full, h_full, offset, stride):
+    def save_image(self, fname):
 
         """Save prediction mask image"""
 
+        # Build mask file path
+        mask_file = os.path.join(self.masks_path, fname + '.png')
+
         # Reconstruct seg-mask from predicted tiles
         tiles = np.concatenate(self.results, axis=0)
-        mask_img = utils.reconstruct(tiles, w, h, w_full, h_full, offset, self.config.n_classes, stride)
+        mask_img = utils.reconstruct(tiles, self.metadata)
 
         # Save output mask image to file (RGB -> BGR conversion)
         # Note that the default color format in OpenCV is often
         # referred to as RGB but it is actually BGR (the bytes are reversed).
-        cv2.imwrite(self.img_file, cv2.cvtColor(mask_img, cv2.COLOR_RGB2BGR))
+        cv2.imwrite(mask_file, cv2.cvtColor(mask_img, cv2.COLOR_RGB2BGR))

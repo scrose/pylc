@@ -35,6 +35,8 @@ class Parameters:
         self.TRAIN = 'train'
         self.VALID = 'valid'
         self.TEST = 'test'
+
+        # Preprocessing
         self.PREPROCESS = 'preprocess'
         self.META = 'metadata'
         self.AUGMENT = 'augment'
@@ -42,16 +44,22 @@ class Parameters:
         self.AUGMENT = 'augment'
         self.PROFILE = 'profile'
         self.RATES = 'rates'
+        self.COMBINED = 'combined'
+        self.GRAYSCALE = 'grayscale'
+        self.MERGE = 'merge'
+
+        # Training
         self.TUNE = 'tune'
         self.NORMAL = 'normal'
         self.SUMMARY = 'summary'
-        self.MERGE = 'merge'
         self.OVERFIT = 'overfit'
-        self.COMBINED = 'combined'
-        self.GRAYSCALE = 'grayscale'
+
+        # Testing
+        self.EVALUATE = 'evaluate'
+        self.RECONSTRUCT = 'reconstruct'
 
         # list of available datasets
-        self.dsets = ['dst-a', 'dst-b']
+        self.dsets = ['dst-a', 'dst-b', 'dst-c']
 
         # general data paths
         self.src_db = None
@@ -67,7 +75,10 @@ class Parameters:
         # Model Parameters
         # ===================================
 
-        # size of the output feature map
+        # Semantic classes
+        self.n_classes = 9
+
+        # size of the output feature map (U-Net)
         self.output_size = 324
 
         # size of the tiles to extract and save in the database, must be >= to input size
@@ -77,7 +88,7 @@ class Parameters:
         # patch stride: smaller than input_size for overlapping tiles
         self.stride_size = 512
 
-        # number of pixels to pad *after* resize to image with by mirroring (edge's of
+        # (U-Net) number of pixels to pad *after* resize to image with by mirroring (edge's of
         # patches tend not to be analyzed well, so padding allows them to appear more centered
         # in the patch)
         self.pad_size = (self.input_size - self.output_size) // 2
@@ -102,11 +113,13 @@ class Parameters:
         # Extraction scaling
         self.scales = [0.2, 0.5, 1.]
 
-        # Image normalization
+        # Image normalization (normally set by metadata for dataset)
         self.gs_mean = 0.456
         self.gs_std = 0.225
         self.rgb_mean = [0.485, 0.456, 0.406]
         self.rgb_std = [0.229, 0.224, 0.225]
+        self.px_mean_default = 147
+        self.px_std_default = 68
 
         # ===================================
         # Land Cover Categories (LCC-A, LCC-B, LCC-merged)
@@ -270,7 +283,7 @@ class Parameters:
 
         self.aug_n_samples_max = 4000
         self.min_sample_rate = 0
-        self.max_sample_rate = 7
+        self.max_sample_rate = 4
         self.sample_rate_coef = np.arange(1, 21, 1)
         self.sample_threshold = np.arange(0, 3., 0.05)
 

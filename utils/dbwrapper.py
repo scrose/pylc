@@ -196,7 +196,7 @@ def load_data(config, mode, db_path):
 
     # Training datasets
     if mode == params.TRAIN:
-
+        print('Loading training data ... ')
         # Note training/validation dataset partition fraction set in parameters
         tr_dset = MLPDataset(config, db_path=db_path, partition=(0, 1 - params.partition))
         va_dset = MLPDataset(config, db_path=db_path, partition=(1 - params.partition, 1.))
@@ -217,6 +217,7 @@ def load_data(config, mode, db_path):
 
     # data extraction or merge
     elif mode == params.EXTRACT or mode == params.MERGE:
+        print('Loading extraction data ... ')
         dset = MLPDataset(config, db_path=db_path)
         dloader = torch.utils.data.DataLoader(dset,
                                               batch_size=config.batch_size,
@@ -228,6 +229,7 @@ def load_data(config, mode, db_path):
 
     # data augmentation dataset
     elif mode == params.AUGMENT:
+        print('Loading augmentation data ... ')
         aug_dset = MLPDataset(config, db_path=db_path)
         aug_dloader = torch.utils.data.DataLoader(aug_dset,
                                                   batch_size=config.batch_size,
@@ -240,6 +242,7 @@ def load_data(config, mode, db_path):
     # preprocess datasets
     # Note: disable multi-processing for profiling data
     elif mode == params.PROFILE:
+        print('Loading profile data ... ')
         pre_dset = MLPDataset(config, db_path=db_path)
         pre_dloader = torch.utils.data.DataLoader(pre_dset,
                                                   batch_size=1,

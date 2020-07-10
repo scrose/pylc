@@ -71,6 +71,7 @@ class MultiLoss(torch.nn.Module):
             print('\nCE losses will be weighted by class.')
             self.ce_loss = torch.nn.CrossEntropyLoss(self.cls_weight)
         else:
+            print('\nCE losses not weighted by class.')
             self.ce_loss = torch.nn.CrossEntropyLoss()
 
     def forward(self, input, target):
@@ -113,10 +114,10 @@ class MultiLoss(torch.nn.Module):
         # compute mean of y_true U y_pred / (y_pred + y_true)
         intersection = torch.sum(probs * y_true_1hot, dim=(0, 2, 3))
         cardinality = torch.sum(probs + y_true_1hot, dim=(0, 2, 3))
-        dice_loss = 1 - (2. * intersection + params.dice_smooth) / (cardinality + params.dice_smooth)
+        dice = 1 - (2. * intersection + params.dice_smooth) / (cardinality + params.dice_smooth)
 
         # loss is negative = 1 - DSC
-        return dice_loss.mean()
+        return dice.mean()
 
     def focal_loss(self, input, target):
         """ Computes Focal loss.

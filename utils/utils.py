@@ -1,14 +1,14 @@
 # Helper Functions
 # ----------------
 #
-# REFERENCES:
-# Adapted from https://github.com/kevinzakka/pytorch-goodies/blob/master/losses.py
 
-import os, random
+import os
+import random
 import numpy as np
 import torch
 import cv2
 from params import params
+
 
 # ===================================
 # Utility functions
@@ -27,8 +27,8 @@ def RGB2HEX(color):
 # JSD is a method of measuring the similarity between two probability distributions.
 # -----------------------------------
 def jsd(p, q):
-    m = 0.5*(p + q)
-    return 0.5*np.sum(np.multiply(p, np.log(p/m))) + 0.5*np.sum(np.multiply(q, np.log(q/m)))
+    m = 0.5 * (p + q)
+    return 0.5 * np.sum(np.multiply(p, np.log(p / m))) + 0.5 * np.sum(np.multiply(q, np.log(q / m)))
 
 
 # -----------------------------------
@@ -62,20 +62,19 @@ def get_image(image_path, img_ch=3, scale=None, interpolate=cv2.INTER_AREA):
 # Scales image to n x tile dimensions with stride
 # and crops to match input image aspect ratio
 # -----------------------------------
-def adjust_to_tile(img, patch_size, stride, img_ch):
-
+def adjust_to_tile(img, patch_size, stride, img_ch, interpolate=cv2.INTER_AREA):
     # Get full-sized dimensions
     w = img.shape[1]
     h = img.shape[0]
 
-    assert patch_size == 2*stride, "Tile size must be 2x stride."
+    assert patch_size % stride == 0 and stride <= patch_size, "Tile size must be multiple of stride."
 
     # Get width scaling factor for tiling
-    scale_w = (int(w / patch_size) * patch_size)/w
+    scale_w = (int(w / patch_size) * patch_size) / w
     dim = (int(w * scale_w), int(h * scale_w))
 
     # resize image
-    img_resized = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
+    img_resized = cv2.resize(img, dim, interpolation=interpolate)
     h_resized = img_resized.shape[0]
     h_tgt = int(h_resized / patch_size) * patch_size
 
@@ -95,7 +94,6 @@ def adjust_to_tile(img, patch_size, stride, img_ch):
 # Input format: NCWH (one-hot class encoded)
 # -----------------------------------
 def colourize(img_data, n_classes, palette=None):
-
     n = img_data.shape[0]
     w = img_data.shape[1]
     h = img_data.shape[2]
@@ -131,7 +129,6 @@ def coshuffle(data, dist=None):
 # Merge segmentation classes
 # -----------------------------------
 def merge_classes(data_tensor, merged_classes):
-
     data = data_tensor.numpy()
 
     # merge classes
@@ -150,7 +147,6 @@ def merge_classes(data_tensor, merged_classes):
 #  - [NCWH] with one-hot encoded classes, where C = number of classes
 # -----------------------------------
 def class_encode(input_data, palette):
-
     # Ensure image is RBG format
     assert input_data.shape[1] == 3
     input_data = input_data.to(torch.float32).mean(dim=1)
@@ -165,53 +161,99 @@ def class_encode(input_data, palette):
 
 
 # -----------------------------------
-# Apply affine distortion to image
+# Apply augmentation distortions to image
 # Input image [NWHC] / Mask [NWHC]
 # Output image [NWHC] / Mask [NWHC]
 # -----------------------------------
-def augment_transform(img, mask, alpha_affine, random_state=None):
-    """Elastic deformation of images as described in [Simard2003]_ (with modifications).
-    .. [Simard2003] Simard, Steinkraus and Platt, "Best Practices for
-         Convolutional Neural Networks applied to Visual Document Analysis", in
-         Proc. of the International Conference on Document Analysis and
-         Recognition, 2003.
+def augment_transform(img, mask, random_state=None):
 
-     Based on https://gist.github.com/erniejunior/601cdf56d2b424757de5
-    """
+    assert img.shape[2:] == mask.shape[1:], \
+        "Image dimensions {} must match mask shape {}.".format(img.shape, mask.shape[:2])
 
     if random_state is None:
         random_state = np.random.RandomState(None)
 
-    dim = img.shape[2]
-    n_ch = img.shape[1]
-    img = np.squeeze(np.moveaxis(img, 1, -1), axis=0)
-    mask = np.squeeze(mask, axis=0)
+    nch = img.shape[1]
+    w = mask.shape[1]
+    h = mask.shape[2]
 
     # apply random vertical flip
     if bool(random.getrandbits(1)):
         img = np.flip(img, axis=1)
         mask = np.flip(mask, axis=1)
 
-    # # Random affine deformation
-    # center_square = np.float32(dsize) // 2
-    # square_size = min(dsize) // 3
-    #     pts1 = np.float32(
-    #         [center_square + square_size, [center_square[0] + square_size, center_square[1]
-    #                                        - square_size], center_square - square_size])
-    #     pts2 = pts1 + random_state.uniform(-alpha_affine, alpha_affine, size=pts1.shape).astype(np.float32)
-    #     M = cv2.getAffineTransform(pts1, pts2)
-    #     image = cv2.warpAffine(image, M, dsize, flags=cv2.INTER_NEAREST, borderMode=cv2.BORDER_REFLECT)
-    #     mask = cv2.warpAffine(mask, M, dsize, flags=cv2.INTER_NEAREST, borderMode=cv2.BORDER_REFLECT)
+    # Modify axes to suit OpenCV format
+    img = np.squeeze(np.moveaxis(img, 1, -1), axis=0)
+    mask = np.squeeze(mask, axis=0)
 
-    # Apply random perspective shift
-    pts1 = np.float32([[56, 65], [368, 52], [28, 387], [389, 390]])
-    pts2 = pts1 + random_state.uniform(-alpha_affine, alpha_affine, size=pts1.shape).astype(np.float32)
-    m_trans = cv2.getPerspectiveTransform(pts1, pts2)
-    img = cv2.warpPerspective(img, m_trans, (dim, dim), flags=cv2.INTER_NEAREST, borderMode=cv2.BORDER_REFLECT_101)
-    mask = cv2.warpPerspective(mask, m_trans, (dim, dim), flags=cv2.INTER_NEAREST, borderMode=cv2.BORDER_REFLECT_101)
+    # Perspective shift
+    img, mask = perspective_shift(img, mask, random_state)
+    # Add noise
+    img = add_noise(img, w, h)
+    # Channel shift
+    img = channel_shift(img, random_state)
 
-    if n_ch == 3:
+    if nch == 3:
         img = np.moveaxis(img, -1, 0)
+
+    return img, mask
+
+
+# -----------------------------------
+# Add Gaussian noise to the image
+# -----------------------------------
+def add_noise(img, w, h):
+    mean = 0
+    var = 10
+    sigma = var ** 0.5
+    gaussian = np.random.normal(mean, sigma, (w, h))
+
+    noisy_image = np.zeros(img.shape, np.float32)
+
+    if len(img.shape) == 2:
+        noisy_image = img + gaussian
+    else:
+        noisy_image[:, :, 0] = img[:, :, 0] + gaussian
+        noisy_image[:, :, 1] = img[:, :, 1] + gaussian
+        noisy_image[:, :, 2] = img[:, :, 2] + gaussian
+
+    cv2.normalize(noisy_image, noisy_image, 0, 255, cv2.NORM_MINMAX, dtype=-1)
+    return noisy_image.astype(np.uint8)
+
+
+# -----------------------------------
+# Add brightness to image
+# -----------------------------------
+def channel_shift(img, random_state):
+    shift_val = int(random_state.uniform(10, 20))
+    img = np.int16(img)
+    img = img + shift_val
+    img = np.clip(img, 0, 255)
+    img = np.uint8(img)
+    return img
+
+
+# -----------------------------------
+# Add perspective shift to image/mask
+# -----------------------------------
+# Format: [NCWH]
+def perspective_shift(img, mask, random_state):
+
+    w = mask.shape[0]
+    h = mask.shape[1]
+    alpha = 0.05 * w
+
+    pts1 = np.float32([[56, 65], [368, 52], [28, 387], [389, 390]])
+    pts2 = pts1 + random_state.uniform(-alpha, alpha, size=pts1.shape).astype(np.float32)
+    m_trans = cv2.getPerspectiveTransform(pts1, pts2)
+    img = cv2.warpPerspective(img, m_trans, (w, h), flags=cv2.INTER_AREA, borderMode=cv2.BORDER_REFLECT_101)
+    mask = cv2.warpPerspective(mask, m_trans, (w, h), flags=cv2.INTER_NEAREST, borderMode=cv2.BORDER_REFLECT_101)
+
+    # Crop and resize
+    img = img[30:w - 30, 30:h - 30]
+    img = cv2.resize(mask.astype('float32'), (w, h), interpolation=cv2.INTER_AREA)
+    mask = mask[30:w - 30, 30:h - 30]
+    mask = cv2.resize(mask.astype('float32'), (w, h), interpolation=cv2.INTER_NEAREST)
 
     return img, mask
 
@@ -220,12 +262,26 @@ def augment_transform(img, mask, alpha_affine, random_state=None):
 # Collate mask tiles
 # Combines prediction mask tiles into full-sized mask
 # -----------------------------------
-def reconstruct(tiles, w, h, w_full, h_full, offset, n_classes, stride):
+def reconstruct(tiles, md):
+
+    # load metadata
+    w = md['w']
+    h = md['h']
+    w_full = md['w_full']
+    h_full = md['h_full']
+    offset = md['offset']
+    stride = md['stride']
+    n_classes = params.n_classes
 
     # Calculate reconstruction dimensions
-    patch_size = params.patch_size
-    n_strides_in_row = w // stride - 1
-    n_strides_in_col = h // stride - 1
+    patch_size = tiles.shape[2]
+
+    if stride < patch_size:
+        n_strides_in_row = w // stride - 1
+        n_strides_in_col = h // stride - 1
+    else:
+        n_strides_in_row = w // stride
+        n_strides_in_col = h // stride
 
     # Calculate overlap
     olap_size = patch_size - stride
@@ -242,7 +298,7 @@ def reconstruct(tiles, w, h, w_full, h_full, offset, n_classes, stride):
 
     for i in range(n_strides_in_col):
         # Get initial tile in row
-        t_current = tiles[i*n_strides_in_row]
+        t_current = tiles[i * n_strides_in_row]
         r_current = np.empty((n_classes, patch_size, w), dtype=np.float32)
         col_idx = 0
         # Step 1: Collate column tiles in row
@@ -281,7 +337,7 @@ def reconstruct(tiles, w, h, w_full, h_full, offset, n_classes, stride):
             # Average the overlapping segment logits
             r_olap_top = torch.nn.functional.softmax(torch.tensor(r_olap_top), dim=0)
             r_olap_prev = torch.nn.functional.softmax(torch.tensor(r_olap_prev), dim=0)
-            r_olap_merged = ( r_olap_top + r_olap_prev ) / 2
+            r_olap_merged = (r_olap_top + r_olap_prev) / 2
 
         # Top row: crop by bottom overlap (to be averaged)
         if i == 0:
@@ -304,50 +360,9 @@ def reconstruct(tiles, w, h, w_full, h_full, offset, n_classes, stride):
     # Colourize and resize mask to full size
     mask_fullsized = np.expand_dims(mask_fullsized, axis=0)
     _mask_pred = colourize(np.argmax(mask_fullsized, axis=1), n_classes, palette=params.palette_lcc_a)
-    mask_resized = cv2.resize(_mask_pred[0].astype('float32'), (w_full, h_full), interpolation=cv2.INTER_AREA)
+    mask_resized = cv2.resize(_mask_pred[0].astype('float32'), (w_full, h_full), interpolation=cv2.INTER_NEAREST)
 
     return mask_resized
-
-
-# -----------------------------------
-# Show image sample
-# -----------------------------------
-def show_sample(x, y, pad=False, save_dir='./eval'):
-    import cv2, os, datetime
-    import matplotlib.pyplot as plt
-    # Prepare images and masks
-    img_samples = np.moveaxis(x.numpy(), 1, -1)
-    mask_samples = colourize(y.numpy())
-    if pad:
-        mask_samples = np.pad(mask_samples,
-                              [(params.pad_size, params.pad_size), (params.pad_size, params.pad_size), (0, 0)])
-
-    # Plot settings
-    n_rows = 2
-    n_cols = x.shape[0] // n_rows
-    k = 0
-
-    fig, axes = plt.subplots(n_rows, n_cols, sharex='col', sharey='row', figsize=(n_cols, n_rows),
-                             subplot_kw={'xticks': [], 'yticks': []})
-    plt.rcParams.update({'font.size': 4})
-    # plt.rcParams['interactive'] == True
-
-    # Plot sample subimages
-    for i in range(0, n_rows):
-        for j in range(n_cols):
-            # Get sample patch & mask
-            img_patch_sample = img_samples[k].astype(int)
-            mask_patch_sample = mask_samples[k]
-
-            # add original image
-            axes[i, j].imshow(img_patch_sample)
-            # overlay mask
-            axes[i, j].imshow(mask_patch_sample, alpha=0.4)
-            axes[i, j].set_title('Sample #{}'.format(k))
-            k += 1
-
-    fname = str(int(datetime.datetime.now().timestamp()))
-    plt.savefig(os.path.join(save_dir, str(fname + '.png')), dpi=200)
 
 
 # -----------------------------------
