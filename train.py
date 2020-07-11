@@ -1,11 +1,10 @@
 # Mountain Legacy Project: Semantic Segmentation
 # Author: Spencer Rose
-# Date: November 2019
+# Date: July 2020
 #
 # REFERENCES:
-# TBA
 # U-Net
-# Deeplab v3
+# DeeplabV3+
 import os
 
 import torch

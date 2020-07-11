@@ -11,6 +11,7 @@ from models.deeplab import DeepLab
 from models.utils.loss import MultiLoss, RunningLoss
 import utils.utils as utils
 from params import params
+from numpy import random
 
 
 class Normalizer:
@@ -200,6 +201,14 @@ class Model:
 
         # normalize input [NCWH]
         x = self.normalize_image(x)
+
+        print(x.shape, y.shape)
+
+        # apply random vertical flip
+        if bool(random.randint(0, 1)):
+            x = np.flip(x, axis=3)
+            y = np.flip(y, axis=2)
+
         x = x.to(params.device)
         y = y.to(params.device)
 
