@@ -202,8 +202,6 @@ class Model:
         # normalize input [NCWH]
         x = self.normalize_image(x)
 
-        print(x.shape, y.shape)
-
         # apply random vertical flip
         if bool(random.randint(0, 1)):
             x = np.flip(x, axis=3)
