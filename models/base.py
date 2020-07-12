@@ -199,14 +199,13 @@ class Model:
 
         """model training step"""
 
-        # normalize input [NCWH]
-        x = self.normalize_image(x)
-
         # apply random vertical flip
         if bool(random.randint(0, 1)):
-            x = np.flip(x, axis=3)
-            y = np.flip(y, axis=2)
+            x = torch.flip(x, [3])
+            y = torch.flip(y, [2])
 
+        # normalize input [NCWH]
+        x = self.normalize_image(x)
         x = x.to(params.device)
         y = y.to(params.device)
 
