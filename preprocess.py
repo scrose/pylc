@@ -373,6 +373,9 @@ def main(cf, parser):
     # See parameters for dimensions and stride.
     # -----------------------------
 
+    # Clip dataset
+    params.clip = cf.clip
+
     if cf.mode == params.EXTRACT:
 
         # Extract subimages for training

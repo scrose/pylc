@@ -174,13 +174,6 @@ def augment_transform(img, mask, random_state=None):
         random_state = np.random.RandomState(None)
 
     nch = img.shape[1]
-    w = mask.shape[1]
-    h = mask.shape[2]
-
-    # apply random vertical flip
-    if bool(random.getrandbits(1)):
-        img = np.flip(img, axis=1)
-        mask = np.flip(mask, axis=1)
 
     # Modify axes to suit OpenCV format
     img = np.squeeze(np.moveaxis(img, 1, -1), axis=0)
@@ -188,11 +181,10 @@ def augment_transform(img, mask, random_state=None):
 
     # Perspective shift
     img, mask = perspective_shift(img, mask, random_state)
-    # Add noise
-    img = add_noise(img, w, h)
+    #
     # Channel shift
     img = channel_shift(img, random_state)
-
+    #
     if nch == 3:
         img = np.moveaxis(img, -1, 0)
 
@@ -241,7 +233,7 @@ def perspective_shift(img, mask, random_state):
 
     w = mask.shape[0]
     h = mask.shape[1]
-    alpha = 0.05 * w
+    alpha = 0.06 * w
 
     pts1 = np.float32([[56, 65], [368, 52], [28, 387], [389, 390]])
     pts2 = pts1 + random_state.uniform(-alpha, alpha, size=pts1.shape).astype(np.float32)
@@ -251,7 +243,7 @@ def perspective_shift(img, mask, random_state):
 
     # Crop and resize
     img = img[30:w - 30, 30:h - 30]
-    img = cv2.resize(mask.astype('float32'), (w, h), interpolation=cv2.INTER_AREA)
+    img = cv2.resize(img.astype('float32'), (w, h), interpolation=cv2.INTER_AREA)
     mask = mask[30:w - 30, 30:h - 30]
     mask = cv2.resize(mask.astype('float32'), (w, h), interpolation=cv2.INTER_NEAREST)
 

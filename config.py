@@ -60,6 +60,10 @@ def get_parser(action):
                      default='',
                      help='Path to training database (overrides default in paths.json).')
 
+    arg.add_argument("--clip", type=float,
+                     default=1.,
+                     help="Fraction of dataset to use in training.")
+
     # ----------------------------------------
     # Arguments for preprocessing
     if action == 'preprocess':
@@ -149,10 +153,6 @@ def get_parser(action):
         arg.add_argument("--batch_size", type=int,
                          default=8,
                          help="Size of each training batch")
-
-        arg.add_argument("--clip", type=float,
-                         default=1.,
-                         help="Fraction of dataset to use in training.")
 
         arg.add_argument("--n_epochs", type=int,
                          default=10,
@@ -252,9 +252,7 @@ def get_parser(action):
                          default=5,
                          help="Report interval (unit: iterations).")
 
-        arg.add_argument("--clip", type=float,
-                         default=1.,
-                         help="Fraction of dataset to use in training.")
+
 
     return parser
 
