@@ -246,7 +246,7 @@ class Model:
 
         """model test/validation step"""
 
-        self.net.evaluate()
+        self.net.eval()
 
         # normalize
         x = self.normalize_image(x)
