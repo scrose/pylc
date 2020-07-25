@@ -246,7 +246,7 @@ class Model:
 
         """model test/validation step"""
 
-        self.net.eval()
+        self.net.evaluate()
 
         # normalize
         x = self.normalize_image(x)
@@ -450,3 +450,5 @@ class Evaluator:
         # Note that the default color format in OpenCV is often
         # referred to as RGB but it is actually BGR (the bytes are reversed).
         cv2.imwrite(mask_file, cv2.cvtColor(mask_img, cv2.COLOR_RGB2BGR))
+
+        return mask_img

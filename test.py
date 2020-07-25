@@ -16,8 +16,18 @@
     ------------------------
     DeepLab
 """
-
+import json
 import os
+
+# import matplotlib as plt
+import seaborn as sns
+import matplotlib.pyplot as plt
+from sklearn.metrics import confusion_matrix
+from sklearn.metrics import classification_report
+from sklearn.metrics import jaccard_score
+from sklearn.metrics import f1_score
+from sklearn.metrics import matthews_corrcoef
+
 import torch
 from config import get_config
 import utils.utils as utils
@@ -27,29 +37,36 @@ from tqdm import trange
 from params import params
 import cv2
 import numpy as np
+import utils.tex as tex
 
 
-def test(conf, model):
+def test(conf, model, bypass=False):
     """ Apply trained model to test dataset """
 
     # Initialize files list
     files = []
+    y_true_overall = []
+    y_pred_overall = []
 
     # iterate over available datasets
     for dset in params.dsets:
 
         # Check dataset configuration against parameters
         # COMBINED uses both dst-A, dst-B and dst-C
+        print('\nLoading test images ... ')
         if params.COMBINED == conf.dset or dset == conf.dset:
 
             # get image/target file list
             img_dir = params.get_path('raw', dset, conf.capture, params.TEST, 'img')
             target_dir = params.get_path('raw', dset, conf.capture, params.TEST, 'mask')
+            if not img_dir or not target_dir:
+                print("\nNOTE: Skipping processing of dataset {} for {} pairs since not found.".format(dset, conf.capture))
+                continue
             img_files = utils.load_files(img_dir, ['.tif', '.tiff', '.jpg', '.jpeg'])
             target_files = utils.load_files(target_dir, ['.png'])
 
-            print('\tLooking at images in: {}'.format(img_dir))
-            print('\tLooking at maskes in: {}'.format(target_dir))
+            print('\tLooking for images in: {}'.format(img_dir))
+            print('\tLooking for masks in: {}'.format(target_dir))
 
             # verify image/target pairing
             f_idx = 0
@@ -77,220 +94,226 @@ def test(conf, model):
         img_path = fpair.get('img')
         target_path = fpair.get('mask')
         dset = fpair.get('dset')
+        y_pred = None
 
         # Check if output exists already
         fname = os.path.basename(img_path).replace('.', '_')
         output_file = os.path.join(config.output_path, 'outputs', fname + '_output.pth')
+        md_file = os.path.join(config.output_path, 'outputs', fname + '_md.json')
         mask_file = os.path.join(config.output_path, 'masks', fname + '.png')
-        if os.path.exists(output_file) and input(
-                "\tData file {} exists. Overwrite? (Type \'Y\' for yes): ".format(output_file)) != 'Y':
-            continue
-        if os.path.exists(mask_file) and input(
-                "\tData file {} exists. Overwrite? (Type \'Y\' for yes): ".format(mask_file)) != 'Y':
-            continue
 
-        # Extract image subimages [NCWH format]
-        img = utils.get_image(img_path, conf.in_channels)
-        w_full = img.shape[1]
-        h_full = img.shape[0]
+        # Bypass model test and jump to evaluation of masks
+        if not bypass:
+            get_output = True
+            if os.path.exists(output_file) and input(
+                    "\tData file {} exists. Overwrite? (Type \'Y\' for yes): ".format(output_file)) != 'Y':
+                get_output = False
+            if os.path.exists(mask_file) and input(
+                    "\tData file {} exists. Overwrite? (Type \'Y\' for yes): ".format(mask_file)) != 'Y':
+                get_output = False
 
-        print('\n---\nTest Image [{}]: {}'.format(f_idx, img_path))
-        print('\tWidth: {}px'.format(w_full))
-        print('\tHeight: {}px'.format(h_full))
-        print('\tChannels: {}'.format(conf.in_channels))
+            if get_output:
+                # Extract image subimages [NCWH format]
+                img = utils.get_image(img_path, conf.in_channels)
+                w_full = img.shape[1]
+                h_full = img.shape[0]
 
-        if conf.normalize_default:
-            print('\tInput normalized to default mean: {}, std: {}'.format(params.px_mean_default, params.px_std_default))
+                print('\n---\nTest Image [{}]: {}'.format(f_idx, img_path))
+                print('\tWidth: {}px'.format(w_full))
+                print('\tHeight: {}px'.format(h_full))
+                print('\tChannels: {}'.format(conf.in_channels))
 
-        if conf.resample:
-            img = utils.get_image(conf.img_path, conf.in_channels, scale=conf.resample)
-            w_full = img.shape[1]
-            h_full = img.shape[0]
+                if conf.normalize_default:
+                    print('\tInput normalized to default mean: {}, std: {}'.format(params.px_mean_default, params.px_std_default))
 
-            print('\n---\nResampled:')
-            print('\tScaling: {}'.format(conf.resample))
-            print('\tWidth: {}px'.format(w_full))
-            print('\tHeight: {}px'.format(h_full))
+                if conf.resample:
+                    img = utils.get_image(conf.img_path, conf.in_channels, scale=conf.resample)
+                    w_full = img.shape[1]
+                    h_full = img.shape[0]
 
-        # Set stride to half tile size
-        stride = params.patch_size // 2
+                    print('\n---\nResampled:')
+                    print('\tScaling: {}'.format(conf.resample))
+                    print('\tWidth: {}px'.format(w_full))
+                    print('\tHeight: {}px'.format(h_full))
 
-        # Adjust image size to fit N tiles
-        img, w, h, offset = utils.adjust_to_tile(img, params.patch_size, stride, conf.in_channels)
-        print('\nImage Resized to: ')
-        print('\tWidth: {}px'.format(w))
-        print('\tHeight: {}px'.format(h))
-        print('\tTop offset: {}'.format(offset))
+                # Set stride to half tile size
+                stride = params.patch_size // 2
 
-        # Convert image to tensor
-        img_data = torch.as_tensor(img, dtype=torch.float32)
-        mask_data = None
+                # Adjust image size to fit N tiles
+                img, w, h, offset = utils.adjust_to_tile(img, params.patch_size, stride, conf.in_channels)
+                print('\nImage Resized to: ')
+                print('\tWidth: {}px'.format(w))
+                print('\tHeight: {}px'.format(h))
+                print('\tTop offset: {}'.format(offset))
 
-        # Create image tiles
-        print("\nCreating test image tiles ... ")
-        img_data = img_data.unfold(0, params.patch_size, stride).unfold(1, params.patch_size, stride)
-        img_data = torch.reshape(img_data,
-                                 (img_data.shape[0] * img_data.shape[1], conf.in_channels, params.patch_size,
-                                  params.patch_size))
-        print('\nImage Tiles: ')
-        print('\tN: {}'.format(img_data.shape[0]))
-        print('\tSize: {}px'.format(img_data.shape[2]))
-        print('\tChannels: {}'.format(img_data.shape[1]))
-        print('\tStride: {}'.format(stride))
+                # Convert image to tensor
+                img_data = torch.as_tensor(img, dtype=torch.float32)
 
-        conf.validate = False
+                # Create image tiles
+                print("\nCreating test image tiles ... ")
+                img_data = img_data.unfold(0, params.patch_size, stride).unfold(1, params.patch_size, stride)
+                img_data = torch.reshape(img_data,
+                                         (img_data.shape[0] * img_data.shape[1], conf.in_channels, params.patch_size,
+                                          params.patch_size))
+                n_samples = int(img_data.shape[0] * conf.clip)
 
-        # if conf.validate:
-        #     # Load mask data subimages [NCWH]
-        #     mask = utils.get_image(conf.mask_path, 3)
-        #
-        #     print('\nMask (Validation): {}'.format(conf.mask_path))
-        #     print('\tWidth: {}px'.format(mask.shape[1]))
-        #     print('\tHeight: {}px'.format(mask.shape[0]))
-        #     print('\tChannels: {}'.format(conf.n_channels))
-        #
-        #     # Adjust mask size to fit N tiles
-        #     mask, w_mask, h_mask, offset = utils.adjust_to_tile(mask, params.patch_size, stride, conf.in_channels,
-        #                                                         interpolate=cv2.INTER_NEAREST)
-        #     assert w == w_mask and h == h_mask, print("Mask resized dimensions {}x{} must match image dimensions {}x{}.".format(w, h, w_mask, h_mask))
-        #     print('\nMask resized and cropped to: ')
-        #     print('\tWidth: {}px'.format(mask.shape[1]))
-        #     print('\tHeight: {}px'.format(mask.shape[0]))
-        #     print('\tTop clip size: {}px'.format(offset))
-        #
-        #     # Convert mask to tensor and get tiles
-        #     mask_data = torch.as_tensor(mask, dtype=torch.int64)
-        #     mask_data = mask_data.unfold(0, params.patch_size, stride).unfold(1, params.patch_size, stride)
-        #     mask_data = torch.reshape(mask_data,
-        #                               (mask_data.shape[0]*mask_data.shape[1], 3, params.patch_size, params.patch_size))
-        #     print('\nMask Tiles: ')
-        #     print('\tN: {}'.format(mask_data.shape[0]))
-        #     print('\tSize: {}px'.format(mask_data.shape[2]))
-        #     print('\tChannels: {}'.format(mask_data.shape[1]))
-        #     print('\tStride: {}'.format(stride))
-        #
-        #     # Merge dataset if palette mapping is provided
-        #     print('\tConverting masks to class index encoding ... ', end='')
-        #     if 'fortin' == conf.dset:
-        #         # Encode masks to 1-hot encoding [NWH format] 11-class palette
-        #         mask_data = utils.class_encode(mask_data, params.palette_lcc_b)
-        #         print('done.')
-        #         print('\tMerging current palette to alt palette ... ', end='')
-        #         mask_data = utils.merge_classes(mask_data, params.categories_merged_lcc_a)
-        #         print('done.')
-        #     else:
-        #         # Encode masks to 1-hot encoding [NWH format] 9-class palette
-        #         mask_data = utils.class_encode(mask_data, params.palette_lcc_a)
-        #         print('done.')
-        #
-        #     print('\tMask Patches {} / Shape: {}'.format(mask_data.shape[0], mask_data.shape))
-        #     assert img_data.shape[0] == mask_data.shape[0], 'Image dimensions must match mask dimensions.'
+                print('\nImage Tiles: ')
+                print('\tN: {}'.format(img_data.shape[0]))
+                print('\tSize: {}px'.format(img_data.shape[2]))
+                print('\tChannels: {}'.format(img_data.shape[1]))
+                print('\tStride: {}'.format(stride))
 
-        n_samples = int(img_data.shape[0] * conf.clip)
+                model.evaluator.metadata = {
+                    "w": w,
+                    "h": h,
+                    "w_full": w_full,
+                    "h_full": h_full,
+                    "offset": offset,
+                    "stride": stride,
+                    "n_samples": n_samples
+                }
 
-        model.evaluator.metadata = {
-            "w": w,
-            "h": h,
-            "w_full": w_full,
-            "h_full": h_full,
-            "offset": offset,
-            "stride": stride,
-            "n_samples": n_samples
-        }
+                # model.net.evaluate()
 
-        model.net.eval()
+                print('\nProcessing image tiles ... ')
+                with torch.no_grad():
+                    for i in trange(n_samples):
+                        x = img_data[i].unsqueeze(0).float()
+                        model.test(x)
+                        model.iter += 1
 
-        print('\nProcessing image tiles ... ')
-        with torch.no_grad():
-            for i in trange(n_samples):
-                x = img_data[i].unsqueeze(0).float()
+                # Save prediction test output to file
+                if conf.save_output:
+                    model.evaluator.save(fname)
+                    print("Output data saved to {}.".format(model.evaluator.output_path))
 
-                if conf.validate:
-                    y = mask_data[i].unsqueeze(0).long()
-                    model.eval(x, y, test=True)
-                    model.log()
-                else:
-                    model.test(x)
+                # Save full mask image to file
+                y_pred = model.evaluator.save_image(fname)
+                print("Output mask saved to {}.".format(model.evaluator.masks_path))
 
-                model.iter += 1
-
+        # Measure accuracy wrt. ground-truth
         if conf.validate:
-            print("\n[Test] Dice Best: %4.4f\n" % model.loss.best_dice)
+            if not config.global_metrics and os.path.exists(md_file) and input(
+                    "\tMetadata file {} exists. Re-do validation? (Type \'Y\' for yes): ".format(md_file)) != 'Y':
+                continue
+            # load ground-truth data
+            print("\nStarting evaluation of outputs ... ")
+            y_true = torch.as_tensor(utils.get_image(target_path, 3), dtype=torch.uint8).permute(2, 0, 1).unsqueeze(0)
+            print("\tLoading mask file {}".format(mask_file))
+            y_pred = torch.as_tensor(utils.get_image(mask_file, 3), dtype=torch.uint8).permute(2, 0, 1).unsqueeze(0)
 
-        # Save prediction test output to file
-        model.evaluator.save(fname)
-        print("Output data saved to {}.".format(model.evaluator.output_path))
+            # Class encode input predicted data
+            y_pred = utils.class_encode(y_pred, params.palette_lcc_a)
 
-        # Save full mask image to file
-        model.evaluator.save_image(fname)
-        print("Output mask saved to {}.".format(model.evaluator.masks_path))
+            # Class encode target data
+            if dset == 'dst-b':
+                print('\t\tMapping LCC-B to LCC-A categories.'.format(conf.id))
+                # Encode masks to 1-hot encoding [NWH format] 11-class LCC-B palette
+                y_true = utils.class_encode(y_true, params.palette_lcc_b)
+                y_true = utils.map_palette(y_true, params.lcc_btoa_key)
+            # elif dset == 'dset-c':
+            #     print('\t\tMapping LCC-C to LCC-A categories.'.format(conf.id))
+            #     palette_key = params.lcc_ctoa_key
+            #     # Encode masks to 1-hot encoding [NWH format] 11-class LCC-C palette
+            #     y_true = utils.class_encode(y_true, params.palette_lcc_c)
+            #     y_true = utils.map_palette(y_true, params.lcc_ctoa_key)
+            else:
+                y_true = utils.class_encode(y_true, params.palette_lcc_a)
+
+            # Verify same size of target == input
+            assert y_pred.shape == y_true.shape, "Input dimensions {} not same as target {}.".format(
+                y_pred.shape, y_true.shape)
+
+            # Flatten data for analysis
+            y_pred = y_pred.flatten()
+            y_true = y_true.flatten()
+
+            y_true_overall += [y_true]
+            y_pred_overall += [y_pred]
+
+            # Evaluate prediction against ground-truth
+            if not config.global_metrics:
+                evaluate(conf, y_true, y_pred, fname)
 
         # Reset evaluator
         model.evaluator.reset()
 
+    # Aggregate evaluation
+    if y_pred_overall and y_true_overall:
+        print("\nReporting global metrics ... ")
+        # Concatenate aggregated data
+        y_pred_overall = np.concatenate((y_pred_overall))
+        y_true_overall = np.concatenate((y_true_overall))
 
-def eval(conf):
+        # Evaluate overall prediction against ground-truth
+        evaluate(conf, y_true_overall, y_pred_overall, conf.id)
+
+
+def evaluate(conf, y_true, y_pred, fid):
     """ Evaluate test output """
 
-    # load output data
-    output = np.concatenate(torch.load(conf.output_path, map_location=lambda storage, loc: storage)['results'])
-    print('Loaded results for {}'.format(conf.output_path))
-    output = torch.tensor(output).float()
+    dpi = 400
+    font = {'weight': 'bold', 'size': 18}
+    plt.rc('font', **font)
+    sns.set(font_scale=0.9)
+    labels = params.label_codes_dst_a
 
-    eval_dir = '/Users/boutrous/Workspace/MLP/experiments/DLB-H-4.1/'
+    # initialize metadata dict
+    md = {
+        'id': conf.id,
+        'fid': fid
+    }
 
-    mask_data = utils.get_image(config.mask_path)
+    # # Ensure true mask has all of the categories
+    target_idx = np.unique(y_true)
+    input_idx = np.unique(y_pred)
+    label_idx = np.unique(np.concatenate((target_idx, input_idx)))
 
-    # load ground-truth target
+    labels = []
+    for idx in label_idx:
+        labels += [params.label_codes_dst_a[idx]]
 
-    # Evaluate metrics
-    print('\nMetrics:')
+    # Confusion matrix
+    conf_matrix = confusion_matrix(y_true, y_pred, normalize='true')
+    cmap_path = os.path.join(conf.output_path, 'outputs', fid + '_cmap.pdf')
+    # np.save(os.path.join(conf.output_path, 'outputs', fname + '_cmap.npy'), conf_matrix)
+    cmap = sns.heatmap(conf_matrix, vmin=0.01, vmax=1.0, fmt='.1g', xticklabels=labels, yticklabels=labels, annot=True)
+    plt.ylabel('Ground-truth', fontsize=16, labelpad=6)
+    plt.xlabel('Predicted', fontsize=16, labelpad=6)
+    cmap.get_figure().savefig(cmap_path, format='pdf', dpi=dpi)
+    plt.clf()
 
-    # DSC: Raw unary outputs
-    # dsc1 = metrics.dsc(output, mask_data.long())
-    # print('\nDSC of raw unary values:'.format(dsc1))
+    # Ensure true mask has all of the categories
+    for idx in range(len(params.label_codes_dst_a)):
+        if idx not in target_idx:
+            y_true[idx] = idx
 
-    # DSC: Mapped unary
-    output_map = torch.argmax(output, dim=1)
+    # Classification Report
+    print(classification_report(y_true, y_pred, target_names=params.label_codes_dst_a, zero_division=0))
+    md['report'] = classification_report(
+        y_true, y_pred, target_names=params.label_codes_dst_a, output_dict=True, zero_division=0)
 
-    # One-hot encoding
-    y_true_1hot = torch.nn.functional.one_hot(mask_data.long(), num_classes=params.n_classes).permute(0, 3, 1, 2)
-    output_1hot = torch.nn.functional.one_hot(output_map.long(), num_classes=params.n_classes).permute(0, 3, 1, 2)
+    # Weighted F1 Score (DSC)
+    md['f1'] = f1_score(y_true, y_pred, average='weighted', zero_division=0)
+    print('Weighted F1 Score: {}'.format(md['f1']))
 
-    # Save mapped input/target for further analysis
-    np.save(os.path.join(eval_dir, 'target_' + conf.id), mask_data)
-    np.save(os.path.join(eval_dir, 'input_' + conf.id), output_map)
+    # Weighted Jaccard (ioU)
+    md['iou'] = jaccard_score(y_true, y_pred, average='weighted')
+    print('Weighted IoU: {}'.format(md['iou']))
 
-    # Calculate true postives
-    tp = torch.sum(output_1hot * y_true_1hot, dim=(0, 2, 3))
-    # Calculate false positives
-    fp = np.sum(output_1hot * (1 - y_true_1hot), axis=0)
+    # Matthews correlation coefficient
+    md['mcc'] = matthews_corrcoef(y_true, y_pred)
+    print('MCC: {}'.format(md['mcc']))
 
-    # compute mean of y_true U y_pred / (y_pred + y_true)
-    # cardinality = torch.sum(output_1hot + y_true_1hot, dim=(0, 2, 3))
-    # dsc2 = (2. * intersection + params.dice_smooth) / (cardinality + params.dice_smooth)
+    # Save image metadata
+    with open(os.path.join(conf.output_path, 'outputs', fid + '_md.json'), 'w') as fp:
+        json.dump(md, fp, indent=4)
 
-    # print(dsc2)
-    # print(dsc2.mean().item())
-
-    px_dist_ytrue = np.sum(y_true_1hot.numpy(), axis=(0, 2, 3))
-    px_dist_output = np.sum(output_1hot.numpy(), axis=(0, 2, 3))
-    px_count = np.sum(px_dist_ytrue)
-
-    fiou = 0.
-    fw = px_dist_ytrue / px_count
-
-    print('\tTotal pixel count: {}'.format(px_count))
-    print('\tPixel Dist (Ground-truth: {}'.format(px_dist_ytrue))
-    print('\tPixel Dist (Output): {}'.format(px_dist_output))
-    print('\tTrue Positives: {}'.format(tp.numpy()))
-    print('\tFalse Positives: {}'.format(fp))
-
-    for i in range(params.n_classes):
-        fiou += (px_dist_ytrue[i] * tp) / (px_dist_ytrue[i] + np.sum(fp[i]))
-
-    fiou /= px_count
-    print(fiou)
+    # Save metadata as latex table
+    # write back the new document
+    with open(os.path.join(conf.output_path, 'outputs', fid + '_md.tex'), 'w') as fp:
+        md_tex = tex.convert_md_to_tex(md)
+        fp.write(md_tex)
 
 
 def reconstruct(conf):
@@ -301,7 +324,11 @@ def reconstruct(conf):
     print('Loaded results for {}'.format(conf.output_path))
 
     # get unary output data / metadata
-    unary_data = np.concatenate(output['results'])
+    if type(output['results']) == list:
+        unary_data = np.concatenate(output['results'])
+    else:
+        unary_data = output['results'].numpy()
+
     md = output['metadata']
 
     # Reconstruct seg-mask from predicted tiles
@@ -320,6 +347,99 @@ def reconstruct(conf):
     print('Reconstructed mask saved to {}'.format(mask_file))
 
 
+def get_output(conf, model, img_path, target_path=None):
+
+    # Check if output exists already
+    fname = os.path.basename(img_path).replace('.', '_')
+    output_file = os.path.join(config.output_path, 'outputs', fname + '_output.pth')
+    md_file = os.path.join(config.output_path, 'outputs', fname + '_md.json')
+    mask_file = os.path.join(config.output_path, 'masks', fname + '.png')
+
+    # Bypass model test and jump to evaluation of masks
+    if os.path.exists(output_file) and input(
+            "\tData file {} exists. Overwrite? (Type \'Y\' for yes): ".format(output_file)) != 'Y':
+        return
+
+    # Extract image subimages [NCWH format]
+    img = utils.get_image(img_path, conf.in_channels)
+    w_full = img.shape[1]
+    h_full = img.shape[0]
+
+    print('\n---\nTest Image [{}]: {}'.format(fname, img_path))
+    print('\tWidth: {}px'.format(w_full))
+    print('\tHeight: {}px'.format(h_full))
+    print('\tChannels: {}'.format(conf.in_channels))
+
+    if conf.normalize_default:
+        print('\tInput normalized to default mean: {}, std: {}'.format(params.px_mean_default,
+                                                                       params.px_std_default))
+    if conf.resample:
+        img = utils.get_image(conf.img_path, conf.in_channels, scale=conf.resample)
+        w_full = img.shape[1]
+        h_full = img.shape[0]
+
+        print('\n---\nResampled:')
+        print('\tScaling: {}'.format(conf.resample))
+        print('\tWidth: {}px'.format(w_full))
+        print('\tHeight: {}px'.format(h_full))
+
+    # Set stride to half tile size
+    stride = params.patch_size // 2
+
+    # Adjust image size to fit N tiles
+    img, w, h, offset = utils.adjust_to_tile(img, params.patch_size, stride, conf.in_channels)
+    print('\nImage Resized to: ')
+    print('\tWidth: {}px'.format(w))
+    print('\tHeight: {}px'.format(h))
+    print('\tTop offset: {}'.format(offset))
+
+    # Convert image to tensor
+    img_data = torch.as_tensor(img, dtype=torch.float32)
+
+    # Create image tiles
+    print("\nCreating test image tiles ... ")
+    img_data = img_data.unfold(0, params.patch_size, stride).unfold(1, params.patch_size, stride)
+    img_data = torch.reshape(img_data,
+                             (img_data.shape[0] * img_data.shape[1], conf.in_channels, params.patch_size,
+                              params.patch_size))
+    n_samples = int(img_data.shape[0] * conf.clip)
+
+    print('\nImage Tiles: ')
+    print('\tN: {}'.format(img_data.shape[0]))
+    print('\tSize: {}px'.format(img_data.shape[2]))
+    print('\tChannels: {}'.format(img_data.shape[1]))
+    print('\tStride: {}'.format(stride))
+
+    model.evaluator.metadata = {
+        "w": w,
+        "h": h,
+        "w_full": w_full,
+        "h_full": h_full,
+        "offset": offset,
+        "stride": stride,
+        "n_samples": n_samples
+    }
+
+    print('\nProcessing image tiles ... ')
+    with torch.no_grad():
+        for i in trange(n_samples):
+            x = img_data[i].unsqueeze(0).float()
+            model.test(x)
+            model.iter += 1
+
+    # Save prediction test output to file
+    model.evaluator.save(fname)
+    print("Output data saved to {}.".format(model.evaluator.output_path))
+
+    # Save full mask image to file
+    if os.path.exists(mask_file) and input(
+            "\tData file {} exists. Overwrite? (Type \'Y\' for yes): ".format(mask_file)) != 'Y':
+        return
+
+    y_pred = model.evaluator.save_image(fname)
+    print("Output mask saved to {}.".format(model.evaluator.masks_path))
+
+
 def init_capture(conf):
     """ force initialize parameters for capture type """
     if conf.capture == 'historic':
@@ -335,8 +455,8 @@ def main(conf):
     # initialize conf parameters based on capture type
     conf = init_capture(conf)
 
-    # Run model on test image
-    if conf.mode == params.NORMAL:
+    # Load model for testing or evaluation
+    if conf.mode == params.NORMAL or conf.mode == params.EVALUATE or conf.mode == params.SINGLE:
         model = Model(conf)
         print("\n---\nBeginning test on {} model".format(conf.model))
         print("\tMode: {}".format(conf.mode))
@@ -344,12 +464,18 @@ def main(conf):
         print('\tModel Ref: {}\n\tDataset: {}'.format(conf.id, conf.dset))
         print('\tInput channels: {}\n\tClasses: {}'.format(conf.in_channels, conf.n_classes))
         print('\tDataset: {}'.format(conf.dset))
-        print("\nPretrained model loaded.", end='')
-        test(conf, model)
-    # Evaluate test outputs
-    elif conf.mode == params.EVALUATE:
-        print("\nEvaluation of output unary data started ... ")
-        eval(conf)
+        print("\nPretrained model loaded.")
+
+        if conf.mode == params.EVALUATE:
+            print("\nEvaluation of model {} ... ".format(conf.id))
+            test(conf, model, bypass=True)
+        elif conf.mode == params.SINGLE:
+            print("\nTest single image on model {} ... ".format(conf.id))
+            get_output(conf, model, conf.img_path, conf.mask_path)
+        else:
+            print("\nTesting of model {} ... ".format(conf.id))
+            test(conf, model)
+
     # Reconstruct mask outputs
     elif conf.mode == params.RECONSTRUCT:
         print("\nReconstruct mask from output unary data ... ")

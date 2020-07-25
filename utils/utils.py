@@ -126,16 +126,14 @@ def coshuffle(data, dist=None):
 
 
 # -----------------------------------
-# Merge segmentation classes
+# Map classes for different palettes
 # -----------------------------------
-def merge_classes(data_tensor, merged_classes):
+def map_palette(data_tensor, key):
+    palette = range(len(key))
     data = data_tensor.numpy()
-
-    # merge classes
-    for i, cat_grp in enumerate(merged_classes):
-        data[np.isin(data, cat_grp)] = i
-
-    return torch.tensor(data)
+    # key gives the new values to map palette to
+    index = np.digitize(data.ravel(), palette, right=True)
+    return torch.tensor(key[index].reshape(data_tensor.shape))
 
 
 # -----------------------------------
@@ -147,17 +145,21 @@ def merge_classes(data_tensor, merged_classes):
 #  - [NCWH] with one-hot encoded classes, where C = number of classes
 # -----------------------------------
 def class_encode(input_data, palette):
-    # Ensure image is RBG format
-    assert input_data.shape[1] == 3
-    input_data = input_data.to(torch.float32).mean(dim=1)
-    palette = torch.from_numpy(palette).to(torch.float32).mean(dim=1)
+    assert input_data.shape[1] == 3, "Input data must be 3 channel (RGB)"
+    # make 3-channel (RGB) image
+    n = input_data.shape[0]
+    ch = input_data.shape[1]
+    w = input_data.shape[2]
+    h = input_data.shape[3]
+    input_data = np.moveaxis(input_data.numpy(), 1, -1).reshape(n*w*h, ch)
+    encoded_data = np.ones(n*w*h)
 
     # map mask colours to segmentation classes
     for idx, c in enumerate(palette):
-        class_bool = input_data == c
-        input_data[class_bool] = idx
-
-    return input_data.to(torch.uint8)
+        bool_idx = input_data == np.array(c)
+        bool_idx = np.all(bool_idx, axis=1)
+        encoded_data[bool_idx] = idx
+    return torch.tensor(encoded_data.reshape(n, w, h), dtype=torch.uint8)
 
 
 # -----------------------------------

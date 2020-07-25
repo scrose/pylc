@@ -74,10 +74,10 @@ def epoch(model, dloader, n_batches):
 # Validation loop for single epoch
 # -----------------------------
 def validate(model, dloader, n_batches):
-    model.net.eval()
+    model.net.evaluate()
     with torch.no_grad():
         for i, (x, y) in tqdm(enumerate(dloader), total=n_batches, desc="Validating: ", unit=' batches'):
-            model.eval(x, y)
+            model.evaluate(x, y)
         model.log()
         model.save()
     return model

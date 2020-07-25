@@ -182,7 +182,7 @@ def get_parser(action):
 
         arg.add_argument("--mode", type=str,
                          default="normal",
-                         choices=["normal", "reconstruct", "eval"],
+                         choices=["normal", "single", "reconstruct", "eval"],
                          help="Run mode")
 
         arg.add_argument('--img_path', type=str,
@@ -196,6 +196,10 @@ def get_parser(action):
         arg.add_argument('--output_path', type=str,
                          default='./data/eval/',
                          help='Experiment files directory.')
+
+        arg.add_argument('--save_output', type=str2bool,
+                         default=False,
+                         help='Save model output to file.')
 
         arg.add_argument('--up_mode', type=str,
                          default='upsample',
@@ -252,7 +256,9 @@ def get_parser(action):
                          default=5,
                          help="Report interval (unit: iterations).")
 
-
+        arg.add_argument("--global_metrics", type=str2bool,
+                         default=False,
+                         help="Report only global metrics for model.")
 
     return parser
 

@@ -51,6 +51,12 @@
           "img": "data/raw/dst-c/historic/test/img/",
           "mask": "data/raw/dst-c/historic/test/mask/"
         }
+      },
+      "repeat": {
+        "test": {
+          "img": "data/raw/dst-c/repeat/test/img/",
+          "mask": "data/raw/dst-c/repeat/test/mask/"
+        }
       }
     }
   },

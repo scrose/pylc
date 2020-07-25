@@ -55,8 +55,9 @@ class Parameters:
         self.OVERFIT = 'overfit'
 
         # Testing
-        self.EVALUATE = 'evaluate'
+        self.EVALUATE = 'eval'
         self.RECONSTRUCT = 'reconstruct'
+        self.SINGLE = 'single'
 
         # list of available datasets
         self.dsets = ['dst-a', 'dst-b', 'dst-c']
@@ -101,7 +102,7 @@ class Parameters:
 
         # what percentage of the dataset should be used as a held out validation/testing set
         self.buf_size = 1000
-        self.partition = 0.10
+        self.partition = 0.01
         self.clip = 1.
         self.clip_overfit = 0.003
 
@@ -162,6 +163,18 @@ class Parameters:
             'Regenerating Area',
         ]
 
+        self.label_codes_dst_a = [
+            'NC',
+            'B-MW',
+            'CF',
+            'H-S',
+            'S-G-R',
+            'WL',
+            'WT',
+            'S-I',
+            'RA',
+        ]
+
         self.palette_lcc_a = np.array(
             [[0, 0, 0],
              [255, 165, 0],
@@ -173,19 +186,6 @@ class Parameters:
              [45, 189, 255],
              [255, 0, 4],
              ])
-
-        # merged classes
-        self.categories_merged_lcc_a = [
-            np.array([0]),
-            np.array([1, 2]),
-            np.array([3]),
-            np.array([4, 5]),
-            np.array([6]),
-            np.array([7]),
-            np.array([8]),
-            np.array([9]),
-            np.array([10]),
-        ]
 
         # ------------------------------------
         # DST-B Land Cover Categories (LCC-B)
@@ -202,7 +202,7 @@ class Parameters:
         # 10. '#b0fffd' [176,255,253] (French pass - approx): Snow/Ice
         # 11. '#ff00ff' [255,0,255] (magenta - solid): Regenerating area
 
-        self.mask_categories_lcc_b = {
+        self.categories_lcc_b = {
             '#000000': 'Not categorized',
             '#ffaa00': 'Broadleaf forest',
             '#d5d500': 'Mixedwood forest',
@@ -245,6 +245,49 @@ class Parameters:
              ])
 
         # ------------------------------------
+        # DST-C Land Cover Categories (LCC-C)
+        # ------------------------------------
+        # 0 - '#000000': 'Not categorized',
+        # 1 - '#0000ff': 'Water',
+        # 2 - '#00ff00': 'Conifer',
+        # 3 - '#7d0000': 'Barren Ground',
+        # 4 - '#8282ff': 'Wetland',
+        # 5 - '#969600': 'Shrubland',
+        # 6 - '#ff0000': 'Broadleaf',
+        # 7 - '#ff00ff': 'Burned',
+        # 8 - '#ff9b00': 'Herbaceous',
+        # 9 - '#ffff00': 'Mixedwood',
+        # 10- '#ffffff': 'Not categorized'
+
+        # dst-c palette
+        self.palette_lcc_c = np.array(
+            [[0, 0, 0],
+             [0, 0, 255],
+             [0, 255, 0],
+             [125, 0, 0],
+             [130, 130, 255],
+             [150, 150, 0],
+             [255, 0, 0],
+             [255, 0, 255],
+             [255, 155, 0],
+             [255, 255, 0],
+             [255, 255, 255]])
+
+        self.hex_categories_lcc_c = {
+            '#000000': 'Not categorized',
+            '#0000ff': 'Water',
+            '#00ff00': 'Conifer',
+            '#7d0000': 'Barren Ground',
+            '#8282ff': 'Wetland',
+            '#969600': 'Shrubland',
+            '#ff0000': 'Broadleaf',
+            '#ff00ff': 'Burned',
+            '#ff9b00': 'Herbaceous',
+            '#ffff00': 'Mixedwood',
+            '#ffffff': 'Not categorized'
+        }
+
+        # ------------------------------------
         # Merged Land Cover Categories (LCC-Merged)
         # ------------------------------------
 
@@ -276,6 +319,16 @@ class Parameters:
             'Vegetation',
             'Non-Vegetation',
             'Regenerating Area']
+
+        # ===================================
+        # Category schema mappings
+        # ===================================
+
+        # LCC-B -> LCC-A
+        self.lcc_btoa_key = np.array([0, 1, 1, 2, 3, 3, 4, 5, 6, 7, 8])
+
+        # LCC-C -> LCC-A
+        self.lcc_ctoa_key = np.array([0, 6, 2, 4, 7, 3, 1, 8, 3, 1, 0])
 
         # ===================================
         # Data Augmentation Parameters
@@ -324,7 +377,10 @@ class Parameters:
 
         result_path = self.paths
         for path_key in path_keys:
-            result_path = result_path[path_key]
+            if path_key in result_path:
+                result_path = result_path[path_key]
+            else:
+                return
 
         # Join resultant path
         result_path = os.path.join(self.root_dir, result_path)
