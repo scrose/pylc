@@ -102,7 +102,7 @@ class Parameters:
 
         # what percentage of the dataset should be used as a held out validation/testing set
         self.buf_size = 1000
-        self.partition = 0.01
+        self.partition = 0.1
         self.clip = 1.
         self.clip_overfit = 0.003
 
