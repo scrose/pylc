@@ -1,4 +1,19 @@
-import os, random, datetime, sys, math
+"""
+(c) 2020 Spencer Rose, MIT Licence
+MLP Landscape Classification Tool (MLP-LCT)
+ Reference: An evaluation of deep learning semantic segmentation
+ for land cover classification of oblique ground-based photography,
+ MSc. Thesis 2020.
+ <http://hdl.handle.net/1828/12156>
+Spencer Rose <spencerrose@uvic.ca>, June 2020
+University of Victoria
+
+Module: Data wrapper
+File: dbwrapper.py
+"""
+
+import os
+import math
 import torch
 from torch.utils import data
 import h5py
@@ -7,30 +22,33 @@ from params import params
 
 
 class MLPDataset(torch.utils.data.IterableDataset):
-
     """
-    Wrapper for MLP dataset
-    -----------------------------------
-    Represents an abstract HDF5 dataset.
+    Wrapper class for MLP dataset (Pytorch Dataset)
+     - Iterable dataset an instance of a subclass of IterableDataset
+     - See: <https://pytorch.org/docs/stable/data.html>
 
-    Input params:
-        mode: Run mode for the dataset
-        config: User configuration
+    Parameters
+    ------
+    config: dict
+        User configuration settings.
+    partition: tuple
+        Training:Validation dataset ratio
     """
 
-    def __init__(self, config, db_path=None, partition=None):
+    def __init__(self, config, partition=None, db_path=None):
+
         super(MLPDataset).__init__()
-
-        # initialize dataset parameters
         self.config = config
-        self.db_path = db_path
         self.partition = partition
-        if config.db_path:
-            self.db_path = config.db_path
+        if db_path:
+            self.db_path = db_path
+        else:
+            self.db_path = self.config.db
         self.db = DB(self.config, path=self.db_path, partition=partition)
 
     def __iter__(self):
-        """ Iterate over dataset chunks """
+        # Iterate over preset dataset chunks (see params);
+        # see: https://pytorch.org/docs/stable/data.html
         worker_info = torch.utils.data.get_worker_info()
         self.dset = DB(self.config, path=self.db_path, partition=self.partition, worker=worker_info)
         self.buf_iter = iter(Buffer(self.dset))
@@ -45,8 +63,17 @@ class MLPDataset(torch.utils.data.IterableDataset):
 
 
 class Buffer(object):
+    """
+    Database buffer class for MLP dataset
+     - Chunk loader for HDF5 image/mask database.
+     - Multiprocessing enabled
+     - See: <https://pytorch.org/docs/stable/data.html>
 
-    """ dataset iterator buffer """
+    Parameters
+    ------
+    db: DB
+        Database instance.
+    """
 
     def __init__(self, db):
         self.db = db
@@ -56,6 +83,8 @@ class Buffer(object):
         self.input_shape = db.input_shape[1:]
         self.target_shape = db.target_shape[1:]
         self.alloc(self.size)
+        self.input = None
+        self.target = None
 
     def __iter__(self):
         return self
@@ -72,10 +101,12 @@ class Buffer(object):
         input_data = torch.tensor(self.input[self.current]).float()
         target_data = torch.tensor(self.target[self.current]).long()
         self.current += 1
-        return (input_data, target_data)
+        return input_data, target_data
 
     def load(self):
-        # load buffer
+        """
+        Load images/masks into buffer.
+        """
         (db_sl, db_sl_size) = next(self.db_iter, (None, None))
         if db_sl:
             # check if at end chunk: reallocate to new buffer size
@@ -103,16 +134,28 @@ class Buffer(object):
 
 
 class DB(object):
-
     """
-    Wrapper for H5PY database datasets
-    -----------------------------------
-    Represents an abstract HDF5 dataset.
+
+     Wrapper class for HPF5 database
+     - General database operations for image/mask datasets
+     - Multiprocessing enabled
+
+    Parameters
+    ------
+    config: dict
+        Configuration settings.
+    path: str
+        Database path [optional].
+    partition: tuple
+        Training/validation dataset ratio [optional].
+    worker: Worker
+        Worker pool.
     """
 
     def __init__(self, config, path=None, partition=None, worker=None):
         # Get db size and shape (if source database provided)
         self.mode = config.type
+        self.dir = config.db_dir
         if path:
             self.path = path
             f = self.open()
@@ -120,6 +163,7 @@ class DB(object):
             self.input_shape = f['img'].shape
             self.target_shape = f['mask'].shape
             f.close()
+
             # partition database for dataset
             if partition:
                 self.start = int(math.ceil(partition[0] * self.size))
@@ -161,45 +205,62 @@ class DB(object):
     def __len__(self):
         return self.size
 
-    # open dataset file pointer
-    # uses Single-Writer/Multiple-Reader (SWMR) feature
     def open(self):
+        """
+        Open dataset file pointer. Uses H5PY Single-Writer/Multiple-Reader (SWMR).
+        """
         return h5py.File(self.path, mode='r', libver='latest', swmr=True)
 
-    # save dataset to database
-    def save(self, data, path):
-        assert len(data['img']) == len(data['mask']), 'Image(s) missing paired mask(s). Save aborted.'
-        n_samples = len(data['img'])
-        print('\nSaving to database  ')
-        if not os.path.exists(path) or input(
-                "\tData file {} exists. Overwrite? (\'Y\' or \'N\'): ".format(path)) == 'Y':
-            print('\nCopying {} samples to datafile {}  '.format(n_samples, path), end='')
-            with h5py.File(path, 'w') as f:
-                img_dset = f.create_dataset("img", data['img'].shape, compression='gzip', chunks=True, data=data['img'])
-                mask_dset = f.create_dataset("mask", data['mask'].shape, compression='gzip', chunks=True,
-                                             data=data['mask'])
+    def save(self, data_array, filename='db.h5'):
+        """
+        Saves dataset to HDF5 database file.
+
+        Parameters
+        ------
+        data_array: Numpy
+            Image/mask array.
+        filename: str
+            Database file path.
+        """
+
+        assert len(data_array['img']) == len(data_array['mask']), 'Image(s) missing paired mask(s). Save aborted.'
+
+        n_samples = len(data_array['img'])
+        print('\nSaving to database ... ')
+        db_path = os.path.join(self.dir, filename)
+        if not os.path.exists(db_path) or input(
+                "\tData file {} exists. Overwrite? (\'Y\' or \'N\'): ".format(filename)) == 'Y':
+            print('\nCopying {} samples to datafile {}  '.format(n_samples, filename), end='')
+            with h5py.File(filename, 'w') as f:
+                f.create_dataset("img", data_array['img'].shape, compression='gzip', chunks=True,
+                                 data=data_array['img'])
+                f.create_dataset("mask", data_array['mask'].shape, compression='gzip', chunks=True,
+                                 data=data_array['mask'])
                 f.close()
             print('done.')
         else:
             print('Save aborted.')
-            exit()
 
 
-def load_data(config, mode, db_path):
-
+def load_data(config, mode, db_path = None):
     """
-    -----------------------------
-    Data Loader
-    -----------------------------
-    creates training and validation data loaders
+     Wrapper handler to initialize data loaders
+     - Multiprocessing enabled
+
+    Parameters
+    ------
+    config: dict
+        Configuration settings.
+    mode: enum
+        Run mode (see params.py).
     """
 
-    # Training datasets
+    # Load training data loader
     if mode == params.TRAIN:
         print('Loading training data ... ')
-        # Note training/validation dataset partition fraction set in parameters
-        tr_dset = MLPDataset(config, db_path=db_path, partition=(0, 1 - params.partition))
-        va_dset = MLPDataset(config, db_path=db_path, partition=(1 - params.partition, 1.))
+        # Note default training/validation partition ratio set in parameters (params)
+        tr_dset = MLPDataset(config, partition=(0, 1 - params.partition))
+        va_dset = MLPDataset(config, partition=(1 - params.partition, 1.))
 
         # create data loaders
         tr_dloader = torch.utils.data.DataLoader(tr_dset,
@@ -215,10 +276,10 @@ def load_data(config, mode, db_path):
 
         return tr_dloader, va_dloader, tr_dset.db.dset_size, va_dset.db.dset_size, tr_dset.db.size
 
-    # data extraction or merge
+    # Load extraction/db merge data loader
     elif mode == params.EXTRACT or mode == params.MERGE:
         print('Loading extraction data ... ')
-        dset = MLPDataset(config, db_path=db_path)
+        dset = MLPDataset(config)
         dloader = torch.utils.data.DataLoader(dset,
                                               batch_size=config.batch_size,
                                               num_workers=config.n_workers,
@@ -227,10 +288,10 @@ def load_data(config, mode, db_path):
 
         return dloader, dset.db.dset_size, dset.db.size
 
-    # data augmentation dataset
+    # Load augmentation data loader
     elif mode == params.AUGMENT:
         print('Loading augmentation data ... ')
-        aug_dset = MLPDataset(config, db_path=db_path)
+        aug_dset = MLPDataset(config)
         aug_dloader = torch.utils.data.DataLoader(aug_dset,
                                                   batch_size=config.batch_size,
                                                   num_workers=0,
@@ -239,7 +300,7 @@ def load_data(config, mode, db_path):
 
         return aug_dloader, aug_dset.db.dset_size, aug_dset.db.size
 
-    # preprocess datasets
+    # Load profiler data loader
     # Note: disable multi-processing for profiling data
     elif mode == params.PROFILE:
         print('Loading profile data ... ')

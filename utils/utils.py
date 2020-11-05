@@ -1,49 +1,95 @@
-# Helper Functions
-# ----------------
-#
+"""
+(c) 2020 Spencer Rose, MIT Licence
+MLP Landscape Classification Tool (MLP-LCT)
+ Reference: An evaluation of deep learning semantic segmentation
+ for land cover classification of oblique ground-based photography,
+ MSc. Thesis 2020.
+ <http://hdl.handle.net/1828/12156>
+Spencer Rose <spencerrose@uvic.ca>, June 2020
+University of Victoria
+
+Module: Utilities
+File: utils.py
+"""
 
 import os
-import random
 import numpy as np
 import torch
 import cv2
 from params import params
 
 
-# ===================================
-# Utility functions
-# ===================================
+def rgb2hex(color):
+    """
+    Converts RGB array to Hex string
 
+      Parameters
+      ------
+      color: list
+         RGB colour.
 
-# -----------------------------------
-# Convert RGBA to Hex
-# -----------------------------------
-def RGB2HEX(color):
+      Returns
+      ------
+      str
+         Converted hexidecimal code.
+     """
+
     return "#{:02x}{:02x}{:02x}".format(int(color[0]), int(color[1]), int(color[2]))
 
 
-# -----------------------------------
-# Calculates the Jensen–Shannon divergence
-# JSD is a method of measuring the similarity between two probability distributions.
-# -----------------------------------
 def jsd(p, q):
+    """
+    Calculates Jensen–Shannon Divergence coefficient
+    JSD measures the similarity between two probability
+    distributions p and q.
+
+      Parameters
+      ------
+      p: numpy array
+         Probability distribution [n].
+      q: numpy array
+         Probability distribution [n].
+
+      Returns
+      ------
+      float
+         Computed JSD metric.
+     """
+
     m = 0.5 * (p + q)
     return 0.5 * np.sum(np.multiply(p, np.log(p / m))) + 0.5 * np.sum(np.multiply(q, np.log(q / m)))
 
 
-# -----------------------------------
-# Loads image data into array
-# Read image and reverse channel order
-# Loads image as 8 bit (regardless of original depth)
-# -----------------------------------
-def get_image(image_path, img_ch=3, scale=None, interpolate=cv2.INTER_AREA):
-    assert img_ch == 3 or img_ch == 1, 'Invalid input channel number.'
-    assert os.path.exists(image_path), 'Image path {} does not exist.'.format(image_path)
+def get_image(img_path, ch=3, scale=None, interpolate=cv2.INTER_AREA):
+    """
+    Loads image data into standard Numpy array
+    Reads image and reverses channel order.
+    Loads image as 8 bit (regardless of original depth)
+
+    Parameters
+    ------
+    img_path: str
+        Image file path.
+    ch: int
+        Number of input channels (default = 3).
+    scale: float
+        Scaling factor.
+    interpolate: int
+        Interpolation method (OpenCV).
+
+    Returns
+    ------
+    numpy array
+        Image array.
+     """
+
+    assert ch == 3 or ch == 1, 'Invalid input channel number.'
+    assert os.path.exists(img_path), 'Image path {} does not exist.'.format(img_path)
     img = None
-    if img_ch == 1:
-        img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
-    elif img_ch == 3:
-        img = cv2.imread(image_path, cv2.IMREAD_COLOR)
+    if ch == 1:
+        img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+    elif ch == 3:
+        img = cv2.imread(img_path, cv2.IMREAD_COLOR)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
     # apply scaling
@@ -58,11 +104,36 @@ def get_image(image_path, img_ch=3, scale=None, interpolate=cv2.INTER_AREA):
     return img
 
 
-# -----------------------------------
-# Scales image to n x tile dimensions with stride
-# and crops to match input image aspect ratio
-# -----------------------------------
-def adjust_to_tile(img, patch_size, stride, img_ch, interpolate=cv2.INTER_AREA):
+def adjust_to_tile(img, patch_size, stride, ch, interpolate=cv2.INTER_AREA):
+    """
+    Scales image to n x tile dimensions with stride
+    and crops to match input image aspect ratio
+
+    Parameters
+    ------
+    img: numpy array
+        Image array.
+    patch_size: int
+        Tile dimension.
+    stride: int
+        Stride of tile extraction.
+    ch: int
+        Number of input channels.
+    interpolate: int
+        Interpolation method (OpenCV).
+
+    Returns
+    ------
+    numpy array
+        Adjusted image array.
+    int
+        Height of adjusted image.
+    int
+        Width of adjusted image.
+    int
+        Size of crop to top of the image.
+    """
+
     # Get full-sized dimensions
     w = img.shape[1]
     h = img.shape[0]
@@ -73,7 +144,7 @@ def adjust_to_tile(img, patch_size, stride, img_ch, interpolate=cv2.INTER_AREA):
     scale_w = (int(w / patch_size) * patch_size) / w
     dim = (int(w * scale_w), int(h * scale_w))
 
-    # resize image
+    # resize image to fit tiled dimensions
     img_resized = cv2.resize(img, dim, interpolation=interpolate)
     h_resized = img_resized.shape[0]
     h_tgt = int(h_resized / patch_size) * patch_size
@@ -81,26 +152,41 @@ def adjust_to_tile(img, patch_size, stride, img_ch, interpolate=cv2.INTER_AREA):
     # crop top of image to match aspect ratio
     img_cropped = None
     h_crop = h_resized - h_tgt
-    if img_ch == 1:
+    if ch == 1:
         img_cropped = img_resized[h_crop:h_resized, :]
-    elif img_ch == 3:
+    elif ch == 3:
         img_cropped = img_resized[h_crop:h_resized, :, :]
 
     return img_cropped, img_cropped.shape[1], img_cropped.shape[0], h_crop
 
 
-# -----------------------------------
-# Colourize one-hot encoded image by palette
-# Input format: NCWH (one-hot class encoded)
-# -----------------------------------
-def colourize(img_data, n_classes, palette=None):
-    n = img_data.shape[0]
-    w = img_data.shape[1]
-    h = img_data.shape[2]
+def colourize(img, n_classes, palette=None):
+    """
+        Colourize one-hot encoded image by palette
+        Input format: NCWH (one-hot class encoded).
+
+        Parameters
+        ------
+        img: numpy array
+            Image array.
+        n_classes: int
+            Number of classes.
+        palette: list
+            Colour palette for mask.
+
+        Returns
+        ------
+        numpy array
+            Colourized image array.
+    """
+
+    n = img.shape[0]
+    w = img.shape[1]
+    h = img.shape[2]
 
     # collapse one-hot encoding to single channel
     # make 3-channel (RGB) image
-    img_data = np.moveaxis(np.stack((img_data,) * 3, axis=1), 1, -1).reshape(n * w * h, 3)
+    img_data = np.moveaxis(np.stack((img,) * 3, axis=1), 1, -1).reshape(n * w * h, 3)
 
     # map categories to palette colours
     for i in range(n_classes):
@@ -111,48 +197,82 @@ def colourize(img_data, n_classes, palette=None):
     return img_data.reshape(n, w, h, 3)
 
 
-# -----------------------------------
-# Shuffle image/mask datasets with same indicies
-# -----------------------------------
-def coshuffle(data, dist=None):
-    idx_arr = np.arange(len(data['img']))
+def coshuffle(img_array, mask_array):
+    """
+        Shuffle image/mask datasets with same indicies.
+
+        Parameters
+        ------
+        img_array: numpy array
+            Image array.
+        mask_array: numpy array
+            Image array.
+
+        Returns
+        ------
+        numpy array
+            Shuffled image array.
+        numpy array
+            Shuffled mask array.
+    """
+
+    idx_arr = np.arange(len(img_array))
     np.random.shuffle(idx_arr)
-    data['img'] = data['img'][idx_arr]
-    data['mask'] = data['mask'][idx_arr]
-    if dist:
-        dist = dist[idx_arr]
+    img_array = img_array[idx_arr]
+    mask_array = mask_array[idx_arr]
 
-    return data, dist
+    return img_array, mask_array
 
 
-# -----------------------------------
-# Map classes for different palettes
-# -----------------------------------
-def map_palette(data_tensor, key):
+def map_palette(img_array, key):
+    """
+        Map classes for different palettes. The key gives
+        the new values to map palette
+
+        Parameters
+        ------
+        img_array: tensor
+            Image array.
+        key: numpy array
+            Palette mapping key.
+
+        Returns
+        ------
+        numpy array
+            Remapped image.
+    """
+
     palette = range(len(key))
-    data = data_tensor.numpy()
-    # key gives the new values to map palette to
+    data = img_array.numpy()
     index = np.digitize(data.ravel(), palette, right=True)
-    return torch.tensor(key[index].reshape(data_tensor.shape))
+    return torch.tensor(key[index].reshape(img_array.shape))
 
 
-# -----------------------------------
-# Convert RBG mask array to class-index encoded values
-# Input format:
-#  - [NCWH] with RGB-value encoding, where C = RGB (3)
-#  - Palette parameters in form [CC'], where C = number of classes, C' = 3 (RGB)
-# Output format:
-#  - [NCWH] with one-hot encoded classes, where C = number of classes
-# -----------------------------------
-def class_encode(input_data, palette):
-    assert input_data.shape[1] == 3, "Input data must be 3 channel (RGB)"
-    # make 3-channel (RGB) image
-    n = input_data.shape[0]
-    ch = input_data.shape[1]
-    w = input_data.shape[2]
-    h = input_data.shape[3]
-    input_data = np.moveaxis(input_data.numpy(), 1, -1).reshape(n*w*h, ch)
-    encoded_data = np.ones(n*w*h)
+def class_encode(img_array, palette):
+    """
+    Convert RGB mask array to class-index encoded values.
+    Uses RGB-value encoding, where C = RGB (3). Outputs
+    one-hot encoded classes, where C = number of classes
+    Palette parameters in form [CC'], where C is the
+    number of classes, C' = 3 (RGB)
+
+    Parameters
+    ------
+    img_array: tensor
+        Image array [NCWH].
+    palette: list
+        Colour palette for mask.
+
+    Returns
+    ------
+    tensor
+        Class-encoded image [NCWH].
+    """
+
+    assert img_array.shape[1] == 3, "Input data must be 3 channel (RGB)"
+    (n, ch, w, h) = img_array.shape
+    input_data = np.moveaxis(img_array.numpy(), 1, -1).reshape(n * w * h, ch)
+    encoded_data = np.ones(n * w * h)
 
     # map mask colours to segmentation classes
     for idx, c in enumerate(palette):
@@ -162,12 +282,26 @@ def class_encode(input_data, palette):
     return torch.tensor(encoded_data.reshape(n, w, h), dtype=torch.uint8)
 
 
-# -----------------------------------
-# Apply augmentation distortions to image
-# Input image [NWHC] / Mask [NWHC]
-# Output image [NWHC] / Mask [NWHC]
-# -----------------------------------
 def augment_transform(img, mask, random_state=None):
+    """
+    Apply augmentation distortions to image.
+
+    Parameters
+    ------
+    img: numpy
+        Image array [CWH].
+    mask: numpy
+        Image array [CWH].
+    random_state: dict
+        Randomized state.
+
+    Returns
+    ------
+    img: numpy
+        Image array [CWH].
+    mask: numpy
+        Image array [CWH].
+    """
 
     assert img.shape[2:] == mask.shape[1:], \
         "Image dimensions {} must match mask shape {}.".format(img.shape, mask.shape[:2])
@@ -180,7 +314,6 @@ def augment_transform(img, mask, random_state=None):
     # Modify axes to suit OpenCV format
     img = np.squeeze(np.moveaxis(img, 1, -1), axis=0)
     mask = np.squeeze(mask, axis=0)
-
     # Perspective shift
     img, mask = perspective_shift(img, mask, random_state)
     #
@@ -193,10 +326,25 @@ def augment_transform(img, mask, random_state=None):
     return img, mask
 
 
-# -----------------------------------
-# Add Gaussian noise to the image
-# -----------------------------------
 def add_noise(img, w, h):
+    """
+    Adds Gaussian noise to input image.
+
+    Parameters
+    ------
+    img: numpy
+        Image array [CWH].
+    w: int
+        Gaussian distribution width.
+    h: int
+        Gaussian distribution height.
+
+    Returns
+    ------
+    img: numpy
+        Image array [CWH].
+    """
+
     mean = 0
     var = 10
     sigma = var ** 0.5
@@ -215,10 +363,22 @@ def add_noise(img, w, h):
     return noisy_image.astype(np.uint8)
 
 
-# -----------------------------------
-# Add brightness to image
-# -----------------------------------
 def channel_shift(img, random_state):
+    """
+    Adds random brightness to image.
+
+    Parameters
+    ------
+    img: numpy
+        Image array [CWH].
+    random_state: object
+        Randomized state.
+
+    Returns
+    ------
+    img: numpy
+        Image array [CWH].
+    """
     shift_val = int(random_state.uniform(10, 20))
     img = np.int16(img)
     img = img + shift_val
@@ -227,11 +387,26 @@ def channel_shift(img, random_state):
     return img
 
 
-# -----------------------------------
-# Add perspective shift to image/mask
-# -----------------------------------
-# Format: [NCWH]
 def perspective_shift(img, mask, random_state):
+    """
+    Adds random perspective shift to image/mask.
+
+    Parameters
+    ------
+    img: numpy
+        Image array [CWH].
+    mask: numpy
+        Image array [CWH].
+    random_state: dict
+        Randomized state.
+
+    Returns
+    ------
+    img: numpy
+        Image array [CWH].
+    mask: numpy
+        Image array [CWH].
+    """
 
     w = mask.shape[0]
     h = mask.shape[1]
@@ -252,11 +427,23 @@ def perspective_shift(img, mask, random_state):
     return img, mask
 
 
-# -----------------------------------
-# Collate mask tiles
-# Combines prediction mask tiles into full-sized mask
-# -----------------------------------
 def reconstruct(tiles, md):
+    """
+    Reconstruct tiles into full-sized segmentation mask.
+    Uses metadata generated from image tiling (adjust_to_tile)
+
+      Parameters
+      ------
+      tiles: numpy
+         Image tiles [NCWH].
+      md: dict
+         Metadata for reconstruction.
+
+      Returns
+      ------
+      numpy array
+         Reconstructed image.
+     """
 
     # load metadata
     w = md['w']
@@ -265,7 +452,8 @@ def reconstruct(tiles, md):
     h_full = md['h_full']
     offset = md['offset']
     stride = md['stride']
-    n_classes = params.n_classes
+    palette = md['palette']
+    n_classes = md['n_classes']
 
     # Calculate reconstruction dimensions
     patch_size = tiles.shape[2]
@@ -353,25 +541,88 @@ def reconstruct(tiles, md):
 
     # Colourize and resize mask to full size
     mask_fullsized = np.expand_dims(mask_fullsized, axis=0)
-    _mask_pred = colourize(np.argmax(mask_fullsized, axis=1), n_classes, palette=params.palette_lcc_a)
+    _mask_pred = colourize(np.argmax(mask_fullsized, axis=1), n_classes, palette=palette)
     mask_resized = cv2.resize(_mask_pred[0].astype('float32'), (w_full, h_full), interpolation=cv2.INTER_NEAREST)
 
     return mask_resized
 
 
-# -----------------------------------
-# Load image pairs by extension
-# -----------------------------------
 def load_files(path, exts):
+    """
+    Loads files of given extensions from directory path.
+
+      Parameters
+      ------
+      path: str
+         Directory path.
+      exts: list
+         List of file extensions.
+
+      Returns
+      ------
+      list
+         List of file names.
+     """
     assert os.path.exists(path), 'Directory path {} does not exist.'.format(path)
     return list(sorted([f for f in os.listdir(path) if any(ext in f for ext in exts)]))
 
 
-# -----------------------------------
-# Create directory
-# -----------------------------------
+def collate(img_dir, mask_dir):
+    """
+    Verify and collate image/mask pairs.
+
+      Parameters
+      ------
+      img_dir: str
+         Images directory path.
+      mask_dir: str
+         Masks directory path.
+
+      Returns
+      ------
+      dict
+         Collated images/target filenames.
+     """
+
+    # load file paths
+    img_files = load_files(img_dir, ['.tif', '.tiff', '.jpg', '.jpeg'])
+    target_files = load_files(mask_dir, ['.png'])
+
+    files = []
+
+    for i, img_fname in enumerate(img_files):
+        assert i < len(target_files), 'Image {} does not have a target.'.format(img_fname)
+        target_fname = target_files[i]
+        assert os.path.splitext(img_fname)[0] == os.path.splitext(target_fname)[0].replace('_mask', ''), \
+            'Image {} does not match target {}.'.format(img_fname, target_fname)
+
+        # prepend full path to image and associated target data
+        img_fname = os.path.join(img_dir, img_fname)
+        target_fname = os.path.join(mask_dir, target_fname)
+        files += [{'img': img_fname, 'mask': target_fname}]
+
+        # Validate image-target correspondence
+        assert i < len(target_files), 'target {} does not have an image.'.format(target_files[i])
+
+    print("{} image/target pairs found.".format(len(files)))
+    return files
+
+
 def mk_path(path):
-    # Make path if directory does not exist
+    """
+    Makes directory at path if none exists.
+
+      Parameters
+      ------
+      path: str
+         Directory path.
+
+      Returns
+      ------
+      str
+         Created directory path.
+     """
+
     if not os.path.exists(path):
         print('Creating target path {} ... '.format(path), end='')
         os.makedirs(path)

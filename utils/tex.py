@@ -1,4 +1,17 @@
-#!/bin/python
+"""
+ ===================================
+ Copyright:     (c) 2020 Spencer Rose, MIT Licence
+ Project:       MLP Classification Tool
+ Reference:     An evaluation of deep learning semantic
+                segmentation for land cover classification
+                of oblique ground-based photography, 2020.
+                <http://hdl.handle.net/1828/12156>
+ Author:        Spencer Rose <spencerrose@uvic.ca>, June 2020
+ Affiliation:   University of Victoria
+ ===================================
+ Module:        LaTeX Converter
+ ===================================
+"""
 
 import sys, json
 from collections import OrderedDict

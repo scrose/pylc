@@ -1,3 +1,20 @@
+"""
+(c) 2020 Spencer Rose, MIT Licence
+MLP Landscape Classification Tool (MLP-LCT)
+An evaluation of deep learning semantic segmentation for
+land cover classification of oblique ground-based photography
+MSc. Thesis 2020.
+<http://hdl.handle.net/1828/12156>
+Spencer Rose <spencerrose@uvic.ca>, June 2020
+University of Victoria
+
+File: params.py
+    Application parameters.
+
+Notes: Extra parameters loaded from 'settings.json' in the
+root directory.
+"""
+
 import json
 import os
 import random
@@ -6,40 +23,48 @@ import numpy as np
 import torch
 
 
+class Schema:
+    """
+    Defines Schema class
+    """
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
+
+
 class Parameters:
     """
-    - General parameters
-    - Model parameters
-    - Land Cover Categories (LCC-A, LCC-B)
-    - Data Augmentation parameters
-    - Network hyperparameters
-    - Utility functions
+    Defines Package Default Parameters
+
+    Parameters
+    ---------
+        - General parameters
+        - Model parameters
+        - Land Cover Categories (LCC.A, LCC.B, LCC.C)
+        - Data Augmentation parameters
+        - Network hyperparameters
     """
 
     def __init__(self):
 
-        # ===================================
-        # General Parameters
-        # ===================================
-
-        # device settings
+        # Device settings
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-        # Data paths JSON file
-        self.paths_file = 'paths.json'
-        if not os.path.isfile(self.paths_file):
-            print('File ' + self.paths_file + ' not found.')
+        # Data settings JSON file
+        if not os.path.isfile('settings.json'):
+            print('Settings file \'settings.json\' not found.')
             exit(0)
 
-        # Enumerated modes
+        with open('./settings.json') as f:
+            self.settings = json.load(f)
+
+        # Application run modes
+        self.PREPROCESS = 'preprocess'
         self.TRAIN = 'train'
         self.VALID = 'valid'
         self.TEST = 'test'
 
-        # Preprocessing
-        self.PREPROCESS = 'preprocess'
+        # Preprocessing submodes
         self.META = 'metadata'
-        self.AUGMENT = 'augment'
         self.EXTRACT = 'extract'
         self.AUGMENT = 'augment'
         self.PROFILE = 'profile'
@@ -48,38 +73,23 @@ class Parameters:
         self.GRAYSCALE = 'grayscale'
         self.MERGE = 'merge'
 
-        # Training
+        # Training submodes
         self.TUNE = 'tune'
         self.NORMAL = 'normal'
         self.SUMMARY = 'summary'
         self.OVERFIT = 'overfit'
 
-        # Testing
+        # Testing submodes
         self.EVALUATE = 'eval'
         self.RECONSTRUCT = 'reconstruct'
         self.SINGLE = 'single'
-
-        # list of available datasets
-        self.dsets = ['dst-a', 'dst-b', 'dst-c']
 
         # general data paths
         self.src_db = None
         self.tgt_db = None
         self.files = None
 
-        # load data paths
-        with open(self.paths_file) as json_file:
-            self.paths = json.load(json_file)
-            self.root_dir = self.paths['root']
-
-        # ===================================
-        # Model Parameters
-        # ===================================
-
-        # Semantic classes
-        self.n_classes = 9
-
-        # size of the output feature map (U-Net)
+        # [U-Net] size of the output feature map
         self.output_size = 324
 
         # size of the tiles to extract and save in the database, must be >= to input size
@@ -89,251 +99,45 @@ class Parameters:
         # patch stride: smaller than input_size for overlapping tiles
         self.stride_size = 512
 
-        # (U-Net) number of pixels to pad *after* resize to image with by mirroring (edge's of
+        # [U-Net] number of pixels to pad *after* resize to image with by mirroring (edge's of
         # patches tend not to be analyzed well, so padding allows them to appear more centered
         # in the patch)
         self.pad_size = (self.input_size - self.output_size) // 2
 
-        # Calculate crop sizes
+        # [U-Net] Calculate crop sizes
         self.crop_left = self.pad_size
         self.crop_right = self.pad_size + self.output_size
         self.crop_up = self.pad_size
         self.crop_down = self.pad_size + self.output_size
 
-        # what percentage of the dataset should be used as a held out validation/testing set
+        # Database buffer size
         self.buf_size = 1000
-        self.partition = 0.1
+
+        # Percentage of the dataset held out for validation/testing during training
+        self.partition = 0.2
+
+        # Ratio of portion of dataset to use in training.
         self.clip = 1.
         self.clip_overfit = 0.003
 
-        # Get random seed so that we can reproducibly do the cross validation setup
+        # Random seed for cross validation setup
         self.seed = random.randrange(sys.maxsize)
         random.seed(self.seed)  # set the seed
         # print(f"random seed (note down for reproducibility): {seed}")
 
         # Extraction scaling
         self.scales = [0.2, 0.5, 1.]
+        self.n_patches_per_image = int(sum(200 * self.scales))
 
-        # Image normalization (normally set by metadata for dataset)
+        # Image normalization default settings (normally computed during preprocessing)
         self.gs_mean = 0.456
         self.gs_std = 0.225
-        self.rgb_mean = [0.485, 0.456, 0.406]
-        self.rgb_std = [0.229, 0.224, 0.225]
-        self.px_mean_default = 147
-        self.px_std_default = 68
+        self.rgb_mean = [132.47, 144.47, 149.45]
+        self.rgb_std = [24.85, 22.04, 18.77]
+        self.px_mean_default = 142.01
+        self.px_std_default = 23.66
 
-        # ===================================
-        # Land Cover Categories (LCC-A, LCC-B, LCC-merged)
-        # ===================================
-
-        # -----------------------------------
-        # DST-A Land Cover Categories (LCC-A)
-        # -----------------------------------
-        # 1. '#000000' [0,0,0] (black - solid): Not categorized
-        # 2. '#ffa500' [255, 165, 0] (orange) Broadleaf/Mixedwood forest
-        # 3. '#228b22' [34, 139, 34] (dark green - approx): Coniferous forest
-        # 4. '#7cfc00' [124, 252, 0] (light green - approx): Herbaceous/Shrub
-        # 5. '#873434' [139, 69, 19] (sanguine brown - approx): Sand/gravel/rock
-        # 6. '#5f9ea0' [95, 158, 160] (turquoise) Wetland
-        # 7. '#0000ff' [0,0,255] (blue - solid): Water
-        # 8. '#2dbdff' [45, 189, 255] (light blue - approx): Snow/Ice
-        # 9. '#ff0004' [255, 0, 4] (red - solid): Regenerating area
-
-        self.categories_lcc_a = {
-            '#000000': 'Not categorized',
-            '#ffa500': 'Broadleaf/Mixedwood',
-            '#228b22': 'Coniferous',
-            '#7cfc00': 'Herbaceous/Shrub',
-            '#8b4513': 'Sand/Gravel/Rock',
-            '#5f9ea0': 'Wetland',
-            '#0000ff': 'Water',
-            '#2dbdff': 'Snow/Ice',
-            '#ff0004': 'Regenerating Area',
-        }
-
-        self.labels_lcc_a = [
-            'Not categorized',
-            'Broadleaf/Mixedwood',
-            'Coniferous',
-            'Herbaceous/Shrub',
-            'Sand/Gravel/Rock',
-            'Wetland',
-            'Water',
-            'Snow/Ice',
-            'Regenerating Area',
-        ]
-
-        self.label_codes_dst_a = [
-            'NC',
-            'B-MW',
-            'CF',
-            'H-S',
-            'S-G-R',
-            'WL',
-            'WT',
-            'S-I',
-            'RA',
-        ]
-
-        self.palette_lcc_a = np.array(
-            [[0, 0, 0],
-             [255, 165, 0],
-             [34, 139, 34],
-             [124, 252, 0],
-             [139, 69, 19],
-             [95, 158, 160],
-             [0, 0, 255],
-             [45, 189, 255],
-             [255, 0, 4],
-             ])
-
-        # ------------------------------------
-        # DST-B Land Cover Categories (LCC-B)
-        # ------------------------------------
-        # 1. '#000000' [0,0,0] (black - solid): Not categorized
-        # 2. '#ffaa00' [] Broadleaf forest
-        # 3. '#d5d500' [] Mixedwood forest
-        # 4. '#005500' [0,85,0] (camarone - approx): Coniferous forest
-        # 5. '#41dc66' [65,220,102] (emerald - approx): Shrub
-        # 6. '#ffff7f' [255,255,127] (dolly - approx): Herbaceous
-        # 7. '#873434' [135,52,52] (sanguine brown - approx): Rock
-        # 8. '#aaaaff' [] Wetland
-        # 9. '#0000ff' [0,0,255] (blue - solid): Water
-        # 10. '#b0fffd' [176,255,253] (French pass - approx): Snow/Ice
-        # 11. '#ff00ff' [255,0,255] (magenta - solid): Regenerating area
-
-        self.categories_lcc_b = {
-            '#000000': 'Not categorized',
-            '#ffaa00': 'Broadleaf forest',
-            '#d5d500': 'Mixedwood forest',
-            '#005500': 'Coniferous forest',
-            '#41dc66': 'Shrub',
-            '#ffff7f': 'Herbaceous',
-            '#873434': 'Rock',
-            '#aaaaff': 'Wetland',
-            '#0000ff': 'Water',
-            '#b0fffd': 'Snow/Ice',
-            '#ff00ff': 'Regenerating Area',
-        }
-
-        self.category_labels_lcc_b = [
-            'Not categorized',
-            'Broadleaf forest',
-            'Mixedwood forest',
-            'Coniferous forest',
-            'Shrub',
-            'Herbaceous',
-            'Rock',
-            'Wetland',
-            'Water',
-            'Snow/Ice',
-            'Regenerating Area'
-        ]
-
-        self.palette_lcc_b = np.array(
-            [[0, 0, 0],
-             [255, 170, 0],
-             [213, 213, 0],
-             [0, 85, 0],
-             [65, 220, 102],
-             [255, 255, 127],
-             [135, 52, 52],
-             [170, 170, 255],
-             [0, 0, 255],
-             [176, 255, 253],
-             [255, 0, 255],
-             ])
-
-        # ------------------------------------
-        # DST-C Land Cover Categories (LCC-C)
-        # ------------------------------------
-        # 0 - '#000000': 'Not categorized',
-        # 1 - '#0000ff': 'Water',
-        # 2 - '#00ff00': 'Conifer',
-        # 3 - '#7d0000': 'Barren Ground',
-        # 4 - '#8282ff': 'Wetland',
-        # 5 - '#969600': 'Shrubland',
-        # 6 - '#ff0000': 'Broadleaf',
-        # 7 - '#ff00ff': 'Burned',
-        # 8 - '#ff9b00': 'Herbaceous',
-        # 9 - '#ffff00': 'Mixedwood',
-        # 10- '#ffffff': 'Not categorized'
-
-        # dst-c palette
-        self.palette_lcc_c = np.array(
-            [[0, 0, 0],
-             [0, 0, 255],
-             [0, 255, 0],
-             [125, 0, 0],
-             [130, 130, 255],
-             [150, 150, 0],
-             [255, 0, 0],
-             [255, 0, 255],
-             [255, 155, 0],
-             [255, 255, 0],
-             [255, 255, 255]])
-
-        self.hex_categories_lcc_c = {
-            '#000000': 'Not categorized',
-            '#0000ff': 'Water',
-            '#00ff00': 'Conifer',
-            '#7d0000': 'Barren Ground',
-            '#8282ff': 'Wetland',
-            '#969600': 'Shrubland',
-            '#ff0000': 'Broadleaf',
-            '#ff00ff': 'Burned',
-            '#ff9b00': 'Herbaceous',
-            '#ffff00': 'Mixedwood',
-            '#ffffff': 'Not categorized'
-        }
-
-        # ------------------------------------
-        # Merged Land Cover Categories (LCC-Merged)
-        # ------------------------------------
-
-        # merged classes
-        self.categories_lcc_merged = [
-            np.array([0]),
-            np.array([1, 2, 3, 4, 5]),
-            np.array([6, 7, 8, 9]),
-            np.array([10])
-        ]
-
-        # Merged classes
-        self.palette_lcc_merged = np.array(
-            [[0, 0, 0],
-             [65, 220, 102],
-             [135, 52, 52],
-             [255, 0, 255],
-             ])
-
-        self.mask_categories_lcc_merged = {
-            '#000000': 'Not categorized',
-            '#41dc66': 'Vegetation',
-            '#873434': 'Non-Vegetation',
-            '#ff00ff': 'Regenerating Area',
-        }
-
-        self.labels_lcc_merged = [
-            'Not categorized',
-            'Vegetation',
-            'Non-Vegetation',
-            'Regenerating Area']
-
-        # ===================================
-        # Category schema mappings
-        # ===================================
-
-        # LCC-B -> LCC-A
-        self.lcc_btoa_key = np.array([0, 1, 1, 2, 3, 3, 4, 5, 6, 7, 8])
-
-        # LCC-C -> LCC-A
-        self.lcc_ctoa_key = np.array([0, 6, 2, 4, 7, 3, 1, 8, 3, 1, 0])
-
-        # ===================================
         # Data Augmentation Parameters
-        # ===================================
-
         self.aug_n_samples_max = 4000
         self.min_sample_rate = 0
         self.max_sample_rate = 4
@@ -343,10 +147,7 @@ class Parameters:
         # Affine coefficient (elastic deformation)
         self.alpha = 0.19
 
-        # ===================================
-        # Network Hyperparameters
-        # ===================================
-
+        # Network default hyperparameters
         self.dropout = 0.5
         self.lr_min = 1e-6
         self.lr_max = 0.1
@@ -366,35 +167,31 @@ class Parameters:
         self.fl_alpha = 0.25
         self.fl_reduction = 'mean'
 
-    # ===================================
-    # Utility Functions
-    # ===================================
+    def schema(self, config):
+        """
+        Get user-defined categorization schema.
 
-    # -----------------------------------
-    # Returns concatenated path
-    # -----------------------------------
-    def get_path(self, *path_keys):
+        Parameters
+        ---------
+        config: dict
+            User configuration settings.
+        """
 
-        result_path = self.paths
-        for path_key in path_keys:
-            if path_key in result_path:
-                result_path = result_path[path_key]
-            else:
-                return
+        # get user-defined schema info
+        # Dataset schema
+        classes = self.settings['schemas'][config.schema]['classes']
 
-        # Join resultant path
-        result_path = os.path.join(self.root_dir, result_path)
-        result_dir = os.path.dirname(result_path)
+        # extract palettes, labels, categories
+        sch = Schema(
+            palette_rgb=[cls['colour']['rgb'] for cls in classes],
+            palette_hex=[cls['colour']['hex'] for cls in classes],
+            labels=[cls['label'] for cls in classes],
+            codes=[cls['code'] for cls in classes],
+            n_classes=len(classes)
+        )
 
-        # Validate path
-        if isinstance(result_path, str) and os.path.exists(result_dir):
-            return result_path
-
-        print("Error: Directory path {} does not exist.".format(result_dir))
-        sys.exit(1)
+        return sch
 
 
-# -----------------------------------
 # Create parameters instance
-# -----------------------------------
 params: Parameters = Parameters()

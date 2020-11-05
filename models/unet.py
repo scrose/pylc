@@ -1,9 +1,19 @@
-# Adapted from https://discuss.pytorch.org/t/unet-implementation/426
+"""
+Adapted from https://github.com/xiaochengcike/pytorch-unet-1
+
+PyTorch implementation of U-Net: Convolutional Networks for Biomedical Image Segmentation
+(Ronneberger et al., 2015). This implementation has many tweakable options such as:
+
+    Depth of the network
+    Number of filters per layer
+    Transposed convolutions vs. bilinear upsampling
+    valid convolutions vs padding
+    batch normalization
+"""
 
 import torch
 from torch import nn
 import torch.nn.functional as F
-import params as params
 
 
 class UNet(nn.Module):

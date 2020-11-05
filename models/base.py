@@ -1,7 +1,18 @@
-# Adapted from https://discuss.pytorch.org/t/unet-implementation/426
+"""
+(c) 2020 Spencer Rose, MIT Licence
+MLP Landscape Classification Tool (MLP-LCT)
+ Reference: An evaluation of deep learning semantic segmentation
+ for land cover classification of oblique ground-based photography,
+ MSc. Thesis 2020.
+ <http://hdl.handle.net/1828/12156>
+Spencer Rose <spencerrose@uvic.ca>, June 2020
+University of Victoria
+
+Module: Base Model Class
+File: base.py
+"""
 import os
 import sys
-
 import torch
 import numpy as np
 import cv2
@@ -14,23 +25,15 @@ from params import params
 from numpy import random
 
 
-class Normalizer:
-    def __init__(self, norm_type):
-        self.type = norm_type
-
-    def apply(self, n_features):
-        return torch.nn.ModuleDict([
-            ['batch', torch.nn.BatchNorm2d(n_features)],
-            ['instance', torch.nn.InstanceNorm2d(n_features)],
-            ['layer', torch.nn.LayerNorm(n_features)],
-            ['syncbatch', torch.nn.SyncBatchNorm(n_features)],
-            ['none', None]
-        ])[self.type]
-
-
 class Model:
     """
-    Tracks model for training/validation/testing
+    Abstract model for Pytorch network configuration.
+    Uses Pytorch Model class as superclass
+
+      Parameters
+      ------
+      config: dict
+         User configuration settings.
     """
 
     def __init__(self, config):
@@ -42,6 +45,7 @@ class Model:
         self.n_classes = config.n_classes
         self.in_channels = config.in_channels
         self.mode = config.type
+        self.architecture = config.model
 
         # build network
         self.net = None
@@ -74,7 +78,7 @@ class Model:
             self.net.train()
 
         # ----- Model Testing
-        # Initialize model test
+        # Initialize model test with pretrained model.
         elif config.type == params.TEST:
             self.evaluator = Evaluator(config)
             # ignore pretrained model
@@ -84,11 +88,13 @@ class Model:
             # self.net.summary()
             self.net.eval()
 
-    # Retrieve preprocessed metadata
-    # TODO: Include metadata in model
     def init_metadata(self):
+        """
+         Retrieve preprocessed metadata.
+         TODO: Include metadata in model
+        """
 
-        path = os.path.join(params.get_path('metadata', self.config.capture), self.config.db + '.npy')
+        path = os.path.join(self.config.md_dir, self.config.db + '.npy')
 
         # select dataset metadata file
         if os.path.isfile(path):
@@ -452,3 +458,25 @@ class Evaluator:
         cv2.imwrite(mask_file, cv2.cvtColor(mask_img, cv2.COLOR_RGB2BGR))
 
         return mask_img
+
+
+class Normalizer:
+    """
+    Class defines model normalizing functions.
+
+      Parameters
+      ------
+      norm_type: str
+         Type of normalizer to use.
+    """
+    def __init__(self, norm_type):
+        self.type = norm_type
+
+    def apply(self, n_features):
+        return torch.nn.ModuleDict([
+            ['batch', torch.nn.BatchNorm2d(n_features)],
+            ['instance', torch.nn.InstanceNorm2d(n_features)],
+            ['layer', torch.nn.LayerNorm(n_features)],
+            ['syncbatch', torch.nn.SyncBatchNorm(n_features)],
+            ['none', None]
+        ])[self.type]

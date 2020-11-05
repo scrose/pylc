@@ -1,12 +1,20 @@
-# Mountain Legacy Project: Semantic Segmentation
-# Author: Spencer Rose
-# Date: July 2020
-#
-# REFERENCES:
-# U-Net
-# DeeplabV3+
-import os
+"""
 
+ Copyright:     (c) 2020 Spencer Rose, MIT Licence
+ Project:       MLP Landscape Classification Tool (MLP-LCT)
+ Reference:     An evaluation of deep learning semantic
+                segmentation for land cover classification
+                of oblique ground-based photography, MSc. Thesis 2020.
+                <http://hdl.handle.net/1828/12156>
+ Author:        Spencer Rose <spencerrose@uvic.ca>, June 2020
+ Affiliation:   University of Victoria
+
+ Module:        Model Trainer
+ File:          train.py
+
+"""
+
+import os
 import torch
 from config import get_config
 from utils.dbwrapper import load_data
@@ -15,10 +23,81 @@ from tqdm import tqdm
 from params import params
 
 
-# -----------------------------
-# Training main execution loop
-# -----------------------------
+def train_epoch(model, dloader, n_batches):
+
+    """
+     Validates model over validation dataset.
+     Input Format: [NCWH]
+
+     Parameters
+     ------
+     model: Model
+        Network Model
+     dloader: DataLoader
+        Pytorch data loader.
+     n_batches: int
+        Number of batches per iteration.
+
+     Returns
+     ------
+     Model
+        Updated model paramters.
+    """
+
+    model.net.train()
+    for i, (x, y) in tqdm(enumerate(dloader), total=n_batches, desc="Training: ", unit=' batches'):
+        # train with main dataset
+        model.train(x, y)
+    return model
+
+
+def validate(model, dloader, n_batches):
+
+    """
+     Validates model over validation dataset.
+     Input Format: [NCWH]
+
+     Parameters
+     ------
+     model: Model
+        Network Model
+     dloader: DataLoader
+        Pytorch data loader.
+     n_batches: int
+        Number of batches per iteration.
+
+     Returns
+     ------
+     Model
+        Updated model parameters.
+    """
+
+    model.net.eval()
+    with torch.no_grad():
+        for i, (x, y) in tqdm(enumerate(dloader), total=n_batches, desc="Validating: ", unit=' batches'):
+            model.eval(x, y)
+        model.log()
+        model.save()
+    return model
+
+
 def train(config, model):
+    """
+     Main training loop
+     Input Format: [NCWH]
+    
+     Parameters
+     ------
+     config: dict
+        configuration settings
+     model: Model
+        Network model.
+
+     Returns
+     ------
+     Model
+        Updated model parameters.
+    """
 
     # Load training dataset (db)
     db_path = os.path.join(params.get_path('db', config.capture), config.db + '.h5')
@@ -39,14 +118,15 @@ def train(config, model):
         print('\nEpoch {} / {} for Experiment \'{}\''.format(e + epoch_offset + 1, config.n_epochs, config.id))
         print('\tBatch size: {}'.format(config.batch_size))
         print('\tTraining dataset size: {} / batches: {}'.format(tr_size, tr_batches))
-
         print('\tValidation dataset size: {} / batches: {}'.format(va_size, va_batches))
         print('\tCurrent learning rate: {}'.format(model.loss.lr[-1][1]))
 
-        model = epoch(model, tr_dloader, tr_batches)
+        # train over epoch
+        model = train_epoch(model, tr_dloader, tr_batches)
         print("\n\n[Train] Losses: \n\tCE avg: %4.4f \n\tFocal: %4.4f \n\tDice: %4.4f\n" %
               (model.loss.avg_ce, model.loss.avg_fl, model.loss.avg_dice))
 
+        # validate epoch results
         model = validate(model, va_dloader, va_batches)
         print("\n[Valid] Losses: \n\tCE avg: %4.4f \n\tFL avg: %4.4f \n\tDSC avg: %4.4f (DSC Best: %4.4f)\n" %
               (model.loss.avg_ce, model.loss.avg_fl, model.loss.avg_dice, model.loss.best_dice))
@@ -56,55 +136,15 @@ def train(config, model):
         model.epoch += 1
 
 
-# -----------------------------
-# Training loop for single epoch
-# Input Format: [NCWH]
-# -----------------------------
-def epoch(model, dloader, n_batches):
-    model.net.train()
-    for i, (x, y) in tqdm(enumerate(dloader), total=n_batches, desc="Training: ", unit=' batches'):
-
-        # train with main dataset
-        model.train(x, y)
-
-    return model
-
-
-# -----------------------------
-# Validation loop for single epoch
-# -----------------------------
-def validate(model, dloader, n_batches):
-    model.net.eval()
-    with torch.no_grad():
-        for i, (x, y) in tqdm(enumerate(dloader), total=n_batches, desc="Validating: ", unit=' batches'):
-            model.eval(x, y)
-        model.log()
-        model.save()
-    return model
-
-
-# -----------------------------
-# Initialize parameters for capture type
-# -----------------------------
-def init_capture(config):
-    if config.capture == 'historic':
-        config.n_classes = 9
-        config.in_channels = 1
-    elif config.capture == 'repeat':
-        config.n_classes = 9
-        config.in_channels = 3
-
-    # Reduce to single channel
-    if config.grayscale:
-        config.in_channels = 1
-
-    return config
-
-
-# -----------------------------
-# Initialize parameters for capture type
-# -----------------------------
 def print_params(config):
+    """
+    
+     Prints configuration settings to screen
+    
+     Parameters:     configuration settings     (dict)
+     Outputs:    stdout
+    
+    """
     if config.id:
         print("\nTraining Experiment {}".format(config.id))
     print("\tCapture Type: {}".format(config.capture))
@@ -120,29 +160,32 @@ def print_params(config):
     print('\tClasses: {}'.format(config.n_classes))
 
 
-# -----------------------------
-# Main Execution Routine
-# -----------------------------
 def main(config):
-
-    # initialize config parameters based on capture type
-    config = init_capture(config)
+    """
+    
+     Main training handler
+    
+     Parameters:     configuration settings     (dict)
+    
+    """
 
     # Build model from hyperparameters
     model = Model(config)
 
+    # normal training mode
     if config.mode == params.NORMAL:
         print_params(config)
         params.clip = config.clip
         train(config, model)
+    # train to overfit model
     elif config.mode == params.OVERFIT:
         print_params(config)
         # clip the dataset
         params.clip = params.clip_overfit
         config.batch_size = 1
         train(config, model)
+    # summarize the model parameters
     elif config.mode == params.SUMMARY:
-        # summarize the model parameters
         print("\nModel summary for: {}".format(config.model))
         print_params(config)
         model.summary()

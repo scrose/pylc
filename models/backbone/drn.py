@@ -1,3 +1,10 @@
+"""
+Adapted from Jianfeng Zhang, Vision & Machine Learning Lab, National University of Singapore,
+Deeplab V3+ in PyTorch, https://github.com/jfzhang95/pytorch-deeplab-xception
+
+PyTorch implementation of Deeplab: This is a PyTorch(0.4.1) implementation of DeepLab-V3-Plus.
+It can use Modified Aligned Xception and ResNet as backbone.
+"""
 import torch.nn as nn
 import math
 import torch.utils.model_zoo as model_zoo

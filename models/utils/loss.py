@@ -1,8 +1,18 @@
-# Helper Functions
-# ----------------
-#
-# REFERENCES:
-# Adapted from https://github.com/kevinzakka/pytorch-goodies/blob/master/losses.py
+"""
+(c) 2020 Spencer Rose, MIT Licence
+MLP Landscape Classification Tool (MLP-LCT)
+ Reference: An evaluation of deep learning semantic segmentation
+ for land cover classification of oblique ground-based photography,
+ MSc. Thesis 2020.
+ <http://hdl.handle.net/1828/12156>
+Spencer Rose <spencerrose@uvic.ca>, June 2020
+University of Victoria
+
+Module: Multi-loss classes
+File: models/utils/loss.py
+
+"""
+
 import os
 import numpy as np
 import torch
@@ -11,25 +21,15 @@ from params import params
 
 
 class MultiLoss(torch.nn.Module):
-    r"""Criterion that computes Focal loss.
-    According to [1], the Focal loss is computed as follows:
-    .. math::
-        \text{FL}(p_t) = -\alpha_t (1 - p_t)^{\gamma} \, \text{log}(p_t)
-    where:
-       - :math:`p_t` is the model's estimated probability for each class.
-    Arguments:
-        config (float): Weighting factor :math:`\alpha \in [0, 1]`.
-        cls_weight (float): Focusing parameter :math:`\gamma >= 0`.
-        reduction (str, optional): Specifies the reduction to apply to the
-         output: ‘none’ | ‘mean’ | ‘sum’. ‘none’: no reduction will be applied,
-         ‘mean’: the sum of the output will be divided by the number of elements
-         in the output, ‘sum’: the output will be summed. Default: ‘none’.
-    Shape:
-        - Input: :math:`(N, C, *)` where C = number of classes.
-        - Target: :math:`(N, *)` where each value is
-          :math:`0 ≤ targets[i] ≤ C−1`.
-    References:
-        [1] https://arxiv.org/abs/1708.02002
+    """
+    Multi-loss class to handle training/validation loss computations.
+
+      Parameters
+      ------
+      config: dict
+         User configuration settings.
+      cls_weight: Tensor
+         Class weights.
     """
 
     def __init__(self, config, cls_weight):
@@ -47,8 +47,8 @@ class MultiLoss(torch.nn.Module):
         self.dsc = 0.
         self.fl = 0.
 
-        # Use LCC-A categorization scheme
-        categories = params.labels_lcc_a
+        # get user-defined categorization schema
+        categories = params.settings.schemas[config.schema].categories
 
         # initialize cross entropy loss weights
         if isinstance(self.cls_weight, np.ndarray):
@@ -56,15 +56,8 @@ class MultiLoss(torch.nn.Module):
         else:
             self.cls_weight = torch.ones(self.n_classes).to(params.device)
 
-        # Print the loaded class weights for training
-        print('\nLoss Weights Loaded')
-        print('\tCE: {:20f}'.format(self.ce_weight))
-        print('\tDSC: {:20f}'.format(self.dsc_weight))
-        print('\tFL: {:20f}'.format(self.fl_weight))
-        print('\n{:20s}{:>15s}\n'.format('Class', 'Weight'))
-        for i, w in enumerate(self.cls_weight):
-            print('{:20s}{:15f}'.format(categories[i], w))
-        print()
+        # print class weight settings to console
+        self.print_settings()
 
         # initialize cross-entropy loss function with class weights
         if config.cls_weight:
@@ -74,42 +67,70 @@ class MultiLoss(torch.nn.Module):
             print('\nCE losses not weighted by class.')
             self.ce_loss = torch.nn.CrossEntropyLoss()
 
-    def forward(self, input, target):
+    def forward(self, pred, target):
+        """
+        Forward pass of multi-loss computation.
+
+          Parameters
+          ------
+          pred: Tensor
+             Predicted mask tensor.
+          target: Tensor
+             Target mask tensor.
+        """
 
         # mask predictions are assumed to be BxCxWxH
         # mask targets are assumed to be BxWxH with values equal to the class
         # assert that B, W and H are the same
-        assert input.size(0) == target.size(0)
-        assert input.size(2) == target.size(1)
-        assert input.size(3) == target.size(2)
+        assert pred.size(0) == target.size(0)
+        assert pred.size(2) == target.size(1)
+        assert pred.size(3) == target.size(2)
 
         # Combine ratio of losses (specified in parameters)
-        self.ce = self.ce_loss(input, target)
-        self.dsc = self.dice_loss(input, target)
-        self.fl = self.focal_loss(input, target)
+        self.ce = self.ce_loss(pred, target)
+        self.dsc = self.dice_loss(pred, target)
+        self.fl = self.focal_loss(pred, target)
 
         # Apply loss weights
         weighted_loss = self.ce_weight * self.ce + self.dsc_weight * self.dsc + self.fl_weight * self.fl
 
         return weighted_loss
 
-    # Multiclass (soft) dice loss function
-    def dice_loss(self, input, target):
-        """ Computes the Sørensen–Dice loss.
+    def dice_loss(self, pred, target):
+        """
+        Computes the Sørensen–Dice loss.
         Note that PyTorch optimizers minimize a loss. In this
         case, we would like to maximize the dice loss so we
         return the negated dice loss.
-        Args:
-            :param target: tensor of shape [B, H, W].
-            :param input: tensor of shape [B, C, H, W]. Corresponds to
+
+        Parameters
+        ------
+        pred: Tensor
+            Predicted mask tensor of shape [B, C, H, W]. Corresponds to
                 the raw output or logits of the model.
-            eps: added to the denominator for numerical stability.
-        Returns:
-            dice_loss: the Sørensen–Dice loss.
+        target: Tensor
+            Target mask tensor of shape [B, H, W].
+
+        Returns
+        ------
+        dice_loss: float
+            Mean Sørensen–Dice loss.
         """
 
+        if not torch.is_tensor(pred):
+            raise TypeError("Input type is not a torch.Tensor. Got {}"
+                            .format(type(pred)))
+
+        if not len(pred.shape) >= 2:
+            raise ValueError("Invalid input shape, we expect BxCx*. Got: {}"
+                             .format(pred.shape))
+
+        if pred.size(0) != target.size(0):
+            raise ValueError('Expected input batch_size ({}) to match target batch_size ({}).'
+                             .format(pred.size(0), target.size(0)))
+
         y_true_1hot = torch.nn.functional.one_hot(target, num_classes=self.n_classes).permute(0, 3, 1, 2)
-        probs = torch.nn.functional.softmax(input, dim=1).to(params.device)
+        probs = torch.nn.functional.softmax(pred, dim=1).to(params.device)
 
         # compute mean of y_true U y_pred / (y_pred + y_true)
         intersection = torch.sum(probs * y_true_1hot, dim=(0, 2, 3))
@@ -119,48 +140,54 @@ class MultiLoss(torch.nn.Module):
         # loss is negative = 1 - DSC
         return dice.mean()
 
-    def focal_loss(self, input, target):
-        """ Computes Focal loss.
+    def focal_loss(self, pred, target):
+        """
+        Computes Focal loss.
         Reference: Lin, Tsung-Yi, Priya Goyal, Ross Girshick, Kaiming He,
         and Piotr Dollár. "Focal loss for dense object detection."
         In Proceedings of the IEEE international conference on computer
         vision, pp. 2980-2988. 2017.
 
-        Args:
-            :param target: a tensor of shape [B, H, W].
-            :param input: a tensor of shape [B, C, H, W]. Corresponds to
+        Parameters
+        ------
+        pred: Tensor
+            Predicted mask tensor of shape [B, C, H, W]. Corresponds to
                 the raw output or logits of the model.
-            eps: added to the denominator for numerical stability.
-        Returns:
-            focal_loss: the Focal Loss of prediction / ground-truth
+        target: Tensor
+            Target mask tensor of shape [B, H, W].
+
+        Returns
+        ------
+        focal_loss: float
+            Mean Focal Loss of prediction / ground-truth.
         """
 
-        if not torch.is_tensor(input):
+        if not torch.is_tensor(pred):
             raise TypeError("Input type is not a torch.Tensor. Got {}"
-                            .format(type(input)))
+                            .format(type(pred)))
 
-        if not len(input.shape) >= 2:
+        if not len(pred.shape) >= 2:
             raise ValueError("Invalid input shape, we expect BxCx*. Got: {}"
-                             .format(input.shape))
+                             .format(pred.shape))
 
-        if input.size(0) != target.size(0):
+        if pred.size(0) != target.size(0):
             raise ValueError('Expected input batch_size ({}) to match target batch_size ({}).'
-                             .format(input.size(0), target.size(0)))
+                             .format(pred.size(0), target.size(0)))
 
-        n = input.size(0)
-        out_size = (n,) + input.size()[2:]
+        n = pred.size(0)
+        out_size = (n,) + pred.size()[2:]
 
-        if target.size()[1:] != input.size()[2:]:
+        if target.size()[1:] != pred.size()[2:]:
             raise ValueError('Expected target size {}, got {}'.format(
                 out_size, target.size()))
 
-        if not input.device == target.device:
+        if not pred.device == target.device:
             raise ValueError(
                 "input and target must be in the same device. Got: {} and {}" .format(
-                    input.device, target.device))
+                    pred.device, target.device))
 
         # compute softmax over the classes axis
-        input_soft: torch.Tensor = torch.nn.functional.softmax(input, dim=1) + self.eps
+        input_soft: torch.Tensor = torch.nn.functional.softmax(pred, dim=1) + self.eps
 
         # create the labels one hot tensor
         target_one_hot: torch.Tensor = torch.nn.functional.one_hot(target, num_classes=self.n_classes).permute(0, 3, 1, 2)
@@ -181,14 +208,31 @@ class MultiLoss(torch.nn.Module):
             raise NotImplementedError("Invalid reduction mode: {}".format(params.fl_reduction))
         return loss
 
+    def print_settings(self):
+        # Print the loaded class weights for training
+        print('\nLoss Weights Loaded')
+        print('\tCE: {:20f}'.format(self.ce_weight))
+        print('\tDSC: {:20f}'.format(self.dsc_weight))
+        print('\tFL: {:20f}'.format(self.fl_weight))
+        print('\n{:20s}{:>15s}\n'.format('Class', 'Weight'))
+        for i, w in enumerate(self.cls_weight):
+            print('{:20s}{:15f}'.format(self.categories[i], w))
+        print()
+
 
 class RunningLoss(object):
     """
     Tracks losses for training/validation/testing
+
+    Parameters
+    ------
+    config: dict
+        User configuration settings.
     """
 
     def __init__(self, config):
         super(RunningLoss, self).__init__()
+        self.config = config
         self.train = []
         self.valid = []
         self.test = []
@@ -201,23 +245,23 @@ class RunningLoss(object):
         self.lr = []
 
         # initialize log files
-        dir_path = os.path.join(params.paths['logs'][config.type][config.capture], config.id)
-        self.output_file = os.path.join(utils.mk_path(dir_path), 'losses.pth')
-        self.load(config)
+        self.dir_path = os.path.join(config.save_dir, config.id, 'log')
+        self.output_file = os.path.join(utils.mk_path(self.dir_path), 'losses.pth')
+        self.load()
 
-    def load(self, config):
+    def load(self):
         """ load log file for losses"""
-        if config.mode == params.TRAIN and os.path.exists(self.output_file):
+        if self.config.mode == params.TRAIN and os.path.exists(self.output_file):
             print('Loss logs found at {} ... '.format(self.output_file), end='')
-            if config.resume:
-                print('Resuming.')
+            if self.config.resume:
+                print('Resuming loss tracking for {}.'.format(self.output_file))
                 loss_res = torch.load(self.output_file)
                 self.train = loss_res['train']
                 self.valid = loss_res['valid']
                 self.test = loss_res['test']
                 self.best_dice = loss_res['best_dice']
             else:
-                print('Deleting and Restarting.')
+                print('Deleting and Restarting loss tracking.')
                 os.remove(self.output_file)
 
     def log(self, iter, training):

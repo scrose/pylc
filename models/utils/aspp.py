@@ -1,8 +1,16 @@
-import math
+"""
+Adapted from Jianfeng Zhang, Vision & Machine Learning Lab, National University of Singapore,
+Deeplab V3+ in PyTorch, https://github.com/jfzhang95/pytorch-deeplab-xception
+
+PyTorch implementation of Deeplab: This is a PyTorch(0.4.1) implementation of DeepLab-V3-Plus.
+It can use Modified Aligned Xception and ResNet as backbone.
+"""
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from models.sync_batchnorm.batchnorm import SynchronizedBatchNorm2d
+
 
 class _ASPPModule(nn.Module):
     def __init__(self, inplanes, planes, kernel_size, padding, dilation, BatchNorm):

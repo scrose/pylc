@@ -1,109 +1,158 @@
-# Mountain Legacy Project
-Implementation of Semantic Segmentation for Oblique Landscape Photography
+
+# MLP Landscape Classifier
+**Semantic segmentation network for land cover classification of oblique ground-based photography**
 
 ## Overview
 
-The Mountain Legacy Project (MLP) is an ongoing repeat photography project based on over 120,000 historical 
-terrestrial oblique photographs. The original photographs were taken systematically by surveyors from the 
-late 19th to mid 20th centuries to create topographic maps of the Canadian mountain west (Deville 1895; 
-Bridgland 1916, 1924). The photographs have been preserved on large format glass plates, mainly at Library 
-and Archives Canada.  Over the years, the MLP has repeated over 8,000 of the historic captures, and has 
-built a suite of custom tools for classification and analysis of oblique images (Gat et al.  2011; 
-Jean et al. 2015b; Sanseverino et al.  2016). The following documents a multi-class image segmentation 
-using deep learning neural networks applied to high-resolution, grayscale and colour landscape photography, 
-specifically optimized for segmenting oblique mountain landscapes. 
+### Mountain Legacy Project
+
+The [Mountain Legacy Project](http://mountainlegacy.ca/) (MLP) at the [University of Victoria](https://uvic.ca/) supports numerous research initiatives exploring the use of repeat photography to study ecosystem, landscape, and anthropogenic changes. MLP hosts the largest systematic collection of mountain photographs, with over 120,000 high-resolution historic (grayscale) survey photographs of Canada’s Western mountains captured from the 1880s through the 1950s, with over 9,000 corresponding modern (colour) repeat images. Over the years, the MLP has built a suite of custom tools for the classification and analysis of images in the collection (Gat et al. 2011; Jean et al. 2015b; Sanseverino et al. 2016). 
+
+
+### Implementation
+
+The MLP classification tool uses a deep convolutional neural network (DCNN) trained on high-resolution, grayscale and colour landscape photography from the MLP collection, specifically optimized for the segmentation of oblique mountain landscapes. This package uses [U-net][3] and [Deeplabv3+][4] segmentation models with a ResNet101 pretrained encoder, as well as a fully-connected [conditional random fields model][5] used to boost segmentation accuracy.
+
+### Features
+
+- Allows for classification of high-resolution oblique landscape images
+- Uses multi-loss (weighted cross-entropy, Dice, Focal) to address semantic class imbalance
+- Uses threshold-based data augmentation designed to improve classification of low-frequency classes
+- Applies optional Conditional Random Fields (CRF) filter to boost segmentation accuracy
 
 
 ## Datasets
 
-Training data consists of historic and repeat capture image files and corresponding segmentation mask files. 
-These datasets can be downloaded from publicly available online thorugh the repository links below. 
+Training data used to generate the pretrained segmentation models is comprised of high-resolution historic (grayscale) photographs, and repeat (colour) images from the MLP collection. Land cover segmentation maps, manually created by MLP researchers, were used as ground truth labels. These datasets are publicly available and released through the [Creative Commons Attribution-Non Commercial 4.0 International License](http://creativecommons.org/licenses/by-nc/4.0/legalcode).
 
-Data files and file directories are set in the *paths.json* metadata file.
+Segmentation masks used in the two training datasets (DST.A and DST.B) conform to different land cover classification schemas, as shown below. The categories are defined in the `settings.json` configuration file.
+
+### DST.A - [(Repository - 2.1 GB)](https://zenodo.org/record/12590) 
+
+The Mountain Habitats Segmentation and Change Detection Dataset. Jean, Frédéric; Branzan Albu, Alexandra; Capson, David; Higgs, Eric; Fisher, Jason T.; Starzomski, Brian M.  Includes full-sized images and segmentation masks along with the accompanying files and results.
+
+#### [DST.A] Land Cover Classes
+| **Hex**   |  **Colour** | **Category** | 
+|-------------|-------------|-------------|
+| `000000` |Black | Not categorized| 
+| `ffa500` |Orange | Broadleaf/Mixedwood forest| 
+| `228b22` |Dark Green| Coniferous forest| 
+| `7cfc00` |Light Green| Herbaceous/Shrub| 
+| `8b4513` |Brown| Sand/gravel/rock| 
+| `5f9ea0` |Turquoise| Wetland| 
+| `0000ff` |Blue| Water| 
+| `2dbdff` |Light Blue| Snow/Ice| 
+| `ff0004` |Red| Regenerating area| 
+
+### DST.B: [Repository TBA] 
+
+Landscape and biodiversity change in the Willmore Wilderness Park through Repeat Photography. Julie Fortin (2018).
+
+#### DST-B Land Cover Categories (LCC-B)
+
+| **Hex**   |  **Colour** | **Category** | 
+|-------------|-------------|-------------|
+| `000000` |Black | Not categorized| 
+| `ffaa00` |Orange | Broadleaf forest| 
+| `d5d500` |Dark Yellow | Mixedwood forest| 
+| `005500` |Dark Green| Coniferous forest| 
+| `41dc66` |Light Green| Shrub| 
+| `7cfc00` |Yellow| Herbaceous| 
+| `873434` |Brown| Sand/gravel/rock| 
+| `aaaaff` |Light Purple| Wetland| 
+| `0000ff` |Blue| Water| 
+| `b0fffd` |Cyan| Snow/Ice| 
+| `ff00ff` |Magenta| Regenerating area| 
 
 
+## Requirements (Python 3.6)
 
-### [DST-A] The Mountain Habitats Segmentation and Change Detection Dataset
+All DCNN models and preprocessing utilities are implemented in [PyTorch](https://pytorch.org/), an open source Python library based on the Torch library and [OpenCV](https://opencv.org/), a library of programming functions developed for computer vision. Dependencies are listed below.
 
-*Jean, Frédéric; Branzan Albu, Alexandra; Capson, David; Higgs, Eric; Fisher, Jason T.; Starzomski, Brian M.*
-
-LINK: https://zenodo.org/record/12590
-
-Dataset presented in the paper *The Mountain Habitats Segmentation and Change Detection Dataset* accepted 
-for publication in the IEEE Winter Conference on Applications of Computer Vision (WACV), Waikoloa Beach, 
-HI, USA, January 6-9, 2015. The full-sized images and masks along with the accompanying files and results 
-can be downloaded here. The size of the dataset is about 2.1 GB.
-
-The dataset is released under the Creative Commons Attribution-Non Commercial 4.0 International License 
-(http://creativecommons.org/licenses/by-nc/4.0/legalcode).
-
-
-
-### [DST-B] (Julie Fortin, 2018)
-
-
-## Requirements
-
- - torch 1.0.1
- - numpy 1.16.2 
-
-
-## Semantic Segmentation
-
-### Models
-
-1. UNet
-
-2. DeepLab V3+
-  
+- h5py >= 2.8.0
+- numpy >=1.18.5
+- opencv >=3.4.1
+- pytorch >=1.4.0
+- seaborn >=0.11.0(optional - evaluation)
+- matplotlib >=3.2.2 (optional - evaluation)
+- scikit-learn> =0.23.1(optional - evaluation)
+- torchsummary >=1.5.1 (optional)
+- tqdm >=4.47.1
 
 
 ## Usage
 
+The MLP classification tool has three main run modes:
+
+1. Data Preprocessing: (`preprocessing.py`);
+ - Extraction
+ - Profiling
+ - Data Augmentation
+2. Model Training: (`train.py`);
+3. Model Testing (`test.py`). 
+
+User configuration arguments `config.py` for . User input parameters can be listed by the following command:
+
 ```
-python main.py -h # prints usage help and configuration options
+python test.py -h # prints usage configuration options
 ```
 
-### Download Dataset(s)
+The categorization schema is defined in  `settings.py` .
 
+### 1. Preprocessing
+
+This package offers configurable preprocessing utilities to prepare raw input data for model training. All input data must be stored in the `data/raw` directory in the MLP-LCT root. Images (jpg or tif) are stored in `data/raw/images` and masks (png) in `data/raw/masks`. The image filename must match its mask filename (e.g. img_01.tif and msk_01.png).
 ```
+mkdir data
 mkdir data/raw
 ```
+Next, download the image/mask dataset(s) (see repository links under Datasets section) and save files to `raw` using the file structure defined in `paths.json`. You can define new files paths in `paths.json` but it is important to keep the same JSON schema.
 
-### Preprocess
+#### Options: 
+- `--mode extract | show_profile | augment | merge | grayscale`: Run mode for data preprocessing 
+- `--img <path>`: Path to images directory or single file. 
+- `--mask <path>`: Path to masks directory or single file. 
+- `--batch_size <int>`: Size of each data batch (default: 50). 
+- `--scale <int>`: Apply image scaling before extraction.
+- `--dbs <str>`: List of database paths to merge (path strings separated by spaces).
 
-#### Extraction
+#### 1.1 Extraction (Generate Database)
 
-Extraction is a necessary step to creating usable training data for the DCNN models. Tile extraction is used to partition raw high-resolution source images and masks into smaller square image tiles that can be used in memory. Images are scaled by a factor of 0.2, 0.5 and 1.0 before tiling to improve scale invariance of the model. Image data is saved to Hierarchical Data Format database. Mask data is also profiled for analysis and data augmentation. See parameters for dimensions and stride.
+Extraction is a preprocessing step to create usable data to train segmentation network models. Tile extraction is used to partition raw high-resolution source images and masks into smaller square image tiles that can be used in memory. Images are by default scaled by factors of 0.2, 0.5 and 1.0 before tiling to improve scale invariance. Image data is saved to HDF5 binary data format for fast loading. Mask data is also profiled for analysis and data augmentation. See parameters for dimensions and stride. Extracted tiles can be augmented using data augmentation processing.
 
+To create an extraction database from the image/mask dataset:
 
 ```
-python preprocess.py --mode extract --capture [historic, repeat] --id [FILENAME] --dset [dst-A, dst-B, combined] ----in_channels [1, 3]
+python preprocess.py --mode extract --img [path/to/image(s)] --mask [path/to/mask(s)] --id [unique ID] 
 ```
+Database files are saved to `data/db`. Metadata is automatically generated during extraction and saved as a Numpy binary file to directory `data/metadata`. Both the database and metadata files share the same filename. You can specify an optional unique identifier; the default identifier is a Unix timestamp.
 
 #### Profiling
 
-Extraction automatically initiates a statistical profiling of the pixel classes in the mask data, and computes other metadata. Saved in a separate file, this metadata is used to calculate sample rates for data augmentation to balance the pixel semantic class distribution. A data profile can also be created by running the following:
+Extraction automatically computes the pixel class distribution in the mask dataset, along with other metrics. This metadata is saved to `data/metadata' and used to calculate sample rates for data augmentation to balance the pixel semantic class distribution. A data profile can also be created by running the following:
 ```
-python preprocess.py --mode profile --capture [historic, repeat] --id [FILENAME]
+python preprocess.py --mode profile --db [path/to/database.h5]
 ```
+Profile metadata is saved as Numpy binary files in directory `data/metadata` and by default uses the same filename as the corresponding database but with the `.npy` extension. Metadata files are required for 
 
+#### Data Augmentation
 
-#### Augmentation
+Data augmentation can improve the balance of pixel class distribution in a database by extending the dataset with altered copies of samples with less-represented semantic classes. This package uses a novel thresholding algorithm applied to the class distribution of each tile to compute a sampling rate for that tile.
 
-Data augmentation can be used to mitigate pixel class imbalance and improve model performance without additional segmentation annotation. Augmentation generates perturbed versions of the existing dataset tiles.
-
-```
-python preprocess.py --mode augment --capture [historic, repeat] --id [FILENAME] --in_channels [1, 3]
-```
+When a database is augmented, the app looks for a corresponding metadata file (containing pre-generated sample rates) in `data/metadata`. Metadata files by default use the same filename as the database. If none is found, a new profile metadata file is generated.
 
 ```
-python preprocess.py --id repeat_extract_aug --capture repeat --mode grayscale --in_channels 3
+python preprocess.py --mode augment --db [path/to/database.h5]
 ```
 
-#### Merging 
+#### Database Merging 
+It is also possible to merge repeat or historic databases using the following:
 ```
-python preprocess.py --mode merge --capture [historic, repeat] --id [FILENAME] --dbs [DATABASES] --in_channels [1, 3] 
+python preprocess.py --mode merge --capture [historic | repeat] --id [OUTPUT_FILENAME] --dbs [ARRAY OF DB FILENAMES] --in_channels [1 | 3] 
+```
+For example, using historic database files `extracted_db_1.h5` and `extracted_db_2.h5`
+```
+python preprocess.py --mode merge --capture historic --id merged_db1_and_db2 --dbs [extracted_db_1, extracted_db_2] --in_channels 1 
 ```
 
 ### Training
@@ -113,10 +162,19 @@ python train.py --mode [normal, clipped, summary] --capture [historic, repeat] -
 
 ```
 
-### Training
+### Testing
+
+#### Options: 
+- `--mode extract | show_profile | augment | merge | grayscale`: Run mode for data preprocessing 
+- `--img <path>`: Path to images directory or single file. 
+- `--mask <path>`: Path to masks directory or single file. 
+- `--batch_size <int>`: Size of each data batch (default: 50). 
+- `--scale <int>`: Apply image scaling before extraction.
+- `--dbs <str>`: List of database paths to merge (path strings separated by spaces).
+
 
 ```
-python test.py --capture historic --in_channels 1 --dir_path [EXPERIMENT] --img_path [FILE_PATH] --mask_path [FILE PATH] --id [FILENAME]
+python test.py --img [path/to/images(s)] --mask [path/to/mask(s)] --id [unique identifier]
 ```
 
 ## Parameters
@@ -315,80 +373,15 @@ Note that a band size of *4* is used for these tests.
 
 ## Example Output
 
-```
-Benchmark: CUDA-1 Band Reduction
-	Band size: 32
-	Step size: 320
-	Number of steps: 10
-	Number of test instances: 1
-	
-Average time per CUDA-1 Band Reduction
-N = 320 | 1.64687 sec
-N = 640 | 0.594505 sec
-N = 960 | 1.31839 sec
-N = 1280 | 2.37395 sec
-N = 1600 | 3.82875 sec
-N = 1920 | 5.87805 sec
-N = 2240 | 7.97496 sec
-N = 2560 | 11.0635 sec
-N = 2880 | 15.4251 sec
-N = 3200 | 22.0778 sec
-
-
-Checking correctness ... 
-Reading file: /data/spencerrose/test_float_512_512.bin
-
--------
-Matrix capacity: 512 [262144 elements; m = 512, n = 512]
-Matrix overhead: 12352b
-Size of Payload: 1048576b
-Matrix total size: 1060928b
-
- 1.8647  1.4094  2.0559  2.1145  2.2026  3.8622  3.0560  1.3343
- 2.1022  3.8643  1.6300  2.2606  2.4072  1.7867  2.4081  3.9153
- 1.8043  2.1092  3.0419  1.6380  2.1340  1.5234  1.6438  3.8442
- 2.9696  2.1960  2.4494  3.2856  3.5322  3.6105  3.5070  2.2075
- 3.5272  1.6055  1.1876  1.4772  1.0043  2.4362  1.6640  1.9256
- 2.7712  2.8750  1.7220  2.4514  3.1797  3.3102  3.5173  2.0833
- 3.2625  3.0375  3.9408  1.1109  1.5304  1.0457  3.0382  2.5855
- 1.4313  2.9194  2.5709  1.7505  3.9874  1.7198  2.4379  3.5617
-
-
-CUDA-1 Test (Band):
-
--------
-Matrix capacity: 512 [262144 elements; m = 512, n = 512]
-Matrix overhead: 12352b
-Size of Payload: 1048576b
-Matrix total size: 1060928b
-
- -70.001366  -64.015396  -63.014526  -62.436245  1419.793213  0.000008  0.000004  0.000008  0.000004  ...  0.000008 
- 0.000001  35.563316  21.200325  16.327179  -380.614532  -27.962111  0.000000  0.000000  0.000002   ...  0.000000 
- 0.000001  -0.000001  31.628269  11.523483  -256.873993  -1.875523  -26.901138  0.000000  0.000000   ...  0.000000 
- 0.000001  0.000000  -0.000000  -30.793488  166.446198  0.998970  1.384160  25.481604  0.000000   ...  -0.000001 
- 0.000001  -0.000001  -0.000000  -0.000000  294.396088  0.871984  0.063367  1.140689  -26.300608  ...  0.000000 
- 0.000000  0.000001  0.000000  0.000000  0.000002  -25.009996  -2.588540  0.323188
-
-
-Baseline Test (Band):
-
--------
-Matrix capacity: 512 [262144 elements; m = 512, n = 512]
-Matrix overhead: 12352b
-Size of Payload: 1048576b
-Matrix total size: 1060928b
-
- 70.001434  64.015419  63.014412  62.436203  -1419.794922  0.000000  0.000000  0.000000   ...  0.000004 
- 0.000000  -35.563320  -21.200319  -16.327200  380.615082  -27.962122  0.000000  0.000000   ...  0.000000 
- 0.000000  0.000000  31.628269  11.523487  -256.873779  1.875516  -26.901150  -0.000000   ...  0.000000 
- 0.000000  0.000000  0.000000  -30.793514  166.446259  -0.998982  1.384142  -25.481659   ...  0.000000 
- 0.000000  -0.000000  0.000000  0.000000  294.395996  -0.871994  0.063342  -1.140695  26.300621
-
-
-```
 
 ## References 
 
-1. Jean, F., Albu, A. B., Capson, D., Higgs, E., Fisher, J. T., & Starzomski, B. M. (2015). 
-The mountain habitats segmentation and change detection dataset. Proceedings - 2015 IEEE Winter 
-Conference on Applications of Computer Vision, WACV 2015, 603–609. https://doi.org/10.1109/WACV.2015.86
+[1]: Jean, Frederic, Alexandra Branzan Albu, David Capson, Eric Higgs, Jason T. Fisher, and Brian M. Starzomski. "The mountain habitats segmentation and change detection dataset." In 2015 IEEE Winter Conference on Applications of Computer Vision, pp. 603-609. IEEE, 2015.
+
+[2]: Julie Fortin. Lanscape and biodiversity change in the Willmore Wilderness Park through Repeat Photography. PhD thesis, University of Victoria, 2015.
+
+[3]: Olaf Ronneberger, Philipp Fischer, and Thomas Brox. U-net: Convolutional networks for biomedical image segmentation. Lecture Notes in Computer Science (including subseries Lecture Notes in Artificial Intelligence and Lecture Notes in Bioinformatics), 9351:234–241, 2015. ISSN 16113349. doi: 10.1007/ 978-3-319-24574-4 28. (http://lmb.informatik.uni-freiburg.de/).
+
+[4]: Liang Chieh Chen, George Papandreou, Iasonas Kokkinos, Kevin Murphy, and Alan L. Yuille. DeepLab: Semantic Image Segmentation with Deep Convolutional Nets, Atrous Convolution, and Fully Connected CRFs. IEEE Transactions on Pattern Analysis and Machine Intelligence, 40(4):834–848, 2018. ISSN 01628828. doi: 10.1109/TPAMI.2017.2699184.
+
+[5]: Philipp Krähenbühl and Vladlen Koltun. Parameter learning and convergent infer- ence for dense random fields. 30th International Conference on Machine Learning, ICML 2013, 28(PART 2):1550–1558, 2013.
