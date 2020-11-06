@@ -17,7 +17,7 @@ import sys
 import numpy as np
 import torch
 from config import get_config
-import utils.utils as utils
+import utils.tools as utils
 from utils.extractor import Extractor
 from utils.augmentor import Augmentor
 from utils.profiler import Profiler
@@ -42,19 +42,17 @@ def main(cf, parser):
      bool
         Output boolean value.
     """
-    # (Optional) Clip dataset
-    params.clip = cf.clip
 
     # Initialize profiler, database
     profiler = Profiler(cf)
     db = DB(cf)
 
-    # Tile Extraction
+    # --- Tile Extraction ---
     if cf.mode == params.EXTRACT:
 
         # Extract subimages from user-defined directories
         print("Starting extraction of \n\timages: {}\n\t masks: {} ... ".format(cf.img_dir, cf.mask_dir))
-        data = Extractor(cf).load(cf.img_dir, cf.mask_dir).extract().get_data()
+        data = Extractor(cf).load(cf.img_dir, cf.mask_dir).extract().save()
         print('Extraction done.')
 
         # save to database directory
@@ -65,7 +63,7 @@ def main(cf, parser):
         # Generate profile metadata for extracted database and save
         profiler.profile(db_path).save()
 
-    # Data Augmentation
+    # --- Data Augmentation ---
     elif cf.mode == params.AUGMENT:
 
         # Data augmentation based on pixel profile

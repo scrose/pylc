@@ -9,7 +9,7 @@ Spencer Rose <spencerrose@uvic.ca>, June 2020
 University of Victoria
 
 Module: Utilities
-File: utils.py
+File: tools.py
 """
 
 import os
@@ -549,12 +549,12 @@ def reconstruct(tiles, md):
 
 def load_files(path, exts):
     """
-    Loads files of given extensions from directory path.
+    Loads file path(s) of given extension(s) from directory path.
 
       Parameters
       ------
       path: str
-         Directory path.
+         Directory/File path.
       exts: list
          List of file extensions.
 
@@ -563,8 +563,18 @@ def load_files(path, exts):
       list
          List of file names.
      """
-    assert os.path.exists(path), 'Directory path {} does not exist.'.format(path)
-    return list(sorted([f for f in os.listdir(path) if any(ext in f for ext in exts)]))
+
+    assert os.path.exists(path), 'Path {} does not exist.'.format(path)
+
+    files = []
+    if os.path.isfile(path):
+        ext = os.path.splitext(os.path.basename(path))[0]
+        assert ext in exts, "File {} of type {} cannot be loaded.".format(path, ext)
+        files.append(path)
+    elif os.path.isdir(path):
+        files.append(list(sorted([f for f in os.listdir(path) if any(ext in f for ext in exts)])))
+
+    return files
 
 
 def collate(img_dir, mask_dir):

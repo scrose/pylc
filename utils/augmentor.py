@@ -16,7 +16,7 @@ import os
 import torch
 from tqdm import tqdm
 
-import utils.utils as utils
+import utils.tools as utils
 import numpy as np
 from params import params
 from utils.profiler import Profiler

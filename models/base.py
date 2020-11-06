@@ -20,7 +20,7 @@ from models.unet import UNet
 from models.res_unet import ResUNet
 from models.deeplab import DeepLab
 from models.utils.loss import MultiLoss, RunningLoss
-import utils.utils as utils
+import utils.tools as utils
 from params import params
 from numpy import random
 
@@ -32,97 +32,79 @@ class Model:
 
       Parameters
       ------
-      config: dict
+      cf: dict
          User configuration settings.
     """
 
-    def __init__(self, config):
+    def __init__(self, cf):
 
         super(Model, self).__init__()
 
         # input configuration
-        self.config = config
-        self.n_classes = config.n_classes
-        self.in_channels = config.in_channels
-        self.mode = config.type
-        self.architecture = config.model
+        self.id = cf.id
+        self.cf = cf
+        self.n_classes = params.schema(cf).n_classes
+        self.ch = cf.ch
+        self.arch = cf.arch
 
         # build network
         self.net = None
         self.crop_target = False
-        self.build()
 
-        # global iteration counter
+        # If loading, load model from '.pth' file, otherwise build new
+        if cf.load:
+            self.load()
+        else:
+            self.build()
+
+        # initialize global iteration counter
         self.iter = 0
 
-        # initialize preprocessed dataset metadata -> parameters
-        if not config.mode == params.SUMMARY:
-            self.metadata = self.init_metadata()
-            self.cls_weight = self.metadata.item().get('weights')
-            self.px_mean = self.metadata.item().get('px_mean')
-            self.px_std = self.metadata.item().get('px_std')
+        # initialize preprocessed metadata -> parameters
+        self.metadata = self.init_metadata()
+        self.cls_weight = self.metadata.item().get('weights')
+        self.px_mean = self.metadata.item().get('px_mean')
+        self.px_std = self.metadata.item().get('px_std')
 
-            # load loss handlers
-            self.crit = MultiLoss(self.config, self.cls_weight)
-            self.loss = RunningLoss(self.config)
+        # load loss handlers
+        self.crit = MultiLoss(self.cf, self.cls_weight)
+        self.loss = RunningLoss(self.cf)
 
-        # ---- Model Training
-        # Check for existing checkpoint. If exists, resume from
-        # previous training. If not, delete the checkpoint.
-        if config.type == params.TRAIN:
-            self.epoch = 0
-            self.optim = self.init_optim()
-            self.sched = self.init_sched()
-            self.ckpt = Checkpoint(config)
-            self = self.ckpt.load(self)
-            self.net.train()
+        # initialize run parameters
+        self.epoch = 0
+        self.optim = self.init_optim()
+        self.sched = self.init_sched()
 
-        # ----- Model Testing
-        # Initialize model test with pretrained model.
-        elif config.type == params.TEST:
-            self.evaluator = Evaluator(config)
-            # ignore pretrained model
-            self.config.pretrained = False
-            # self.net = torch.nn.DataParallel(self.net)
-            self = self.evaluator.load(self)
-            # self.net.summary()
-            self.net.eval()
+        # initialize training checkpoint and test evaluator
+        self.checkpoint = Checkpoint(cf)
+        self.evaluator = Evaluator(cf)
 
-    def init_metadata(self):
+    def load(self):
         """
-         Retrieve preprocessed metadata.
-         TODO: Include metadata in model
+        Loads pretrained model for evaluation.
         """
 
-        path = os.path.join(self.config.md_dir, self.config.db + '.npy')
+        model_data = self.evaluator.load(self.cf.model)
+        try:
+            self.metadata = model_data["metadata"]
+            self.net.load_state_dict(model_data["model"])
 
-        # select dataset metadata file
-        if os.path.isfile(path):
-            print("\nLoading dataset metadata from {}.".format(path))
-            return np.load(path, allow_pickle=True)
-        else:
-            print("Error: Metadata file {} not found. Parameters could not be initialized.".format(path))
-            sys.exit(0)
-
-    # Network layer activation functions
-    def activ_func(self, activ_type):
-        return torch.nn.ModuleDict([
-            ['relu', torch.nn.ReLU(inplace=True)],
-            ['leaky_relu', torch.nn.LeakyReLU(negative_slope=0.01, inplace=True)],
-            ['selu', torch.nn.SELU(inplace=True)],
-            ['none', torch.nn.Identity()]
-        ])[activ_type]
+        except:
+            print('An error occurred loading pretrained model at: \n{}'.format(
+                self.cf.model))
+            exit()
 
     def build(self):
-
-        """build neural network model from hyperparameters"""
+        """
+        Builds neural network model from configuration settings.
+        """
 
         # UNet
-        if self.config.model == 'unet':
+        if self.cf.arch == 'unet':
             self.net = UNet(
-                in_channels=self.in_channels,
+                in_channels=self.ch,
                 n_classes=self.n_classes,
-                up_mode=self.config.up_mode,
+                up_mode=self.cf.up_mode,
                 activ_func=self.activ_func('selu'),
                 normalizer=Normalizer('instance'),
                 dropout=params.dropout
@@ -131,33 +113,33 @@ class Model:
             self.crop_target = True
 
         # Alternate Residual UNet
-        elif self.config.model == 'resunet':
+        elif self.cf.arch == 'resunet':
             self.net = ResUNet(
-                in_channels=self.in_channels,
+                in_channels=self.ch,
                 n_classes=self.n_classes,
-                up_mode=self.config.up_mode,
+                up_mode=self.cf.up_mode,
                 activ_func=self.activ_func('relu'),
-                normalizer=Normalizer('layer'),
+                # normalizer=Normalizer('layer'),
                 dropout=params.dropout
             )
             self.net = self.net.to(params.device)
             self.crop_target = True
 
         # DeeplabV3+
-        elif self.config.model == 'deeplab':
+        elif self.cf.arch == 'deeplab':
             self.net = DeepLab(
                 activ_func=self.activ_func('relu'),
                 normalizer=torch.nn.BatchNorm2d,
-                backbone=self.config.backbone,
+                backbone=self.cf.backbone,
                 n_classes=self.n_classes,
-                in_channels=self.in_channels,
-                pretrained=self.config.pretrained
+                in_channels=self.ch,
+                pretrained=self.cf.pretrained
             )
             self.net = self.net.to(params.device)
 
         # Unknown model requested
         else:
-            print('Model {} not available.'.format(self.config.model))
+            print('Model {} not available.'.format(self.cf.model))
             exit(1)
 
         # Enable CUDA
@@ -174,13 +156,43 @@ class Model:
             print('\tMulti-process data loading: {} workers enabled.'.format(
                 torch.utils.data.get_worker_info().num_workers))
 
+    def resume(self):
+        """
+        Check for existing checkpoint. If exists, resume from
+        previous training. If not, delete the checkpoint.
+        """
+        if self.cf.resume:
+            checkpoint_data = self.checkpoint.load()
+            self.epoch = checkpoint_data['epoch']
+            self.iter = checkpoint_data['iter']
+            self.metadata = checkpoint_data["metadata"]
+            self.net.load_state_dict(checkpoint_data["model"])
+            self.optim.load_state_dict(checkpoint_data["optim"])
+        else:
+            self.checkpoint.reset()
+
+    def init_metadata(self):
+        """
+         Retrieve preprocessed metadata for training database.
+        """
+
+        path = os.path.join(self.cf.md_dir, self.cf.db + '.npy')
+
+        # select dataset metadata file
+        if os.path.isfile(path):
+            print("\nLoading dataset metadata from {}.".format(path))
+            return np.load(path, allow_pickle=True)
+        else:
+            print("Error: Metadata file {} not found. Parameters could not be initialized.".format(path))
+            sys.exit(0)
+
     def init_optim(self):
 
         # select optimizer
-        if self.config.optim == 'adam':
-            return torch.optim.AdamW(self.net.parameters(), lr=self.config.lr, weight_decay=params.weight_decay)
-        elif self.config.optim == 'sgd':
-            return torch.optim.SGD(self.net.parameters(), lr=self.config.lr, momentum=params.momentum)
+        if self.cf.optim == 'adam':
+            return torch.optim.AdamW(self.net.parameters(), lr=self.cf.lr, weight_decay=params.weight_decay)
+        elif self.cf.optim == 'sgd':
+            return torch.optim.SGD(self.net.parameters(), lr=self.cf.lr, momentum=params.momentum)
         else:
             print('Optimizer is not defined.')
             exit()
@@ -188,15 +200,15 @@ class Model:
     def init_sched(self):
 
         # (Optional) Scheduled learning rate step
-        if self.config.sched == 'step_lr':
+        if self.cf.sched == 'step_lr':
             return torch.optim.lr_scheduler.StepLR(self.optim, step_size=1, gamma=params.gamma)
-        elif self.config.sched == 'cyclic_lr':
+        elif self.cf.sched == 'cyclic_lr':
             return torch.optim.lr_scheduler.CyclicLR(self.optim, params.lr_min, params.lr_max, step_size_up=2000)
-        elif self.config.sched == 'anneal':
-            steps_per_epoch = int(self.config.clip * 29000 // self.config.batch_size)
+        elif self.cf.sched == 'anneal':
+            steps_per_epoch = int(self.cf.clip * 29000 // self.cf.batch_size)
             scheduler = torch.optim.lr_scheduler.OneCycleLR(self.optim, max_lr=params.lr_max,
                                                             steps_per_epoch=steps_per_epoch,
-                                                            epochs=self.config.n_epochs)
+                                                            epochs=self.cf.n_epochs)
         else:
             print('Optimizer scheduler is not defined.')
             exit()
@@ -216,11 +228,11 @@ class Model:
         y = y.to(params.device)
 
         # crop target mask to fit output size (e.g. UNet model)
-        if self.config.model == 'unet':
+        if self.cf.model == 'unet':
             y = y[:, params.crop_left:params.crop_right, params.crop_up:params.crop_down]
 
         # stack single-channel input tensors (deeplab)
-        if self.in_channels == 1 and self.config.model == 'deeplab':
+        if self.ch == 1 and self.cf.model == 'deeplab':
             x = torch.cat((x, x, x), 1)
 
         # forward pass
@@ -240,7 +252,7 @@ class Model:
 
         self.optim.step()
 
-        if self.iter % self.config.report == 0:
+        if self.iter % self.cf.report == 0:
             self.log()
 
         # log learning rate
@@ -260,11 +272,11 @@ class Model:
         y = y.to(params.device)
 
         # crop target mask to fit output size (UNet)
-        if self.config.model == 'unet':
+        if self.cf.model == 'unet':
             y = y[:, params.crop_left:params.crop_right, params.crop_up:params.crop_down]
 
         # stack single-channel input tensors (Deeplab)
-        if self.in_channels == 1 and self.config.model == 'deeplab':
+        if self.ch == 1 and self.cf.model == 'deeplab':
             x = torch.cat((x, x, x), 1)
 
         # run forward pass
@@ -283,11 +295,11 @@ class Model:
         """model test forward"""
 
         # normalize
-        x = self.normalize_image(x, default=self.config.normalize_default)
+        x = self.normalize_image(x, default=self.cf.normalize_default)
         x = x.to(params.device)
 
         # stack single-channel input tensors (Deeplab)
-        if self.in_channels == 1 and self.config.model == 'deeplab':
+        if self.ch == 1 and self.cf.model == 'deeplab':
             x = torch.cat((x, x, x), 1)
 
         # run forward pass
@@ -310,7 +322,7 @@ class Model:
             self.evaluator.save()
             self.loss.save()
         else:
-            self.ckpt.save(self, is_best=self.loss.is_best)
+            self.checkpoint.save(self, is_best=self.loss.is_best)
 
     def save_image(self):
 
@@ -335,50 +347,63 @@ class Model:
         else:
             return ((img - self.px_mean[None, :, None, None]) / self.px_std[None, :, None, None]) / 255
 
-    """summarize model parameters"""
+    def print_settings(self):
+        """
+        Prints model configuration settings to screen.
+        """
+
+        print("\n------\nModel Settings")
+        print("\tID {}".format(self.id))
+        print("\tDatabase: {}".format(self.cf.db))
+        print("\tModel: {}".format(self.cf.arch))
+        # show encoder backbone for Deeplab
+        if self.cf.arch == 'deeplab':
+            print("\tBackbone: {}".format(self.cf.backbone))
+        print('\tInput channels: {}'.format(self.cf.ch))
+        print('\tOutput channels (classes): {}'.format(self.n_classes))
+        print("------\n")
 
     def summary(self):
+        """
+        Prints model parameters to screen.
+        """
         try:
             from torchsummary import summary
-            summary(self.net, input_size=(self.in_channels, params.input_size, params.input_size))
+            summary(self.net, input_size=(self.ch, params.input_size, params.input_size))
         except ImportError as e:
             print('Summary not available.')
-            pass  # module doesn't exist, deal with it.
+            pass  # module doesn't exist
 
 
 class Checkpoint:
     """ Tracks model for training/validation/testing """
 
-    def __init__(self, config):
+    def __init__(self, cf):
 
         # Prepare checkpoint tracking indicies
         self.iter = 0
         self.epoch = 0
         self.model = None
         self.optim = None
-        self.config = config
+        self.cf = cf
 
         # save checkpoint in save folder
-        output_path = os.path.join(params.paths['save'][config.capture], config.id)
-        self.ckpt_file = os.path.join(utils.mk_path(output_path), 'checkpoint.pth')
+        save_dir = os.path.join(cf.save, cf.id)
+        self.checkpoint_file = os.path.join(utils.mk_path(save_dir), 'checkpoint.pth')
 
         # save best model file in evaluation folder
-        output_path = os.path.join(params.paths['eval'][config.capture], config.id)
-        self.model_file = os.path.join(utils.mk_path(output_path), 'model.pth')
+        self.model_file = os.path.join(utils.mk_path(save_dir), 'model.pth')
 
-    def load(self, model):
-        """ load checkpoint file for losses"""
-        if os.path.exists(self.ckpt_file):
-            if self.config.resume:
-                print('Checkpoint found at {}! Resuming.'.format(self.ckpt_file))
-                ckpt_res = torch.load(self.ckpt_file)
-                model.epoch = ckpt_res['epoch']
-                model.iter = ckpt_res['iter']
-                model.net.load_state_dict(ckpt_res["model"])
-                model.optim.load_state_dict(ckpt_res["optim"])
-            else:
-                os.remove(self.ckpt_file)
-        return model
+    def load(self):
+        """ load checkpoint file """
+        if os.path.exists(self.checkpoint_file):
+            print('Checkpoint found at {}! Resuming.'.format(self.checkpoint_file))
+            return torch.load(self.checkpoint_file)
+
+    def reset(self):
+        """ delete checkpoint file """
+        if os.path.exists(self.checkpoint_file):
+            os.remove(self.checkpoint_file)
 
     def save(self, model, is_best=False):
         # Save checkpoint state
@@ -387,49 +412,49 @@ class Checkpoint:
             "iter": model.iter,
             "model": model.net.state_dict(),
             "optim": model.optim.state_dict(),
-        }, self.ckpt_file)
+            "metadata": model.metadata
+        }, self.checkpoint_file)
         # Save best model state
         if is_best:
             torch.save({
                 "model": model.net.state_dict(),
                 "optim": model.optim.state_dict(),
+                "metadata": model.metadata
             }, self.model_file)
 
 
 class Evaluator:
     """
-    Handles model test/evaluation functionality
+    Handles model test/evaluation functionality.
+
+    Parameters
+    ----------
+    cf: str
+        User-defined configuration settings.
     """
 
-    def __init__(self, config):
+    def __init__(self, cf):
 
         # Report interval
         self.report_intv = 3
         self.results = []
-        self.config = config
+        self.cf = cf
         self.metadata = None
-        self.model_file = os.path.join(config.output_path, 'model.pth')
 
         # Make output and mask directories for results
-        self.masks_path = utils.mk_path(os.path.join(config.output_path, 'masks'))
-        self.output_path = utils.mk_path(os.path.join(config.output_path, 'outputs'))
+        self.model_path = cf.model
+        self.masks_dir = utils.mk_path(os.path.join(cf.output, 'masks'))
+        self.output_dir = utils.mk_path(os.path.join(cf.output, 'outputs'))
 
-    def load(self, model):
+    def load(self):
 
         """ load model file for evaluation"""
 
-        if os.path.exists(self.model_file):
-            model_pretrained = torch.load(self.model_file, map_location=params.device)
-            try:
-                model.net.load_state_dict(model_pretrained["model"])
-            except:
-                print('An error occurred loading the {} pretrained model at: \n{}'.format(
-                    model.config.model, self.model_file))
-                exit()
+        if os.path.exists(self.model_path):
+            return torch.load(self.model_path, map_location=params.device)
         else:
-            print('Model file: {} does not exist ... exiting.'.format(self.model_file))
+            print('Model file: {} does not exist ... exiting.'.format(self.model_path))
             exit()
-        return model
 
     def reset(self):
         self.results = []
@@ -438,7 +463,7 @@ class Evaluator:
 
         """Save full prediction test results with metadata for reconstruction"""
         # Build output file path
-        output_file = os.path.join(self.output_path, fname + '_output.pth')
+        output_file = os.path.join(self.output_dir, fname + '_output.pth')
         torch.save({"results": self.results, "metadata": self.metadata}, output_file)
 
     def save_image(self, fname):
@@ -446,7 +471,7 @@ class Evaluator:
         """Save prediction mask image"""
 
         # Build mask file path
-        mask_file = os.path.join(self.masks_path, fname + '.png')
+        mask_file = os.path.join(self.masks_dir, fname + '.png')
 
         # Reconstruct seg-mask from predicted tiles
         tiles = np.concatenate(self.results, axis=0)
@@ -469,10 +494,14 @@ class Normalizer:
       norm_type: str
          Type of normalizer to use.
     """
+
     def __init__(self, norm_type):
         self.type = norm_type
 
     def apply(self, n_features):
+        """
+        Network layer normalization functions
+        """
         return torch.nn.ModuleDict([
             ['batch', torch.nn.BatchNorm2d(n_features)],
             ['instance', torch.nn.InstanceNorm2d(n_features)],
@@ -480,3 +509,20 @@ class Normalizer:
             ['syncbatch', torch.nn.SyncBatchNorm(n_features)],
             ['none', None]
         ])[self.type]
+
+
+def activation(self, active_type):
+    """
+    Network layer activation functions
+
+    Paramters
+    ------
+    active_type: str
+        Activation function key.
+    """
+    return torch.nn.ModuleDict([
+        ['relu', torch.nn.ReLU(inplace=True)],
+        ['leaky_relu', torch.nn.LeakyReLU(negative_slope=0.01, inplace=True)],
+        ['selu', torch.nn.SELU(inplace=True)],
+        ['none', torch.nn.Identity()]
+    ])[active_type]

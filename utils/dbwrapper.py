@@ -242,7 +242,7 @@ class DB(object):
             print('Save aborted.')
 
 
-def load_data(config, mode, db_path = None):
+def load_data(config, mode, db_path=None):
     """
      Wrapper handler to initialize data loaders
      - Multiprocessing enabled
@@ -253,6 +253,8 @@ def load_data(config, mode, db_path = None):
         Configuration settings.
     mode: enum
         Run mode (see params.py).
+    db_path: str
+        Database path (optional override of user configuration).
     """
 
     # Load training data loader

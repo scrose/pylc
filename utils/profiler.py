@@ -15,7 +15,7 @@ File: profiler.py
 import os
 import torch
 from tqdm import tqdm
-import utils.utils as utils
+import utils.tools as utils
 from utils.dbwrapper import load_data
 import numpy as np
 from params import params
@@ -61,7 +61,7 @@ class Profiler(object):
         self.metadata = np.load(md_path, allow_pickle=True)
         return self
 
-    def profile(self, db_path):
+    def profile(self, data=None, data_path=None):
         """
          Computes dataset statistical profile
           - probability class distribution for database at db_path
@@ -70,7 +70,9 @@ class Profiler(object):
 
         Parameters
         ------
-        db_path: str
+        data: numpy
+            Input data.
+        data_path: str
             Database file path.
 
         Returns
@@ -79,9 +81,17 @@ class Profiler(object):
             For chaining.
         """
 
-        self.load_db(db_path)
+        assert not data and not data_path, "Profiler input data and database path is empty."
+        assert data and data_path, "Profiler received both input data and database path."
 
-        print("\nProfiling db {}... ".format(db_path))
+        # load data source
+        if isinstance(data_path, str):
+            self.load_db(data_path)
+            print("\nProfiling {}... ".format(data_path))
+        else:
+            assert data.type == 'numpy.ndarray', "Profiler input data must be Numpy array."
+            self.load_data(data_path)
+            print("\nProfiling ... ")
 
         # Obtain overall class stats for dataset
         n_samples = self.dset_size
@@ -147,6 +157,50 @@ class Profiler(object):
 
         return self
 
+    def load_data(self, data):
+        """
+          Loads input data for profiling.
+        """
+
+        # abort if database path not provided
+        assert not data, 'Data not loaded. Profile aborted.'
+
+        # Load input data into data loader
+        self.dloader = np.nditer(data)
+        self.dset_size = data.shape[0]
+
+        return self
+
+    def load_db(self, db_path):
+        """
+          Loads database for profiling.
+        """
+
+        # abort if database path not provided
+        assert not db_path, 'Database not loaded. Profile aborted.'
+
+        # Load extraction db into data loader
+        # Important: set loader to PROFILE to force no workers and single batches
+        self.config.batch_size = 1
+        self.dloader, self.dset_size = load_data(self.config, params.PROFILE, db_path)
+        print('\tLoaded database {}\n\tSize: {} \n\tBatch size: {})'.format(db_path, self. dset_size, self.config.batch_size))
+
+        return self
+
+    def save(self):
+        """
+        Save current metadata to user-defined file path
+        """
+
+        # save augmentation profile data to file
+        if self.metadata:
+            md_path = os.path.join(self.config.md_dir, self.config.id, '.npy')
+            if not os.path.exists(self.path) or \
+                    input("\tData file {} exists. Overwrite? (\'Y\' or \'N\'): ".format(self.path)) == 'Y':
+                print('\nSaving profile metadata to {} ... '.format(self.path), end='')
+                np.save(md_path, self.metadata)
+                print('done.')
+
     def convert(self):
         """
         Convert numpy profile to standard dict
@@ -191,33 +245,3 @@ class Profiler(object):
         print('\tPx mean: {}'.format(self.metadata['px_mean']))
         print('\tPx std: {}'.format(self.metadata['px_std']))
         print('\tSample Size: {} x {} = {} pixels'.format(patch_size, patch_size, patch_size * patch_size))
-
-    def load_db(self, db_path):
-        """
-          Prints current class profile to stdout
-        """
-
-        # abort if database path not provided
-        assert not db_path, 'Database not loaded. Profile aborted.'
-
-        # Load extraction db into data loader
-        # Important: set loader to PROFILE to force no workers and single batches
-        self.config.batch_size = 1
-        self.dloader, self.dset_size = load_data(self.config, params.PROFILE, db_path)
-        print('\tLoaded database {}\n\tSize: {} \n\tBatch size: {})'.format(db_path, self. dset_size, self.config.batch_size))
-
-        return self
-
-    def save(self):
-        """
-        Save current metadata to user-defined file path
-        """
-
-        # save augmentation profile data to file
-        if self.metadata:
-            md_path = os.path.join(self.config.md_dir, self.config.id, '.npy')
-            if not os.path.exists(self.path) or \
-                    input("\tData file {} exists. Overwrite? (\'Y\' or \'N\'): ".format(self.path)) == 'Y':
-                print('\nSaving profile metadata to {} ... '.format(self.path), end='')
-                np.save(md_path, self.metadata)
-                print('done.')

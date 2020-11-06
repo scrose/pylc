@@ -64,42 +64,26 @@ def get_parser(mode):
                      help='Unique identifier for output files. (default is Unix timestamp)')
 
     arg.add_argument('--db', type=str,
-                     default='',
-                     help='Path to database file.')
+                     default='/data/db/',
+                     help='Path to database directory or file.')
 
     arg.add_argument('--md', type=str,
-                     default='',
-                     help='Path to metadata file.')
+                     default='/data/metadata/',
+                     help='Path to metadata directory or file.')
 
-    arg.add_argument('--db_dir', type=str,
-                     default='/data/db',
-                     help='Path to database directory.')
-
-    arg.add_argument('--md_dir', type=str,
-                     default='/data/metadata',
-                     help='Path to metadata directory.')
-
-    arg.add_argument('--save_dir', type=str,
+    arg.add_argument('--save', type=str,
                      default='/data/save',
-                     help='Path to save output from training.')
+                     help='Path to save files from training.')
 
-    arg.add_argument('--output_dir', type=str,
+    arg.add_argument('--output', type=str,
                      default='/data/output',
-                     help='Path to database directory.')
-
-    arg.add_argument('--save_dir', type=str,
-                     default='/data/save',
                      help='Path to database directory.')
 
     arg.add_argument("--schema", type=str,
                      default="lcc-a",
                      help="Categorization schema loaded from \'settings.json\' (default \'lcc-a\')")
 
-    arg.add_argument("--n_classes", type=int,
-                     default=9,
-                     help="Number of segmentation classes. (Default: 9 for LCC.A schema)")
-
-    arg.add_argument("--in_channels", type=int,
+    arg.add_argument("--ch", type=int,
                      default=3,
                      help="Number of channels for image: 3 for colour image (default); 1 for grayscale images.")
 
@@ -147,17 +131,11 @@ def get_parser(mode):
                          help="List of database file paths to merge.",
                          nargs='+')
 
-
     # User settings for model training
     elif mode == 'train':
 
         arg = parser.add_argument_group("Train")
         arg_lists.append(arg)
-
-        arg.add_argument("--mode", type=str,
-                         default="normal",
-                         choices=["normal", "overfit", "summary"],
-                         help="Run mode for model training.")
 
         arg.add_argument('--model', type=str,
                          default='deeplab',
@@ -230,10 +208,9 @@ def get_parser(mode):
         arg = parser.add_argument_group("Test")
         arg_lists.append(arg)
 
-        arg.add_argument("--mode", type=str,
-                         default="normal",
-                         choices=["normal", "single", "reconstruct", "eval"],
-                         help="Run mode for model testing.")
+        arg.add_argument('--load', type=str,
+                         default='/data/pretrained/',
+                         help='Path to pretrained model.')
 
         arg.add_argument("--img", type=str,
                          default='./data/raw/images/',
@@ -243,7 +220,7 @@ def get_parser(mode):
                          default='./data/raw/masks/',
                          help="Path to masks directory or file.")
 
-        arg.add_argument('--output_path', type=str,
+        arg.add_argument('--output', type=str,
                          default='./data/eval/',
                          help='Experiment files directory.')
 
@@ -254,40 +231,6 @@ def get_parser(mode):
         arg.add_argument('--normalize_default', type=str2bool,
                          default=False,
                          help='Default input normalization (see parameter settings).')
-
-        arg.add_argument('--model', type=str,
-                         default='deeplab',
-                         choices=['unet', 'resnet', 'resunet', 'deeplab'],
-                         help='Network model architecture.')
-
-        arg.add_argument('--backbone', type=str,
-                         default='resnet',
-                         choices=["resnet", "xception"],
-                         help='Network model encoder.')
-
-        arg.add_argument('--pretrained', type=bool,
-                         default=False,
-                         help='Load pretrained network.')
-
-        arg.add_argument("--n_channels", type=int,
-                         default=9,
-                         help="Number of semantic classes.")
-
-        arg.add_argument("--cls_weight", type=str2bool,
-                         default=False,
-                         help="Weight applied to classes in loss computations.")
-
-        arg.add_argument("--ce_weight", type=float,
-                         default=0.5,
-                         help="Weight applied to Cross Entropy losses for backpropagation.")
-
-        arg.add_argument("--dice_weight", type=float,
-                         default=0.5,
-                         help="Weight applied to Dice losses for backpropagation.")
-
-        arg.add_argument("--focal_weight", type=float,
-                         default=0.5,
-                         help="Weight applied to Focal losses for back-propagation.")
 
         arg.add_argument("--resample", type=float,
                          default=None,
