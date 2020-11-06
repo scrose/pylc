@@ -1,17 +1,15 @@
 """
+(c) 2020 Spencer Rose, MIT Licence
+MLP Landscape Classification Tool (MLP-LCT)
+ Reference: An evaluation of deep learning semantic segmentation
+ for land cover classification of oblique ground-based photography,
+ MSc. Thesis 2020.
+ <http://hdl.handle.net/1828/12156>
+Spencer Rose <spencerrose@uvic.ca>, June 2020
+University of Victoria
 
- Copyright:     (c) 2020 Spencer Rose, MIT Licence
- Project:       MLP Landscape Classification Tool (MLP-LCT)
- Reference:     An evaluation of deep learning semantic
-                segmentation for land cover classification
-                of oblique ground-based photography, MSc. Thesis 2020.
-                <http://hdl.handle.net/1828/12156>
- Author:        Spencer Rose <spencerrose@uvic.ca>, June 2020
- Affiliation:   University of Victoria
-
- Module:        Model Trainer
- File:          train.py
-
+Module: Model Trainer
+File: train.py
 """
 
 import os
@@ -30,7 +28,7 @@ def train(cf, model):
     
      Parameters
      ------
-     config: dict
+     cf: dict
         configuration settings
      model: Model
         Network model.
@@ -43,7 +41,7 @@ def train(cf, model):
 
     # Load training dataset (db)
     db_path = os.path.join(cf.db)
-    tr_dloader, va_dloader, tr_size, va_size, db_size = load_data(config, mode=params.TRAIN, db_path=db_path)
+    tr_dloader, va_dloader, tr_size, va_size, db_size = load_data(cf, mode=params.TRAIN, db_path=db_path)
     tr_batches = tr_size//cf.batch_size
     va_batches = va_size//cf.batch_size
 
@@ -101,7 +99,6 @@ def train_epoch(model, dloader, n_batches):
 
     model.net.train()
     for i, (x, y) in tqdm(enumerate(dloader), total=n_batches, desc="Training: ", unit=' batches'):
-        # train with main dataset
         model.train(x, y)
     return model
 
@@ -135,6 +132,7 @@ def validate(model, dloader, n_batches):
         model.save()
     return model
 
+
 def main(cf):
     """
      Main training handler
@@ -151,8 +149,7 @@ def main(cf):
     # Check for existing checkpoint. If exists, resume from
     # previous training. If not, delete the checkpoint.
     model.resume()
-    self.net.train()
-
+    model.net.train()
     model.print_settings()
     train(cf, model)
 
@@ -160,14 +157,14 @@ def main(cf):
 if __name__ == "__main__":
 
     ''' Parse model configuration '''
-    config, unparsed, parser = get_config(params.TRAIN)
+    cf, unparsed, parser = get_config(params.TRAIN)
 
     # If we have unparsed arguments, or help request print usage and exit
     if len(unparsed) > 0 or cf.h:
         parser.print_usage()
         exit()
 
-    main(config)
+    main(cf)
 
 
 # train.py ends here

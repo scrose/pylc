@@ -94,10 +94,10 @@ class Parameters:
 
         # size of the tiles to extract and save in the database, must be >= to input size
         self.input_size = 512
-        self.patch_size = 512
+        self.tile_size = 512
 
         # patch stride: smaller than input_size for overlapping tiles
-        self.stride_size = 512
+        self.stride = 512
 
         # [U-Net] number of pixels to pad *after* resize to image with by mirroring (edge's of
         # patches tend not to be analyzed well, so padding allows them to appear more centered

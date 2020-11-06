@@ -51,7 +51,7 @@ class ClassifierGUI:
         menubar.add_cascade(label="File", menu=file_menu)
 
         menubar.add_command(label="Mode", command=switch_mode)
-        self.master.config(menu=menubar)
+        self.master.cf(menu=menubar)
 
 
     def switch_mode(self):

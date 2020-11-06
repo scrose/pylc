@@ -89,16 +89,16 @@ class Profiler(object):
             self.load_db(data_path)
             print("\nProfiling {}... ".format(data_path))
         else:
-            assert data.type == 'numpy.ndarray', "Profiler input data must be Numpy array."
-            self.load_data(data_path)
+            assert type(data) == np.ndarray, "Profiler input data must be numpy array."
+            self.load_data(data)
             print("\nProfiling ... ")
 
         # Obtain overall class stats for dataset
         n_samples = self.dset_size
         px_dist = []
-        px_count = params.patch_size * params.patch_size
-        px_mean = torch.zeros(self.config.in_channels)
-        px_std = torch.zeros(self.config.in_channels)
+        px_count = params.tile_size * params.tile_size
+        px_mean = torch.zeros(self.config.ch)
+        px_std = torch.zeros(self.config.ch)
 
         # load image and target batches from database
         for i, data in tqdm(enumerate(self.dloader), total=self.dset_size, unit=' batches'):
@@ -109,7 +109,7 @@ class Profiler(object):
             px_std += torch.std(img, (0, 2, 3))
 
             # convert target to one-hot encoding
-            target_1hot = torch.nn.functional.one_hot(target, num_classes=self.config.n_classes).permute(0, 3, 1, 2)
+            target_1hot = torch.nn.functional.one_hot(target, num_classes=self.n_classes).permute(0, 3, 1, 2)
             px_dist_sample = [np.sum(target_1hot.numpy(), axis=(2, 3))]
             px_dist += px_dist_sample
 
@@ -131,14 +131,14 @@ class Profiler(object):
         weights = weights / np.max(weights)
 
         # Calculate JSD and M2 metrics
-        balanced_px_prob = np.empty(self.config.n_classes)
-        balanced_px_prob.fill(1 / self.config.n_classes)
-        m2 = (self.config.n_classes / (self.config.n_classes - 1)) * (1 - np.sum(probs ** 2))
+        balanced_px_prob = np.empty(self.n_classes)
+        balanced_px_prob.fill(1 / self.n_classes)
+        m2 = (self.n_classes / (self.n_classes - 1)) * (1 - np.sum(probs ** 2))
         jsd = utils.jsd(probs, balanced_px_prob)
 
         self.metadata = {
             'id': self.config.id,
-            'channels': self.config.in_channels,
+            'channels': self.config.ch,
             'n_samples': n_samples,
             'px_dist': px_dist,
             'px_count': px_count,
@@ -171,6 +171,18 @@ class Profiler(object):
 
         return self
 
+    def set(self, key, data):
+        """
+          Set metadata value in profile.
+        """
+        self.metadata[key] = data
+
+    def get(self, key):
+        """
+          Get metadata value from profile.
+        """
+        return self.metadata[key]
+
     def load_db(self, db_path):
         """
           Loads database for profiling.
@@ -187,61 +199,39 @@ class Profiler(object):
 
         return self
 
-    def save(self):
+    def save(self, dir_path):
         """
         Save current metadata to user-defined file path
-        """
 
-        # save augmentation profile data to file
-        if self.metadata:
-            md_path = os.path.join(self.config.md_dir, self.config.id, '.npy')
-            if not os.path.exists(self.path) or \
-                    input("\tData file {} exists. Overwrite? (\'Y\' or \'N\'): ".format(self.path)) == 'Y':
-                print('\nSaving profile metadata to {} ... '.format(self.path), end='')
-                np.save(md_path, self.metadata)
-                print('done.')
-
-    def convert(self):
+        Parameters
+        ----------
+        dir_path: str
+            Metadata directory path.
         """
-        Convert numpy profile to standard dict
-
-         Returns
-         ------
-         dict
-            Profile metadata.
-        """
-        return {
-            'id': self.metadata.item().get('id'),
-            'channels': self.metadata.item().get('channels'),
-            'n_samples': self.metadata.item().get('n_samples'),
-            'px_dist': self.metadata.item().get('px_dist'),
-            'px_count': self.metadata.item().get('px_count'),
-            'dset_px_dist': self.metadata.item().get('dset_px_dist'),
-            'dset_px_count': self.metadata.item().get('dset_px_count'),
-            'probs': self.metadata.item().get('probs'),
-            'weights': self.metadata.item().get('weights'),
-            'm2': self.metadata.item().get('m2'),
-            'jsd': self.metadata.item().get('jsd'),
-            'px_mean': self.metadata.item().get('px_mean'),
-            'px_std': self.metadata.item().get('px_std')
-        }
+        assert self.metadata, "Metadata is empty. Save aborted."
+        file_path = os.path.join(dir_path, self.config.id, '.npy')
+        if not os.path.exists(file_path) or \
+                input("\tData file {} exists. Overwrite? (\'Y\' or \'N\'): ".format(file_path)) == 'Y':
+            print('\nSaving profile metadata to {} ... '.format(file_path))
+            np.save(file_path, self.metadata)
 
     def print(self):
         """
-          Prints current class profile to stdout
+          Prints profile metadata to console
         """
+        readout = '\nData Profile\n'
+        for key, value in self.metadata.items():
+            if key == 'weights':
+                readout = '\n------\n{:20s} {:3s} \t {:3s}\n'.format('Class', 'Probs', 'Weights')
+                # add class weights
+                for i, w in enumerate(self.metadata['weights']):
+                    readout += '{:20s} {:3f} \t {:3f}'.format(
+                        self.schema.labels[i], self.metadata['probs'][i], w)
+            else:
+                readout += '\n\t' + key.upper + ': ' + value
+            readout += print('\tSample Size: {} x {} = {} pixels'.format(
+                params.tile_size, params.tile_size, params.tile_size * params.tile_size))
+            readout += '------'
 
-        patch_size = params.patch_size
+        print(readout)
 
-        print('\n-----\nProfile')
-        print('\tID: {}'.format(self.metadata['id']))
-        print('\tCapture: {}'.format(self.metadata['capture']))
-        print('\tM2: {}'.format(self.metadata['m2']))
-        print('\tJSD: {}'.format(self.metadata['jsd']))
-        print('\n-----\n{:20s} {:3s} \t {:3s}\n'.format('Class', 'Probs', 'Weights'))
-        for i, w in enumerate(self.metadata['weights']):
-            print('{:20s} {:3f} \t {:3f}'.format(params.labels[i], self.metadata['probs'][i], w))
-        print('\nTotal samples: {}'.format(self.metadata['n_samples']))
-        print('\tPx mean: {}'.format(self.metadata['px_mean']))
-        print('\tPx std: {}'.format(self.metadata['px_std']))
-        print('\tSample Size: {} x {} = {} pixels'.format(patch_size, patch_size, patch_size * patch_size))

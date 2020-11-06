@@ -18,8 +18,8 @@ import numpy as np
 import torch
 from config import get_config
 import utils.tools as utils
-from utils.extractor import Extractor
-from utils.augmentor import Augmentor
+from utils.extract import Extractor
+from utils.augment import Augmentor, merge_dbs
 from utils.profiler import Profiler
 from utils.dbwrapper import DB, load_data
 from tqdm import tqdm
@@ -99,93 +99,24 @@ def main(cf, parser):
         print("\nStarting profile of augmented data ... ")
         profiler.profile(aug_db_path).save()
 
-
-    # Database Profiling
+    # --- Data Profile ---
     elif cf.mode == params.PROFILE:
 
         profiler.profile(cf.db).save()
 
-    # -----------------------------
-    # Print dataset profile to screen
-    # -----------------------------
-    elif cf.mode == 'show_profile':
-
-        # Load dataset metadata and write to stdout
-        profiler.load(cf.md).print()
-
-    # -----------------------------
-    # Merge multiple databases
-    # -----------------------------
-    # Merge extraction/augmentation databases
-    # -----------------------------
+    # --- Merge Databases ---
     elif cf.mode == params.MERGE:
 
-        # set batch size to single
-        cf.batch_size = 1
-        patch_size = params.patch_size
-        idx = 0
+        merge_dbs(cf)
 
-        # number of databases to merge
-        n_dbs = len(cf.dbs)
-        dset_merged_size = 0
-
-        # initialize merged database
-        db_base = DB(cf)
-        db_path_merged = os.path.join(params.get_path('db', cf.capture), cf.id + '.h5')
-        dloaders = []
-
-        print("Merging {} databases: {}".format(n_dbs, cf.dbs))
-        print('\tCapture Type: {}'.format(cf.capture))
-        print('\tClasses: {}'.format(cf.n_classes))
-        print('\tChannels: {}'.format(cf.in_channels))
-
-        # Load databases into loader list
-        for db in cf.dbs:
-            db_path = os.path.join(params.get_path('db', cf.capture), db + '.h5')
-            dl, dset_size, db_size = load_data(cf, params.MERGE, db_path)
-            dloaders += [{'name': db, 'dloader': dl, 'dset_size': dset_size}]
-            dset_merged_size += dset_size
-            print('\tDatabase {} loaded.\n\tSize: {} / Batch size: {}'.format(db, dset_size, cf.batch_size))
-
-        # initialize main image arrays
-        merged_imgs = np.empty((dset_merged_size, cf.in_channels, patch_size, patch_size), dtype=np.uint8)
-        merged_targets = np.empty((dset_merged_size, patch_size, patch_size), dtype=np.uint8)
-
-        # Merge databases
-        for dl in dloaders:
-            # copy database to merged database
-            print('\nCopying {} to merged database ... '.format(dl['name']), end='')
-            for i, data in tqdm(enumerate(dl['dloader']), total=dl['dset_size'] // cf.batch_size, unit=' batches'):
-                img, target = data
-                np.copyto(merged_imgs[idx:idx + 1, ...], img.numpy().astype(np.uint8))
-                np.copyto(merged_targets[idx:idx + 1, ...], target.numpy().astype(np.uint8))
-                idx += 1
-
-        # Shuffle data
-        print('\nShuffling ... ', end='')
-        idx_arr = np.arange(len(merged_imgs))
-        np.random.shuffle(idx_arr)
-        merged_imgs = merged_imgs[idx_arr]
-        merged_targets = merged_targets[idx_arr]
-        print('done.')
-
-        data = {'img': merged_imgs, 'mask': merged_targets}
-
-        # save merged database file
-        db_base.save(data, path=db_path_merged)
-
-    # -----------------------------
-    # Apply grayscaling to image data
-    # -----------------------------
-    # Saves grayscaled version of database
-    # -----------------------------
+    # ---- Grayscale ---
     elif cf.mode == params.GRAYSCALE:
 
         # Data augmentation based on pixel profile
         print('\nStarting {}:{} image grayscaling ...'.format(cf.capture, cf.id))
         # set batch size to single
         cf.batch_size = 1
-        patch_size = params.patch_size
+        patch_size = params.tile_size
         # turn off multi-processing
         cf.n_workers = 0
         cf.in_channels = 3
@@ -225,7 +156,7 @@ def main(cf, parser):
 
     # Run submode is not defined.
     else:
-        print("Unknown preprocessing action: \"{}\"".format(cf.mode))
+        print("Unknown preprocessing mode: \"{}\"".format(cf.mode))
         parser.print_usage()
 
 

@@ -9,7 +9,7 @@ Spencer Rose <spencerrose@uvic.ca>, June 2020
 University of Victoria
 
 Module: Augmentor
-File: augmentor.py
+File: augment.py
 """
 import os
 
@@ -20,7 +20,7 @@ import utils.tools as utils
 import numpy as np
 from params import params
 from utils.profiler import Profiler
-from utils.dbwrapper import load_data
+from utils.dbwrapper import load_data, DB
 
 
 class Augmentor(object):
@@ -192,7 +192,7 @@ class Augmentor(object):
         assert self.dloader and self.dset_size and self.db_size, "Database is not loaded."
 
         # initialize main image arrays
-        e_size = params.patch_size
+        e_size = params.tile_size
         imgs = np.empty((self.dsize * 2, self.config.in_channels, e_size, e_size), dtype=np.uint8)
         targets = np.empty((self.dsize * 2, e_size, e_size), dtype=np.uint8)
         idx = 0
@@ -231,3 +231,70 @@ class Augmentor(object):
         self.aug_size = len(imgs)
 
         return self
+
+
+def merge_dbs(cf):
+    """
+    Loads source database.
+
+    Parameters
+    ------
+    cf: dict
+        User-defined configuration parameters
+
+    Returns
+    ------
+    self
+        For chaining.
+     """
+
+    # set batch size to single
+    cf.batch_size = 1
+    patch_size = params.tile_size
+    idx = 0
+    n_classes = params.schema(cf).n_classes
+
+    # number of databases to merge
+    n_dbs = len(cf.dbs)
+    dset_merged_size = 0
+
+    # initialize merged database
+    db_base = DB(cf)
+    db_path_merged = os.path.join(cf.output, cf.id + '.h5')
+    dloaders = []
+
+    print("Merging {} databases: {}".format(n_dbs, cf.dbs))
+    print('\tClasses: {}'.format(n_classes))
+    print('\tChannels: {}'.format(cf.ch))
+
+    # Load databases into loader list
+    for db_path in cf.dbs:
+        dl, dset_size, db_size = load_data(cf, params.MERGE, db_path)
+        dloaders += [{'name': os.path.basename(db_path), 'dloader': dl, 'dset_size': dset_size}]
+        dset_merged_size += dset_size
+        print('\tDatabase {} loaded.\n\tSize: {} / Batch size: {}'.format(
+            os.path.basename(db_path), dset_size, cf.batch_size))
+
+    # initialize main image arrays
+    merged_imgs = np.empty((dset_merged_size, cf.ch, patch_size, patch_size), dtype=np.uint8)
+    merged_masks = np.empty((dset_merged_size, patch_size, patch_size), dtype=np.uint8)
+
+    # Merge databases
+    for dl in dloaders:
+        # copy database to merged database
+        print('\nCopying {} to merged database ... '.format(dl['name']), end='')
+        for i, data in tqdm(enumerate(dl['dloader']), total=dl['dset_size'] // cf.batch_size, unit=' batches'):
+            img, target = data
+            np.copyto(merged_imgs[idx:idx + 1, ...], img.numpy().astype(np.uint8))
+            np.copyto(merged_masks[idx:idx + 1, ...], target.numpy().astype(np.uint8))
+            idx += 1
+
+    # Shuffle data
+    print('\nShuffling ... ', end='')
+    merged_imgs, merged_masks = utils.coshuffle(merged_imgs, merged_masks)
+    print('done.')
+
+    data = {'img': merged_imgs, 'mask': merged_masks}
+
+    # save merged database file
+    db_base.save(data, path=db_path_merged)

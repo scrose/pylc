@@ -30,7 +30,7 @@ def str2bool(v):
         Output boolean value.
     """
 
-    return v.lower() in ("true", "1")
+    return v.lower() in ('true', '1')
 
 
 def get_parser(mode):
@@ -52,7 +52,7 @@ def get_parser(mode):
     parser = argparse.ArgumentParser()
 
     # User settings for general operation
-    arg = parser.add_argument_group("Main")
+    arg = parser.add_argument_group('Main')
     arg_lists.append(arg)
 
     arg.add_argument('--h', type=str,
@@ -79,62 +79,62 @@ def get_parser(mode):
                      default='/data/output',
                      help='Path to database directory.')
 
-    arg.add_argument("--schema", type=str,
-                     default="lcc-a",
-                     help="Categorization schema loaded from \'settings.json\' (default \'lcc-a\')")
+    arg.add_argument('--schema', type=str,
+                     default='lcc-a',
+                     help='Categorization schema loaded from \'settings.json\' (default \'lcc-a\')')
 
-    arg.add_argument("--ch", type=int,
+    arg.add_argument('--ch', type=int,
                      default=3,
-                     help="Number of channels for image: 3 for colour image (default); 1 for grayscale images.")
+                     help='Number of channels for image: 3 for colour image (default); 1 for grayscale images.')
 
-    arg.add_argument("--n_workers", type=int,
+    arg.add_argument('--n_workers', type=int,
                      default=6,
-                     help="Number of workers for worker pool.")
+                     help='Number of workers for worker pool.')
 
-    arg.add_argument("--clip", type=float,
+    arg.add_argument('--clip', type=float,
                      default=1.,
-                     help="Fraction of dataset to use in training.")
+                     help='Fraction of dataset to use in training.')
 
     # User settings for data preprocessing
     if mode == 'preprocess':
 
-        arg = parser.add_argument_group("Preprocess")
+        arg = parser.add_argument_group('Preprocess')
         arg_lists.append(arg)
 
-        arg.add_argument("--mode", type=str,
+        arg.add_argument('--mode', type=str,
                          default=None,
-                         choices=["extract", "profile", "show_profile", "augment", "merge", "grayscale"],
-                         help="Run mode for data preprocessing.")
+                         choices=["extract', 'profile', 'show_profile', 'augment', 'merge', 'grayscale"],
+                         help='Run mode for data preprocessing.')
 
-        arg.add_argument("--img", type=str,
+        arg.add_argument('--img', type=str,
                          default='./data/raw/images/',
-                         help="Path to images directory or file.")
+                         help='Path to images directory or file.')
 
-        arg.add_argument("--mask", type=str,
+        arg.add_argument('--mask', type=str,
                          default='./data/raw/masks/',
-                         help="Path to masks directory or file.")
+                         help='Path to masks directory or file.')
 
-        arg.add_argument("--pad", type=str2bool,
+        arg.add_argument('--pad', type=str2bool,
                          default=False,
-                         help="Pad extracted images (Optional: use for UNet model training).")
+                         help='Pad extracted images (Optional: use for UNet model training).')
 
-        arg.add_argument("--batch_size", type=int,
+        arg.add_argument('--batch_size', type=int,
                          default=50,
-                         help="Size of each data batch (Default: 50)")
+                         help='Size of each data batch (Default: 50)')
 
-        arg.add_argument("--scale", type=bool,
+        arg.add_argument('--scale', type=bool,
                          default=True,
-                         help="Apply image scaling before extraction.")
+                         help='Apply image scaling before extraction.')
 
-        arg.add_argument("--dbs", type=str,
+        arg.add_argument('--dbs', type=str,
                          default='',
-                         help="List of database file paths to merge.",
+                         help='List of database file paths to merge.',
                          nargs='+')
 
     # User settings for model training
     elif mode == 'train':
 
-        arg = parser.add_argument_group("Train")
+        arg = parser.add_argument_group('Train')
         arg_lists.append(arg)
 
         arg.add_argument('--model', type=str,
@@ -144,59 +144,59 @@ def get_parser(mode):
 
         arg.add_argument('--backbone', type=str,
                          default='resnet',
-                         choices=["resnet", "xception"],
+                         choices=["resnet', 'xception"],
                          help='Network model encoder.')
 
-        arg.add_argument("--cls_weight", type=str2bool,
+        arg.add_argument('--cls_weight', type=str2bool,
                          default=False,
-                         help="Weight applied to classes in loss computations.")
+                         help='Weight applied to classes in loss computations.')
 
-        arg.add_argument("--ce_weight", type=float,
+        arg.add_argument('--ce_weight', type=float,
                          default=0.5,
-                         help="Weight applied to Cross Entropy losses for back-propagation.")
+                         help='Weight applied to Cross Entropy losses for back-propagation.')
 
-        arg.add_argument("--dice_weight", type=float,
+        arg.add_argument('--dice_weight', type=float,
                          default=0.5,
-                         help="Weight applied to Dice losses for back-propagation.")
+                         help='Weight applied to Dice losses for back-propagation.')
 
-        arg.add_argument("--focal_weight", type=float,
+        arg.add_argument('--focal_weight', type=float,
                          default=0.5,
-                         help="Weight applied to Focal losses for back-propagation.")
+                         help='Weight applied to Focal losses for back-propagation.')
 
         arg.add_argument('--up_mode', type=str,
                          default='upsample',
-                         choices=["upconv", "upsample"],
+                         choices=["upconv', 'upsample"],
                          help='Interpolation for upsampling (Optional: use for U-Net).')
 
         arg.add_argument('--optim', type=str,
                          default='adam',
-                         choices=["adam", "sgd"],
+                         choices=["adam', 'sgd"],
                          help='Network model optimizer.')
 
         arg.add_argument('--sched', type=str,
                          default='step_lr',
-                         choices=["step_lr", "cyclic_lr", "anneal"],
+                         choices=["step_lr', 'cyclic_lr', 'anneal"],
                          help='Network model optimizer.')
 
-        arg.add_argument("--lr", type=float,
+        arg.add_argument('--lr', type=float,
                          default=0.00005,
-                         help="Initial learning rate.")
+                         help='Initial learning rate.')
 
-        arg.add_argument("--batch_size", type=int,
+        arg.add_argument('--batch_size', type=int,
                          default=8,
-                         help="Size of each training batch.")
+                         help='Size of each training batch.')
 
-        arg.add_argument("--n_epochs", type=int,
+        arg.add_argument('--n_epochs', type=int,
                          default=10,
-                         help="Number of epochs to train.")
+                         help='Number of epochs to train.')
 
-        arg.add_argument("--report", type=int,
+        arg.add_argument('--report', type=int,
                          default=20,
-                         help="Report interval (number of iterations).")
+                         help='Report interval (number of iterations).')
 
-        arg.add_argument("--resume", type=str2bool,
+        arg.add_argument('--resume', type=str2bool,
                          default=False,
-                         help="Resume training from existing checkpoint.")
+                         help='Resume training from existing checkpoint.')
 
         arg.add_argument('--pretrained', type=bool,
                          default=True,
@@ -205,20 +205,20 @@ def get_parser(mode):
     # User settings for model testing
     elif mode == 'test':
 
-        arg = parser.add_argument_group("Test")
+        arg = parser.add_argument_group('Test')
         arg_lists.append(arg)
 
         arg.add_argument('--load', type=str,
                          default='/data/pretrained/',
                          help='Path to pretrained model.')
 
-        arg.add_argument("--img", type=str,
+        arg.add_argument('--img', type=str,
                          default='./data/raw/images/',
-                         help="Path to images directory or file.")
+                         help='Path to images directory or file.')
 
-        arg.add_argument("--mask", type=str,
+        arg.add_argument('--mask', type=str,
                          default='./data/raw/masks/',
-                         help="Path to masks directory or file.")
+                         help='Path to masks directory or file.')
 
         arg.add_argument('--output', type=str,
                          default='./data/eval/',
@@ -232,21 +232,13 @@ def get_parser(mode):
                          default=False,
                          help='Default input normalization (see parameter settings).')
 
-        arg.add_argument("--resample", type=float,
+        arg.add_argument('--scale', type=float,
                          default=None,
-                         help="Scales input image by scaling factor.")
+                         help='Scales input image by scaling factor.')
 
-        arg.add_argument('--validate', type=str2bool,
-                         default=True,
-                         help='Validate test results and evaluate overall accuracy.')
-
-        arg.add_argument("--report", type=int,
-                         default=5,
-                         help="Report interval (unit: iterations).")
-
-        arg.add_argument("--global_metrics", type=str2bool,
+        arg.add_argument('--global_metrics', type=str2bool,
                          default=False,
-                         help="Report only global metrics for model.")
+                         help='Report only global metrics for model.')
 
     return parser
 

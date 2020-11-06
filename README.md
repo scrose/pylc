@@ -148,12 +148,13 @@ python preprocess.py --mode augment --db [path/to/database.h5]
 
 #### Database Merging 
 Multiple databases can be combined and shuffled.
+
 ```
 python preprocess.py --merge --dbs [paths to databases] --output [path/to/output/directory/] 
 ```
 For example, using historic database files `db_1.h5` and `db_2.h5`
 ```
-python preprocess.py --merge --dbs data/db/db_1.h5, data/db/db_2.h5 --output data/db/merged/
+python preprocess.py --merge --dbs data/db/db_1.h5, data/db/db_2.h5 --output data/db/merged/ --id merged_dbs_1_and_2
 ```
 
 ### Training
@@ -177,15 +178,17 @@ Segmentation maps can be generated for input images
 
 #### Options: 
 - `--id <str>`: Unique identifier to label output files (default: Unix timestamp).
-- `--load <path>`: Path to pretrained model.
-- `--img <path>`: Path to images directory or single file. 
-- `--mask <path>`: (Optional) Path to masks directory or single file to evaluate model performance. 
-- `--batch_size <int>`: Size of each data batch (default: 50). 
-
+- `--load <path>`: (Required) Path to pretrained model.
+- `--img <path>`: (Required) Path to images directory or single file. 
+- `--mask <path>`: Path to masks directory or single file. This option triggers an evaluation of model outputs using various metrics: F1, mIoU, Matthew's Correlation Coefficient, and generates a confusion matrix. 
+- `--save_output <bool>`: Save unnormalized model output(s) to file (default: False).
+- `--normalize_default <bool>`: Use preset image normalization coefficients instead of database metadata (default: False -- see default values in parameter settings).
+- `--scale <float>`: Scale the input image(s) by given factor (default: None).
+- `--global_metrics <bool>`: Report global metrics for model evaluation (default: False).
+                         
 ```
 python test.py --mode [] --load [path/to/model] --img [path/to/images(s)] --mask [path/to/mask(s)] --id [unique identifier]
 ```
-
 
 
 ## References 
