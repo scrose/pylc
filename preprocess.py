@@ -16,55 +16,35 @@ import os
 import sys
 import numpy as np
 import torch
-from config import get_config
-import utils.tools as utils
-from utils.extract import Extractor
-from utils.augment import Augmentor, merge_dbs
+from utils.extract import extractor, Extractor
+from utils.augment import augmentor, Augmentor, merge_dbs
 from utils.profiler import Profiler
-from utils.dbwrapper import DB, load_data
+from utils.db import DB
+from utils.dataset import load_data
 from tqdm import tqdm
-from params import params
+from config import cf
 
 
-def main(cf, parser):
+def preprocess():
     """
     Main preprocessing handler
-
-    Parameters
-    ------
-    cf: dict
-        User configuration settings.
-    parser: ArgParser
-        Argument parser.
-
-     Returns
-     ------
-     bool
-        Output boolean value.
     """
 
     # Initialize profiler, database
-    profiler = Profiler(cf)
-    db = DB(cf)
+    profiler = Profiler()
+    db = DB()
 
     # --- Tile Extraction ---
-    if cf.mode == params.EXTRACT:
+    if cf.mode == cf.EXTRACT:
 
         # Extract subimages from user-defined directories
         print("Starting extraction of \n\timages: {}\n\t masks: {} ... ".format(cf.img_dir, cf.mask_dir))
-        data = Extractor(cf).load(cf.img_dir, cf.mask_dir).extract().save()
+        extractor = Extractor()
+        extractor.load(cf.img_dir, cf.mask_dir).extract().profile().save()
         print('Extraction done.')
 
-        # save to database directory
-        db = DB(cf)
-        db_path = os.path.join(cf.db_dir, cf.id, '.h5')
-        db.save(data, db_path)
-
-        # Generate profile metadata for extracted database and save
-        profiler.profile(db_path).save()
-
     # --- Data Augmentation ---
-    elif cf.mode == params.AUGMENT:
+    elif cf.mode == cf.AUGMENT:
 
         # Data augmentation based on pixel profile
         print('\nStarting augmentation for database {} ...'.format(cf.db))
@@ -74,8 +54,7 @@ def main(cf, parser):
         cf.n_workers = 0
 
         # Load db into augmenter and calculate sample rates
-        md_path = os.path.split(os.path.basename(cf.db))[0]
-        augmentor = Augmentor(cf).load(cf.db, md_path)
+        augmentor.load(cf.db)
 
         print('\nOptimizing sample rates  ... ', end='')
         augmentor.optimize()
@@ -100,23 +79,23 @@ def main(cf, parser):
         profiler.profile(aug_db_path).save()
 
     # --- Data Profile ---
-    elif cf.mode == params.PROFILE:
+    elif cf.mode == cf.PROFILE:
 
         profiler.profile(cf.db).save()
 
     # --- Merge Databases ---
-    elif cf.mode == params.MERGE:
+    elif cf.mode == cf.MERGE:
 
         merge_dbs(cf)
 
     # ---- Grayscale ---
-    elif cf.mode == params.GRAYSCALE:
+    elif cf.mode == cf.GRAYSCALE:
 
         # Data augmentation based on pixel profile
         print('\nStarting {}:{} image grayscaling ...'.format(cf.capture, cf.id))
         # set batch size to single
         cf.batch_size = 1
-        patch_size = params.tile_size
+        patch_size = cf.tile_size
         # turn off multi-processing
         cf.n_workers = 0
         cf.in_channels = 3
@@ -125,11 +104,11 @@ def main(cf, parser):
 
         # initialize target database
         db_base = DB(cf)
-        db_path_grayscale = os.path.join(params.get_path('db', cf.capture), cf.id + '.h5')
+        db_path_grayscale = os.path.join(cf.get_path('db', cf.capture), cf.id + '.h5')
 
         # Load source database
-        db_path = os.path.join(params.get_path('db', cf.capture), cf.db + '.h5')
-        dloader, dset_size, db_size = load_data(cf, params.EXTRACT, db_path)
+        db_path = os.path.join(cf.get_path('db', cf.capture), cf.db + '.h5')
+        dloader, dset_size, db_size = load_data(cf, cf.EXTRACT, db_path)
 
         # initialize main image arrays
         gray_imgs = np.empty((dset_size, 1, patch_size, patch_size), dtype=np.uint8)
@@ -163,7 +142,7 @@ def main(cf, parser):
 if __name__ == "__main__":
 
     ''' Parse model configuration '''
-    config, unparsed, parser = get_config(params.PREPROCESS)
+    config, unparsed, parser = get_config(cf.PREPROCESS)
     if config.h or not config.mode or not config.id:
         parser.print_usage()
         sys.exit(0)

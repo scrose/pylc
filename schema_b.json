@@ -1,0 +1,139 @@
+{
+    "classes": [
+      {
+        "label": "Not categorized",
+        "code": "NC",
+        "colour": {
+          "rgb": [
+            0,
+            0,
+            0
+          ],
+          "hex": "#000000"
+        }
+      },
+      {
+        "label": "Broadleaf",
+        "code": "BL",
+        "colour": {
+          "rgb": [
+            255,
+            170,
+            0
+          ],
+          "hex": "#ffaa00"
+        }
+      },
+      {
+        "label": "Mixedwood",
+        "code": "MW",
+        "colour": {
+          "rgb": [
+            213,
+            213,
+            0
+          ],
+          "hex": "#d5d500"
+        }
+      },
+      {
+        "label": "Coniferous",
+        "code": "C",
+        "colour": {
+          "rgb": [
+            0,
+            85,
+            0
+          ],
+          "hex": "#005500"
+        }
+      },
+      {
+        "label": "Shrub",
+        "code": "S",
+        "colour": {
+          "rgb": [
+            65,
+            220,
+            102
+          ],
+          "hex": "#41dc66"
+        }
+      },
+      {
+        "label": "Herbaceous",
+        "code": "H",
+        "colour": {
+          "rgb": [
+            255,
+            255,
+            127
+          ],
+          "hex": "#ffff7f"
+        }
+      },
+      {
+        "label": "Sand/Gravel/Rock",
+        "code": "S-G-R",
+        "colour": {
+          "rgb": [
+            135,
+            52,
+            52
+          ],
+          "hex": "#873434"
+        }
+      },
+      {
+        "label": "Wetland",
+        "code": "WL",
+        "colour": {
+          "rgb": [
+            170,
+            170,
+            255
+          ],
+          "hex": "#aaaaff"
+        }
+      },
+      {
+        "label": "Water",
+        "code": "WT",
+        "colour": {
+          "rgb": [
+            0,
+            0,
+            255
+          ],
+          "hex": "#0000ff"
+        }
+      },
+      {
+        "label": "Snow/Ice",
+        "code": "S-I",
+        "colour": {
+          "rgb": [
+            176,
+            255,
+            253
+          ],
+          "hex": "#b0fffd"
+        }
+      },
+      {
+        "label": "Regenerating Area",
+        "code": "RA",
+        "colour": {
+          "rgb": [
+            255,
+            0,
+            255
+          ],
+          "hex": "#ff00ff"
+        }
+      }
+    ],
+  "map": {
+    "b-to-a": [0, 1, 1, 2, 3, 3, 4, 5, 6, 7, 8]
+  }
+}

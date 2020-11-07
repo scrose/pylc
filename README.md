@@ -25,7 +25,7 @@ The MLP classification tool uses a deep convolutional neural network (DCNN) trai
 
 Training data used to generate the pretrained segmentation models is comprised of high-resolution historic (grayscale) photographs, and repeat (colour) images from the MLP collection. Land cover segmentation maps, manually created by MLP researchers, were used as ground truth labels. These datasets are publicly available and released through the [Creative Commons Attribution-Non Commercial 4.0 International License](http://creativecommons.org/licenses/by-nc/4.0/legalcode).
 
-Segmentation masks used in the two training datasets (DST.A and DST.B) conform to different land cover classification schemas, as shown below. The categories are defined in the `settings.json` configuration file.
+Segmentation masks used in the two training datasets (DST.A and DST.B) conform to different land cover classification schemas, as shown below. The categories are defined in schema files `schema_a.json` and `schema_b.json`, that correspond to DST.A and DST.B respectively.
 
 ### DST.A - [(Repository - 2.1 GB)](https://zenodo.org/record/12590) 
 
@@ -97,21 +97,19 @@ User configuration arguments `config.py` for . User input parameters can be list
 python test.py -h # prints usage configuration options
 ```
 
-The categorization schema is defined in  `settings.py` .
+Categorization schemas (i.e. class definitions) are defined in separate JSON files. Two examples are provided: `schema_a.json` and `schema_b.json`, that correspond to DST.A and DST.B respectively.
+
 
 ### 1. Preprocessing
 
-This package offers configurable preprocessing utilities to prepare raw input data for model training. All input data must be stored in the `data/raw` directory in the MLP-LCT root. Images (jpg or tif) are stored in `data/raw/images` and masks (png) in `data/raw/masks`. The image filename must match its mask filename (e.g. img_01.tif and msk_01.png).
-```
-mkdir data
-mkdir data/raw
-```
-Next, download the image/mask dataset(s) (see repository links under Datasets section) and save files to `raw` using the file structure defined in `paths.json`. You can define new files paths in `paths.json` but it is important to keep the same JSON schema.
+This package offers configurable preprocessing utilities to prepare raw input data for model training. Input images must be either JPG or TIF format, and masks PNG format. The image filename must match its mask filename (e.g. img_01.tif and msk_01.png). You can download the original image/mask dataset(s) (see repository links under Datasets section) and save to a local directory for model training and testing.
 
 #### Options: 
 - `--mode extract | profile | augment | merge | grayscale`: Run mode for data preprocessing 
 - `--img <path>`: Path to images directory or single file. 
 - `--mask <path>`: Path to masks directory or single file. 
+- `--output <path>`: Path to output directory. 
+- `--schema <path>`: Categorization schema (JSON file, default: schema_a.json).
 - `--ch <int>`: Number of image channels. RGB: 3 (default), Grayscale: 1.. 
 - `--batch_size <int>`: Size of each data batch (default: 50). 
 - `--scale <int>`: Apply image scaling before extraction.
@@ -124,7 +122,7 @@ Extraction is a preprocessing step to create usable data to train segmentation n
 To create an extraction database from the image/mask dataset:
 
 ```
-python preprocess.py --mode extract --ch [number of channels] --img [path/to/image(s)] --mask [path/to/mask(s)] --id [unique ID] 
+python preprocess.py --mode extract --ch [number of channels] --img [path/to/image(s)] --mask [path/to/mask(s)] --output [path/to/output/directory] --id [(Optional) unique ID ] 
 ```
 Database files are saved to `data/db`. Metadata is automatically generated during extraction and saved as a Numpy binary file to directory `data/metadata`. Both the database and metadata files share the same filename. You can specify an optional unique identifier; the default identifier is a Unix timestamp.
 

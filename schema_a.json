@@ -1,0 +1,115 @@
+{
+  "classes": [
+        {
+          "label": "Not categorized",
+          "code": "NC",
+          "colour": {
+            "rgb": [
+              0,
+              0,
+              0
+            ],
+            "hex": "#000000"
+          }
+        },
+        {
+          "label": "Broadleaf/Mixedwood",
+          "code": "B-MW",
+          "colour": {
+            "rgb": [
+              255,
+              165,
+              0
+            ],
+            "hex": "#ffa500"
+          }
+        },
+        {
+          "label": "Coniferous",
+          "code": "C",
+          "colour": {
+            "rgb": [
+              34,
+              139,
+              34
+            ],
+            "hex": "#228b22"
+          }
+        },
+        {
+          "label": "Herbaceous/Shrub",
+          "code": "H-S",
+          "colour": {
+            "rgb": [
+              124,
+              252,
+              0
+            ],
+            "hex": "#7cfc00"
+          }
+        },
+        {
+          "label": "Sand/Gravel/Rock",
+          "code": "S-G-R",
+          "colour": {
+            "rgb": [
+              139,
+              69,
+              19
+            ],
+            "hex": "#8b4513"
+          }
+        },
+        {
+          "label": "Wetland",
+          "code": "WL",
+          "colour": {
+            "rgb": [
+              95,
+              158,
+              160
+            ],
+            "hex": "#5f9ea0"
+          }
+        },
+        {
+          "label": "Water",
+          "code": "WT",
+          "colour": {
+            "rgb": [
+              0,
+              0,
+              255
+            ],
+            "hex": "#0000ff"
+          }
+        },
+        {
+          "label": "Snow/Ice",
+          "code": "S-I",
+          "colour": {
+            "rgb": [
+              45,
+              189,
+              255
+            ],
+            "hex": "#2dbdff"
+          }
+        },
+        {
+          "label": "Regenerating Area",
+          "code": "RA",
+          "colour": {
+            "rgb": [
+              255,
+              0,
+              4
+            ],
+            "hex": "#ff0004"
+          }
+        }
+      ],
+  "maps": {
+    "b-to-a": [0, 1, 1, 2, 3, 3, 4, 5, 6, 7, 8]
+  }
+}

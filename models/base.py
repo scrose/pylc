@@ -11,18 +11,19 @@ University of Victoria
 Module: Base Model Class
 File: base.py
 """
+
 import os
 import sys
 import torch
 import numpy as np
-import cv2
 from models.unet import UNet
 from models.res_unet import ResUNet
 from models.deeplab import DeepLab
 from models.utils.loss import MultiLoss, RunningLoss
-import utils.tools as utils
-from params import params
+from models.evaluator import Evaluator
+from models.checkpoint import Checkpoint
 from numpy import random
+from config import cf
 
 
 class Model:
@@ -36,16 +37,18 @@ class Model:
          User configuration settings.
     """
 
-    def __init__(self, cf):
+    def __init__(self):
 
         super(Model, self).__init__()
 
         # input configuration
         self.id = cf.id
-        self.cf = cf
-        self.n_classes = params.schema(cf).n_classes
+        self.n_classes = cf.n_classes
         self.ch = cf.ch
         self.arch = cf.arch
+
+        # activation functions
+        self.activ_func = activation
 
         # build network
         self.net = None
@@ -67,8 +70,8 @@ class Model:
         self.px_std = self.metadata.item().get('px_std')
 
         # load loss handlers
-        self.crit = MultiLoss(self.cf, self.cls_weight)
-        self.loss = RunningLoss(self.cf)
+        self.crit = MultiLoss(self.cls_weight)
+        self.loss = RunningLoss()
 
         # initialize run parameters
         self.epoch = 0
@@ -76,22 +79,20 @@ class Model:
         self.sched = self.init_sched()
 
         # initialize training checkpoint and test evaluator
-        self.checkpoint = Checkpoint(cf)
-        self.evaluator = Evaluator(cf)
+        self.checkpoint = Checkpoint()
+        self.evaluator = Evaluator()
 
     def load(self):
         """
         Loads pretrained model for evaluation.
         """
-
-        model_data = self.evaluator.load(self.cf.model)
+        model_data = self.evaluator.load(cf.load)
         try:
             self.metadata = model_data["metadata"]
             self.net.load_state_dict(model_data["model"])
-
         except:
             print('An error occurred loading pretrained model at: \n{}'.format(
-                self.cf.model))
+                cf.load))
             exit()
 
     def build(self):
@@ -100,42 +101,42 @@ class Model:
         """
 
         # UNet
-        if self.cf.arch == 'unet':
+        if self.arch == 'unet':
             self.net = UNet(
                 in_channels=self.ch,
                 n_classes=self.n_classes,
-                up_mode=self.cf.up_mode,
+                up_mode=cf.up_mode,
                 activ_func=self.activ_func('selu'),
                 normalizer=Normalizer('instance'),
-                dropout=params.dropout
+                dropout=cf.dropout
             )
-            self.net = self.net.to(params.device)
+            self.net = self.net.to(cf.device)
             self.crop_target = True
 
         # Alternate Residual UNet
-        elif self.cf.arch == 'resunet':
+        elif self.arch == 'resunet':
             self.net = ResUNet(
                 in_channels=self.ch,
                 n_classes=self.n_classes,
-                up_mode=self.cf.up_mode,
+                up_mode=cf.up_mode,
                 activ_func=self.activ_func('relu'),
                 # normalizer=Normalizer('layer'),
-                dropout=params.dropout
+                dropout=cf.dropout
             )
-            self.net = self.net.to(params.device)
+            self.net = self.net.to(cf.device)
             self.crop_target = True
 
         # DeeplabV3+
-        elif self.cf.arch == 'deeplab':
+        elif self.arch == 'deeplab':
             self.net = DeepLab(
                 activ_func=self.activ_func('relu'),
                 normalizer=torch.nn.BatchNorm2d,
-                backbone=self.cf.backbone,
+                backbone=cf.backbone,
                 n_classes=self.n_classes,
                 in_channels=self.ch,
-                pretrained=self.cf.pretrained
+                pretrained=cf.pretrained
             )
-            self.net = self.net.to(params.device)
+            self.net = self.net.to(cf.device)
 
         # Unknown model requested
         else:
@@ -190,9 +191,9 @@ class Model:
 
         # select optimizer
         if self.cf.optim == 'adam':
-            return torch.optim.AdamW(self.net.parameters(), lr=self.cf.lr, weight_decay=params.weight_decay)
+            return torch.optim.AdamW(self.net.parameters(), lr=self.cf.lr, weight_decay=cf.weight_decay)
         elif self.cf.optim == 'sgd':
-            return torch.optim.SGD(self.net.parameters(), lr=self.cf.lr, momentum=params.momentum)
+            return torch.optim.SGD(self.net.parameters(), lr=self.cf.lr, momentum=cf.momentum)
         else:
             print('Optimizer is not defined.')
             exit()
@@ -201,12 +202,12 @@ class Model:
 
         # (Optional) Scheduled learning rate step
         if self.cf.sched == 'step_lr':
-            return torch.optim.lr_scheduler.StepLR(self.optim, step_size=1, gamma=params.gamma)
+            return torch.optim.lr_scheduler.StepLR(self.optim, step_size=1, gamma=cf.gamma)
         elif self.cf.sched == 'cyclic_lr':
-            return torch.optim.lr_scheduler.CyclicLR(self.optim, params.lr_min, params.lr_max, step_size_up=2000)
+            return torch.optim.lr_scheduler.CyclicLR(self.optim, cf.lr_min, cf.lr_max, step_size_up=2000)
         elif self.cf.sched == 'anneal':
             steps_per_epoch = int(self.cf.clip * 29000 // self.cf.batch_size)
-            scheduler = torch.optim.lr_scheduler.OneCycleLR(self.optim, max_lr=params.lr_max,
+            scheduler = torch.optim.lr_scheduler.OneCycleLR(self.optim, max_lr=cf.lr_max,
                                                             steps_per_epoch=steps_per_epoch,
                                                             epochs=self.cf.n_epochs)
         else:
@@ -224,12 +225,12 @@ class Model:
 
         # normalize input [NCWH]
         x = self.normalize_image(x)
-        x = x.to(params.device)
-        y = y.to(params.device)
+        x = x.to(cf.device)
+        y = y.to(cf.device)
 
         # crop target mask to fit output size (e.g. UNet model)
         if self.cf.model == 'unet':
-            y = y[:, params.crop_left:params.crop_right, params.crop_up:params.crop_down]
+            y = y[:, cf.crop_left:cf.crop_right, cf.crop_up:cf.crop_down]
 
         # stack single-channel input tensors (deeplab)
         if self.ch == 1 and self.cf.model == 'deeplab':
@@ -268,12 +269,12 @@ class Model:
 
         # normalize
         x = self.normalize_image(x)
-        x = x.to(params.device)
-        y = y.to(params.device)
+        x = x.to(cf.device)
+        y = y.to(cf.device)
 
         # crop target mask to fit output size (UNet)
         if self.cf.model == 'unet':
-            y = y[:, params.crop_left:params.crop_right, params.crop_up:params.crop_down]
+            y = y[:, cf.crop_left:cf.crop_right, cf.crop_up:cf.crop_down]
 
         # stack single-channel input tensors (Deeplab)
         if self.ch == 1 and self.cf.model == 'deeplab':
@@ -296,7 +297,7 @@ class Model:
 
         # normalize
         x = self.normalize_image(x, default=self.cf.normalize_default)
-        x = x.to(params.device)
+        x = x.to(cf.device)
 
         # stack single-channel input tensors (Deeplab)
         if self.ch == 1 and self.cf.model == 'deeplab':
@@ -339,7 +340,7 @@ class Model:
             - uses precomputed mean/std of pixel intensities
         """
         if default:
-            return torch.tensor((img.numpy().astype('float32') - params.px_mean_default) / params.px_std_default)
+            return torch.tensor((img.numpy().astype('float32') - cf.px_mean_default) / cf.px_std_default)
         if img.shape[1] == 1:
             mean = np.mean(self.px_mean.numpy())
             std = np.mean(self.px_std.numpy())
@@ -369,120 +370,10 @@ class Model:
         """
         try:
             from torchsummary import summary
-            summary(self.net, input_size=(self.ch, params.input_size, params.input_size))
+            summary(self.net, input_size=(self.ch, cf.input_size, cf.input_size))
         except ImportError as e:
             print('Summary not available.')
             pass  # module doesn't exist
-
-
-class Checkpoint:
-    """ Tracks model for training/validation/testing """
-
-    def __init__(self, cf):
-
-        # Prepare checkpoint tracking indicies
-        self.iter = 0
-        self.epoch = 0
-        self.model = None
-        self.optim = None
-        self.cf = cf
-
-        # save checkpoint in save folder
-        save_dir = os.path.join(cf.save, cf.id)
-        self.checkpoint_file = os.path.join(utils.mk_path(save_dir), 'checkpoint.pth')
-
-        # save best model file in evaluation folder
-        self.model_file = os.path.join(utils.mk_path(save_dir), 'model.pth')
-
-    def load(self):
-        """ load checkpoint file """
-        if os.path.exists(self.checkpoint_file):
-            print('Checkpoint found at {}! Resuming.'.format(self.checkpoint_file))
-            return torch.load(self.checkpoint_file)
-
-    def reset(self):
-        """ delete checkpoint file """
-        if os.path.exists(self.checkpoint_file):
-            os.remove(self.checkpoint_file)
-
-    def save(self, model, is_best=False):
-        # Save checkpoint state
-        torch.save({
-            "epoch": model.epoch,
-            "iter": model.iter,
-            "model": model.net.state_dict(),
-            "optim": model.optim.state_dict(),
-            "metadata": model.metadata
-        }, self.checkpoint_file)
-        # Save best model state
-        if is_best:
-            torch.save({
-                "model": model.net.state_dict(),
-                "optim": model.optim.state_dict(),
-                "metadata": model.metadata
-            }, self.model_file)
-
-
-class Evaluator:
-    """
-    Handles model test/evaluation functionality.
-
-    Parameters
-    ----------
-    cf: str
-        User-defined configuration settings.
-    """
-
-    def __init__(self, cf):
-
-        # Report interval
-        self.report_intv = 3
-        self.results = []
-        self.cf = cf
-        self.metadata = None
-
-        # Make output and mask directories for results
-        self.model_path = cf.model
-        self.masks_dir = utils.mk_path(os.path.join(cf.output, 'masks'))
-        self.output_dir = utils.mk_path(os.path.join(cf.output, 'outputs'))
-
-    def load(self):
-
-        """ load model file for evaluation"""
-
-        if os.path.exists(self.model_path):
-            return torch.load(self.model_path, map_location=params.device)
-        else:
-            print('Model file: {} does not exist ... exiting.'.format(self.model_path))
-            exit()
-
-    def reset(self):
-        self.results = []
-
-    def save(self, fname):
-
-        """Save full prediction test results with metadata for reconstruction"""
-        # Build output file path
-        output_file = os.path.join(self.output_dir, fname + '_output.pth')
-        torch.save({"results": self.results, "metadata": self.metadata}, output_file)
-
-    def save_image(self, fname):
-
-        """Save prediction mask image"""
-
-        # Build mask file path
-        mask_file = os.path.join(self.masks_dir, fname + '.png')
-
-        # Reconstruct seg-mask from predicted tiles
-        tiles = np.concatenate(self.results, axis=0)
-        mask_img = utils.reconstruct(tiles, self.metadata)
-
-        # Save output mask image to file (RGB -> BGR conversion)
-        # Note that the default color format in OpenCV is often
-        # referred to as RGB but it is actually BGR (the bytes are reversed).
-        cv2.imwrite(mask_file, cv2.cvtColor(mask_img, cv2.COLOR_RGB2BGR))
-
-        return mask_img
 
 
 class Normalizer:
@@ -511,7 +402,7 @@ class Normalizer:
         ])[self.type]
 
 
-def activation(self, active_type):
+def activation(active_type):
     """
     Network layer activation functions
 
@@ -520,9 +411,9 @@ def activation(self, active_type):
     active_type: str
         Activation function key.
     """
-    return torch.nn.ModuleDict([
-        ['relu', torch.nn.ReLU(inplace=True)],
-        ['leaky_relu', torch.nn.LeakyReLU(negative_slope=0.01, inplace=True)],
-        ['selu', torch.nn.SELU(inplace=True)],
-        ['none', torch.nn.Identity()]
-    ])[active_type]
+    return {
+        'relu': torch.nn.ReLU(inplace=True),
+        'leaky_relu': torch.nn.LeakyReLU(negative_slope=0.01, inplace=True),
+        'selu': torch.nn.SELU(inplace=True),
+        'none': torch.nn.Identity()
+    }[active_type]

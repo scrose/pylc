@@ -14,34 +14,29 @@ File: train.py
 
 import os
 import torch
-from config import get_config
-from utils.dbwrapper import load_data
+from utils.dataset import load_data
 from models.base import Model
 from tqdm import tqdm
-from params import params
+from config import cf
 
 
-def train(cf, model):
+def train():
     """
      Main training loop
-     Input Format: [NCWH]
-    
-     Parameters
-     ------
-     cf: dict
-        configuration settings
-     model: Model
-        Network model.
-
-     Returns
-     ------
-     Model
-        Updated model parameters.
     """
+
+    # Build model from hyperparameters
+    model = Model()
+
+    # Check for existing checkpoint. If exists, resume from
+    # previous training. If not, delete the checkpoint.
+    model.resume()
+    model.net.train()
+    model.print_settings()
 
     # Load training dataset (db)
     db_path = os.path.join(cf.db)
-    tr_dloader, va_dloader, tr_size, va_size, db_size = load_data(cf, mode=params.TRAIN, db_path=db_path)
+    tr_dloader, va_dloader, tr_size, va_size, db_size = load_data(mode=cf.TRAIN, db_path=db_path)
     tr_batches = tr_size//cf.batch_size
     va_batches = va_size//cf.batch_size
 
@@ -131,40 +126,5 @@ def validate(model, dloader, n_batches):
         model.log()
         model.save()
     return model
-
-
-def main(cf):
-    """
-     Main training handler
-    
-     Parameters
-     ------
-     cf: dict
-        User-defined configuration settings
-    """
-
-    # Build model from hyperparameters
-    model = Model(cf)
-
-    # Check for existing checkpoint. If exists, resume from
-    # previous training. If not, delete the checkpoint.
-    model.resume()
-    model.net.train()
-    model.print_settings()
-    train(cf, model)
-
-
-if __name__ == "__main__":
-
-    ''' Parse model configuration '''
-    cf, unparsed, parser = get_config(params.TRAIN)
-
-    # If we have unparsed arguments, or help request print usage and exit
-    if len(unparsed) > 0 or cf.h:
-        parser.print_usage()
-        exit()
-
-    main(cf)
-
 
 # train.py ends here

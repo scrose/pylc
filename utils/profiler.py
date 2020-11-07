@@ -16,32 +16,22 @@ import os
 import torch
 from tqdm import tqdm
 import utils.tools as utils
-from utils.dbwrapper import load_data
+from utils.dataset import load_data
 import numpy as np
-from params import params
+from config import cf
 
 
 class Profiler(object):
     """
     Profiler class for analyzing and generating metadata
     for database.
-
-    Parameters
-    ------
-    config: dict
-        User configuration settings.
     """
 
-    def __init__(self, config):
-
-        self.config = config
+    def __init__(self):
         self.dloader = None
         self.dset_size = 0
         self.metadata = None
-        self.schema = params.schema(config)
-        self.n_classes = len(params.schema(config).labels)
-
-        # select configured mask palette, labels
+        self.n_classes = cf.n_classes
 
     def load(self, md_path):
         """
@@ -96,9 +86,9 @@ class Profiler(object):
         # Obtain overall class stats for dataset
         n_samples = self.dset_size
         px_dist = []
-        px_count = params.tile_size * params.tile_size
-        px_mean = torch.zeros(self.config.ch)
-        px_std = torch.zeros(self.config.ch)
+        px_count = cf.tile_size * cf.tile_size
+        px_mean = torch.zeros(cf.ch)
+        px_std = torch.zeros(cf.ch)
 
         # load image and target batches from database
         for i, data in tqdm(enumerate(self.dloader), total=self.dset_size, unit=' batches'):
@@ -137,8 +127,8 @@ class Profiler(object):
         jsd = utils.jsd(probs, balanced_px_prob)
 
         self.metadata = {
-            'id': self.config.id,
-            'channels': self.config.ch,
+            'id': cf.id,
+            'channels': cf.ch,
             'n_samples': n_samples,
             'px_dist': px_dist,
             'px_count': px_count,
@@ -193,9 +183,9 @@ class Profiler(object):
 
         # Load extraction db into data loader
         # Important: set loader to PROFILE to force no workers and single batches
-        self.config.batch_size = 1
-        self.dloader, self.dset_size = load_data(self.config, params.PROFILE, db_path)
-        print('\tLoaded database {}\n\tSize: {} \n\tBatch size: {})'.format(db_path, self. dset_size, self.config.batch_size))
+        cf.batch_size = 1
+        self.dloader, self.dset_size = load_data(cf.PROFILE, db_path)
+        print('\tLoaded database {}\n\tSize: {} \n\tBatch size: {})'.format(db_path, self.dset_size, cf.batch_size))
 
         return self
 
@@ -209,7 +199,7 @@ class Profiler(object):
             Metadata directory path.
         """
         assert self.metadata, "Metadata is empty. Save aborted."
-        file_path = os.path.join(dir_path, self.config.id, '.npy')
+        file_path = os.path.join(dir_path, cf.id, '.npy')
         if not os.path.exists(file_path) or \
                 input("\tData file {} exists. Overwrite? (\'Y\' or \'N\'): ".format(file_path)) == 'Y':
             print('\nSaving profile metadata to {} ... '.format(file_path))
@@ -226,12 +216,11 @@ class Profiler(object):
                 # add class weights
                 for i, w in enumerate(self.metadata['weights']):
                     readout += '{:20s} {:3f} \t {:3f}'.format(
-                        self.schema.labels[i], self.metadata['probs'][i], w)
+                        cf.labels[i], self.metadata['probs'][i], w)
             else:
                 readout += '\n\t' + key.upper + ': ' + value
             readout += print('\tSample Size: {} x {} = {} pixels'.format(
-                params.tile_size, params.tile_size, params.tile_size * params.tile_size))
+                cf.tile_size, cf.tile_size, cf.tile_size * cf.tile_size))
             readout += '------'
 
         print(readout)
-

@@ -18,29 +18,22 @@ import utils.tools as utils
 import numpy as np
 import cv2
 from utils.profiler import Profiler
-from params import params
+from utils.db import DB
+from config import cf
 
 
 class Extractor(object):
     """
     Extractor class for subimage extraction from input images.
-
-    Parameters
-    ------
-    cf: dict
-        User configuration settings.
     """
 
-    def __init__(self, cf):
-
-        # get configuration settings
-        self.cf = cf
+    def __init__(self):
 
         # initialize profiler
-        self.profiler = Profiler(cf)
+        self.profiler = Profiler()
 
         # select configured mask palette
-        self.palette = params.settings.schemas[cf.schema].palette
+        self.palette = cf.pallette
         self.profiler.set('palette', self.palette)
 
         # initialize main image arrays
@@ -51,7 +44,7 @@ class Extractor(object):
 
         # use scaling factors (if requested)
         if cf.scale:
-            self.scales = params.scales
+            self.scales = cf.scales
         else:
             self.scales = [1.0]
 
@@ -77,15 +70,15 @@ class Extractor(object):
 
         # initialize image/mask tile arrays
         self.imgs = np.empty(
-            (len(self.files) * params.n_patches_per_image,
-             self.cf.ch,
-             params.tile_size,
-             params.tile_size),
+            (len(self.files) * cf.n_patches_per_image,
+             cf.ch,
+             cf.tile_size,
+             cf.tile_size),
             dtype=np.uint8)
         self.masks = np.empty(
-            (len(self.files) * params.n_patches_per_image,
-             params.tile_size,
-             params.tile_size),
+            (len(self.files) * cf.n_patches_per_image,
+             cf.tile_size,
+             cf.tile_size),
             dtype=np.uint8)
 
         return self
@@ -120,14 +113,14 @@ class Extractor(object):
         md = []
 
         # set  number of channels
-        ch = self.cf.ch
+        ch = cf.ch
 
         # set tile size to default
-        tile_size = params.tile_size
+        tile_size = cf.tile_size
 
         # set stride size to default if not provided
         if not stride:
-            stride = params.stride
+            stride = cf.stride
 
         # set scales to default if none provided
         if not scales:
@@ -232,11 +225,11 @@ class Extractor(object):
         """
         Prints extraction settings to console
          """
-        print('\nExtraction started: ')
-        print('\tChannels: {}'.format(self.cf.ch))
-        print('\tPatch dimensions: {}px x {}px'.format(params.tile_size, params.tile_size))
-        print('\tExpected tiles per image: {}'.format(params.n_patches_per_image))
-        print('\tStride: {}px'.format(params.stride))
+        print('\nExtraction settings: ')
+        print('\tChannels: {}'.format(cf.ch))
+        print('\tPatch dimensions: {}px x {}px'.format(cf.tile_size, cf.tile_size))
+        print('\tExpected tiles per image: {}'.format(cf.n_patches_per_image))
+        print('\tStride: {}px'.format(cf.stride))
 
     def print_result(self, img_type, img_path, img_data):
         """
@@ -244,7 +237,9 @@ class Extractor(object):
 
         Parameters
         ------
-         img_path: str
+        img_type: str
+            Image or mask.
+        img_path: str
             Image path.
         img_data: tensor
             Image tiles [NCHW].
@@ -268,7 +263,18 @@ class Extractor(object):
           Returns
           ------
           dict
-             Extracted image/mask tiles.
+             Extracted image/mask tiles with metadata.
          """
-        return {'img': self.imgs, 'mask': self.masks}
+        return {'img': self.imgs, 'mask': self.masks, 'metadata': self.profiler.metadata}
 
+    def save(self):
+        """
+        save extraction data to database.
+         """
+        db = DB()
+        db_path = os.path.join(cf.output, cf.id + '.h5')
+        db.save(self.get_data(), db_path)
+
+
+# Create extractor instance
+extractor: Extractor = Extractor()

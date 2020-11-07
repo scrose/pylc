@@ -16,7 +16,7 @@ import os
 import numpy as np
 import torch
 import cv2
-from params import params
+from config import cf
 
 
 def rgb2hex(color):
@@ -45,9 +45,9 @@ def jsd(p, q):
 
       Parameters
       ------
-      p: numpy array
+      p: np.array array
          Probability distribution [n].
-      q: numpy array
+      q: np.array array
          Probability distribution [n].
 
       Returns
@@ -97,8 +97,8 @@ def get_image(img_path, ch=3, scale=None, interpolate=cv2.INTER_AREA):
         height, width = img.shape[:2]
         min_dim = min(height, width)
         # adjust scale to minimum size (tile dimensions)
-        if min_dim < params.tile_size:
-            scale = params.tile_size / min_dim
+        if min_dim < cf.tile_size:
+            scale = cf.tile_size / min_dim
         dim = (int(scale * width), int(scale * height))
         img = cv2.resize(img, dim, interpolation=interpolate)
     return img
@@ -111,7 +111,7 @@ def adjust_to_tile(img, patch_size, stride, ch, interpolate=cv2.INTER_AREA):
 
     Parameters
     ------
-    img: numpy array
+    img: np.array array
         Image array.
     patch_size: int
         Tile dimension.
@@ -167,7 +167,7 @@ def colourize(img, n_classes, palette=None):
 
         Parameters
         ------
-        img: numpy array
+        img: np.array array
             Image array.
         n_classes: int
             Number of classes.
@@ -203,9 +203,9 @@ def coshuffle(img_array, mask_array):
 
         Parameters
         ------
-        img_array: numpy array
+        img_array: np.array array
             Image array.
-        mask_array: numpy array
+        mask_array: np.array array
             Image array.
 
         Returns
@@ -233,7 +233,7 @@ def map_palette(img_array, key):
         ------
         img_array: tensor
             Image array.
-        key: numpy array
+        key: np.array array
             Palette mapping key.
 
         Returns
@@ -288,18 +288,18 @@ def augment_transform(img, mask, random_state=None):
 
     Parameters
     ------
-    img: numpy
+    img: np.array
         Image array [CWH].
-    mask: numpy
+    mask: np.array
         Image array [CWH].
-    random_state: dict
+    random_state: np.random
         Randomized state.
 
     Returns
     ------
-    img: numpy
+    img: np.array
         Image array [CWH].
-    mask: numpy
+    mask: np.array
         Image array [CWH].
     """
 
@@ -332,7 +332,7 @@ def add_noise(img, w, h):
 
     Parameters
     ------
-    img: numpy
+    img: np.array
         Image array [CWH].
     w: int
         Gaussian distribution width.
@@ -341,7 +341,7 @@ def add_noise(img, w, h):
 
     Returns
     ------
-    img: numpy
+    img: np.array
         Image array [CWH].
     """
 
@@ -369,14 +369,14 @@ def channel_shift(img, random_state):
 
     Parameters
     ------
-    img: numpy
+    img: np.array
         Image array [CWH].
-    random_state: object
+    random_state: np.random
         Randomized state.
 
     Returns
     ------
-    img: numpy
+    img: np.array
         Image array [CWH].
     """
     shift_val = int(random_state.uniform(10, 20))
@@ -393,18 +393,18 @@ def perspective_shift(img, mask, random_state):
 
     Parameters
     ------
-    img: numpy
+    img: np.array
         Image array [CWH].
-    mask: numpy
+    mask: np.array
         Image array [CWH].
-    random_state: dict
+    random_state: np.random
         Randomized state.
 
     Returns
     ------
-    img: numpy
+    img: np.array
         Image array [CWH].
-    mask: numpy
+    mask: np.array
         Image array [CWH].
     """
 
@@ -434,7 +434,7 @@ def reconstruct(tiles, md):
 
       Parameters
       ------
-      tiles: numpy
+      tiles: np.array
          Image tiles [NCWH].
       md: dict
          Metadata for reconstruction.

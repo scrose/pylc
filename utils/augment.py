@@ -11,16 +11,16 @@ University of Victoria
 Module: Augmentor
 File: augment.py
 """
-import os
 
+import os
 import torch
 from tqdm import tqdm
-
 import utils.tools as utils
 import numpy as np
-from params import params
 from utils.profiler import Profiler
-from utils.dbwrapper import load_data, DB
+from utils.dataset import load_data
+from utils.db import DB
+from config import cf
 
 
 class Augmentor(object):
@@ -35,12 +35,10 @@ class Augmentor(object):
         User configuration settings.
     """
 
-    def __init__(self, config):
-
-        self.config = config
+    def __init__(self):
         self.metadata = None
         self.rates = None
-        self.profiler = Profiler(config)
+        self.profiler = Profiler()
 
         self.dloader = None
         self.dset_size = 0
@@ -48,7 +46,7 @@ class Augmentor(object):
         self.aug_data = None
         self.aug_size = 0
 
-    def load(self, db_path, md_path):
+    def load(self, db_path):
         """
         Loads source database.
 
@@ -56,8 +54,6 @@ class Augmentor(object):
         ------
         db_path: str
             Path to database file.
-        md_path: str
-            Path to metadata file.
 
         Returns
         ------
@@ -68,17 +64,14 @@ class Augmentor(object):
         assert os.path.exists(db_path), "Database file {} not found.".format(db_path)
 
         # load database
-        self.dloader, self.dset_size, self.db_size = load_data(self.config, params.AUGMENT, db_path)
+        self.dloader, self.dset_size, self.db_size = load_data(cf.AUGMENT, db_path)
         print('\tSource Database: {}'.format(db_path))
         print('\tSize: {}'.format(self.dset_size))
         print('\tClasses: {}'.format(self.profiler))
-        print('\tInput channels: {}'.format(self.config.in_channels))
+        print('\tInput channels: {}'.format(cf.ch))
 
         # load metadata
-        if not os.path.exists(md_path):
-            # No metadata found: create new profile and save
-            print('\nMetadata file not found at {}. Creating new profile ...'.format(md_path))
-            self.profiler.profile(db_path).save()
+
 
         self.profiler.load(md_path)
 
@@ -90,19 +83,16 @@ class Augmentor(object):
           - calculates sample rates based on dataset profile metadata
           - uses grid search and threshold-based algorithm from
             Rose 2020
-          - Default parameter ranges are defined in params (params.py)
+          - Default parameter ranges are defined in params (cf.py)
         """
-
-        # convert profile data
-        prof = self.profiler.convert()
 
         # Show previous profile metadata
         self.profiler.print()
 
         # Load metadata
-        px_dist = prof['px_dist']
-        px_count = prof['px_count']
-        dset_probs = prof['probs']
+        px_dist = self.profiler.get('px_dist')
+        px_count = self.profiler.get('px_count')
+        dset_probs = self.profiler.get('probs')
 
         # Optimized profile data
         profile_data = []
@@ -117,18 +107,18 @@ class Augmentor(object):
 
         # Initialize Augmentation Parameters
         print("\nAugmentation parameters")
-        print("\tSample maximum: {}".format(params.aug_n_samples_max))
-        print("\tMinumum sample rate: {}".format(params.min_sample_rate))
-        print("\tMaximum samples rate: {}".format(params.max_sample_rate))
-        print("\tRate coefficient range: {:3f}-{:3f}".format(params.sample_rate_coef[0], params.sample_rate_coef[-1]))
-        print("\tThreshold range: {:3f}-{:3f}".format(params.sample_threshold[0], params.sample_threshold[-1]))
+        print("\tSample maximum: {}".format(cf.aug_n_samples_max))
+        print("\tMinumum sample rate: {}".format(cf.min_sample_rate))
+        print("\tMaximum samples rate: {}".format(cf.max_sample_rate))
+        print("\tRate coefficient range: {:3f}-{:3f}".format(cf.sample_rate_coef[0], cf.sample_rate_coef[-1]))
+        print("\tThreshold range: {:3f}-{:3f}".format(cf.sample_threshold[0], cf.sample_threshold[-1]))
 
         # rate coefficient (default range of 1 - 21)
-        rate_coefs = params.sample_rate_coef
+        rate_coefs = cf.sample_rate_coef
         # threshold for oversampling (default range of 0 - 3)
-        thresholds = params.sample_threshold
+        thresholds = cf.sample_threshold
         # upper limit on number of augmentation samples
-        aug_n_samples_max = params.aug_n_samples_max
+        aug_n_samples_max = cf.aug_n_samples_max
         # Jensen-Shannon divergence coefficients
         jsd = []
 
@@ -148,7 +138,7 @@ class Augmentor(object):
                 rates = np.multiply(over_sample, rate_coef * scores).astype(int)
 
                 # clip rates to max value
-                rates = np.clip(rates, 0, params.max_sample_rate)
+                rates = np.clip(rates, 0, cf.max_sample_rate)
 
                 # limit to max number of augmented images
                 if np.sum(rates) < aug_n_samples_max:
@@ -164,7 +154,7 @@ class Augmentor(object):
                         'rates': rates,
                         'n_samples': int(np.sum(full_px_dist) / px_count),
                         'aug_n_samples': np.sum(rates),
-                        'rate_max': params.max_sample_rate,
+                        'rate_max': cf.max_sample_rate,
                         'jsd': jsd_sample
                     }]
 
@@ -192,13 +182,13 @@ class Augmentor(object):
         assert self.dloader and self.dset_size and self.db_size, "Database is not loaded."
 
         # initialize main image arrays
-        e_size = params.tile_size
-        imgs = np.empty((self.dsize * 2, self.config.in_channels, e_size, e_size), dtype=np.uint8)
+        e_size = cf.tile_size
+        imgs = np.empty((self.dsize * 2, cf.ch, e_size, e_size), dtype=np.uint8)
         targets = np.empty((self.dsize * 2, e_size, e_size), dtype=np.uint8)
         idx = 0
 
         # iterate data loader
-        for i, data in tqdm(enumerate(self.dloader), total=self.dsize // self.config.batch_size, unit=' batches'):
+        for i, data in tqdm(enumerate(self.dloader), total=self.dsize // cf.batch_size, unit=' batches'):
             img, target = data
 
             # copy originals to dataset
@@ -250,9 +240,9 @@ def merge_dbs(cf):
 
     # set batch size to single
     cf.batch_size = 1
-    patch_size = params.tile_size
+    patch_size = cf.tile_size
     idx = 0
-    n_classes = params.schema(cf).n_classes
+    n_classes = cf.schema(cf).n_classes
 
     # number of databases to merge
     n_dbs = len(cf.dbs)
@@ -269,7 +259,7 @@ def merge_dbs(cf):
 
     # Load databases into loader list
     for db_path in cf.dbs:
-        dl, dset_size, db_size = load_data(cf, params.MERGE, db_path)
+        dl, dset_size, db_size = load_data(cf, cf.MERGE, db_path)
         dloaders += [{'name': os.path.basename(db_path), 'dloader': dl, 'dset_size': dset_size}]
         dset_merged_size += dset_size
         print('\tDatabase {} loaded.\n\tSize: {} / Batch size: {}'.format(
@@ -298,3 +288,7 @@ def merge_dbs(cf):
 
     # save merged database file
     db_base.save(data, path=db_path_merged)
+
+
+# Create augmentor instance
+augmentor: Augmentor = Augmentor()

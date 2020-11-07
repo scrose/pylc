@@ -8,44 +8,35 @@ MSc. Thesis 2020.
 Spencer Rose <spencerrose@uvic.ca>, June 2020
 University of Victoria
 
+Module: Model Test
 File: test.py
-    Model testing.
 """
 
 import os
 import torch
-from config import get_config
 import utils.tools as utils
 from utils.metrics import Metrics
 from utils.extract import Extractor
 from models.base import Model
 from tqdm import trange
-from params import params
 import cv2
 import numpy as np
+from config import cf
 
 
-def test(cf, model, bypass=False):
+def test():
     """
     Apply model to input image(s) to generate segmentation maps.
-
-    Parameters
-    ------
-    cf: dict
-        User configuration settings.
-    model: Model
-        Network Mode (Pytorch).
-    bypass: bool
-        Argument parser.
-
-     Returns
-     ------
-     bool
-        Output boolean value.
     """
 
+    # Load pretrained model for testing or evaluation
+    # Model file path is defined in user settings.
+    model = Model()
+    # self.net = torch.nn.DataParallel(self.net)
+    model.net.eval()
+
     # Initialize metrics evaluator
-    metrics = Metrics(cf)
+    metrics = Metrics()
 
     # get test file(s)
     files = utils.collate(cf.img, cf.mask)
@@ -54,7 +45,7 @@ def test(cf, model, bypass=False):
     print('\nRunning model test ... ')
 
     # initialize extractor
-    extractor = Extractor(cf)
+    extractor = Extractor()
 
     for f_idx, fpair in enumerate(files):
 
@@ -160,36 +151,5 @@ def reconstruct(config):
 
     print('Reconstructed mask saved to {}'.format(mask_file))
 
-
-def main(cf):
-    """
-    Main model test handler
-
-    Parameters
-    ------
-    cf: dict
-        User configuration settings.
-    """
-
-    # Load pretrained model for testing or evaluation
-    # Model file path is defined in user settings.
-    model = Model(cf)
-    # self.net = torch.nn.DataParallel(self.net)
-    model.net.eval()
-
-    test(cf, model)
-
-
-if __name__ == "__main__":
-
-    """ Parse model configuration settings. """
-    config, unparsed, parser = get_config(params.TEST)
-
-    # If we have unparsed arguments, or help request print usage and exit
-    if len(unparsed) > 0 or config.h:
-        parser.print_usage()
-        exit()
-
-    main(config)
 
 # test.py ends here
