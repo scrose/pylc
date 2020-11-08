@@ -1,17 +1,19 @@
 
-# MLP Landscape Classifier
-**Semantic segmentation network for land cover classification of oblique ground-based photography**
+# PyLC Landscape Classifier
+**Semantic segmentation for land cover classification of oblique ground-based photography**
 
 ## Overview
 
-### Mountain Legacy Project
+The PyLC (Python Landscape Classifier) is a Pytorch-based trainable segmentation network and land cover classification tool for oblique landscape photography. This tool was developed for the land cover classification of high-resolution greyscale and colour oblique mountain photography. PyLC was developed for the [Mountain Legacy Project](http://mountainlegacy.ca/) at the [University of Victoria](https://uvic.ca/) .
 
-The [Mountain Legacy Project](http://mountainlegacy.ca/) (MLP) at the [University of Victoria](https://uvic.ca/) supports numerous research initiatives exploring the use of repeat photography to study ecosystem, landscape, and anthropogenic changes. MLP hosts the largest systematic collection of mountain photographs, with over 120,000 high-resolution historic (grayscale) survey photographs of Canada’s Western mountains captured from the 1880s through the 1950s, with over 9,000 corresponding modern (colour) repeat images. Over the years, the MLP has built a suite of custom tools for the classification and analysis of images in the collection (Gat et al. 2011; Jean et al. 2015b; Sanseverino et al. 2016). 
+### Mountain Legacy Project (MLP)
+
+ The [Mountain Legacy Project](http://mountainlegacy.ca/) supports numerous research initiatives exploring the use of repeat photography to study ecosystem, landscape, and anthropogenic changes. MLP hosts the largest systematic collection of mountain photographs, with over 120,000 high-resolution historic (grayscale) survey photographs of Canada’s Western mountains captured from the 1880s through the 1950s, with over 9,000 corresponding modern (colour) repeat images. Over the years, the MLP has built a suite of custom tools for the classification and analysis of images in the collection (Gat et al. 2011; Jean et al. 2015b; Sanseverino et al. 2016). 
 
 
 ### Implementation
 
-The MLP classification tool uses a deep convolutional neural network (DCNN) trained on high-resolution, grayscale and colour landscape photography from the MLP collection, specifically optimized for the segmentation of oblique mountain landscapes. This package uses [U-net][3] and [Deeplabv3+][4] segmentation models with a ResNet101 pretrained encoder, as well as a fully-connected [conditional random fields model][5] used to boost segmentation accuracy.
+PyLC uses deep convolutional neural networks (DCNNs) trained on high-resolution, grayscale and colour landscape photography from the MLP collection, specifically optimized for the segmentation of oblique mountain landscapes. This package uses [U-net][3] and [Deeplabv3+][4] segmentation models with a ResNet101 pretrained encoder, as well as a fully-connected [conditional random fields model][5] used to boost segmentation accuracy.
 
 ### Features
 
@@ -82,7 +84,7 @@ All DCNN models and preprocessing utilities are implemented in [PyTorch](https:/
 
 ## Usage
 
-The MLP classification tool has three main run modes:
+The PyLC (Python Landscape Classifier) classification tool has three main run modes:
 
 1. Data Preprocessing: (`preprocessing.py`);
  - Extraction
@@ -122,7 +124,7 @@ Extraction is a preprocessing step to create usable data to train segmentation n
 To create an extraction database from the image/mask dataset:
 
 ```
-python preprocess.py --mode extract --ch [number of channels] --img [path/to/image(s)] --mask [path/to/mask(s)] --output [path/to/output/directory] --id [(Optional) unique ID ] 
+python pylc.py extract --ch [number of channels] --img [path/to/image(s)] --mask [path/to/mask(s)] --output [path/to/output/directory] --id [(Optional) unique ID ] 
 ```
 Database files are saved to `data/db`. Metadata is automatically generated during extraction and saved as a Numpy binary file to directory `data/metadata`. Both the database and metadata files share the same filename. You can specify an optional unique identifier; the default identifier is a Unix timestamp.
 
@@ -130,7 +132,7 @@ Database files are saved to `data/db`. Metadata is automatically generated durin
 
 Extraction automatically computes the pixel class distribution in the mask dataset, along with other metrics. This metadata is saved to `data/metadata` and used to calculate sample rates for data augmentation to balance the pixel semantic class distribution. A data profile can also be created by running the following:
 ```
-python preprocess.py --mode profile --db [path/to/database.h5]
+python MLP.py profile --db [path/to/database.h5]
 ```
 Profile metadata is saved as Numpy binary files in directory `data/metadata` and by default uses the same filename as the corresponding database but with the `.npy` extension. Metadata files are required for 
 
@@ -141,7 +143,7 @@ Data augmentation can improve the balance of pixel class distribution in a datab
 When a database is augmented, the app looks for a corresponding metadata file (containing pre-generated sample rates) in `data/metadata`. Metadata files by default use the same filename as the database. If none is found, a new profile metadata file is generated.
 
 ```
-python preprocess.py --mode augment --db [path/to/database.h5]
+python MLP.py augment --db [path/to/database.h5]
 ```
 
 #### Database Merging 

@@ -11,14 +11,11 @@ University of Victoria
 Module: Data wrapper
 File: dataset.py
 """
-import sys
 
-import numpy as np
 import torch
 from torch.utils import data
-from utils.db import DB
 from utils.buffer import Buffer
-from config import cf
+from utils.db import DB
 
 
 class MLPDataset(torch.utils.data.IterableDataset):
@@ -29,29 +26,31 @@ class MLPDataset(torch.utils.data.IterableDataset):
 
     Parameters
     ------
-    partition: tuple
-        Training:Validation ratio.
     db_path: str
         Path to database file.
+    data: np.array
+        Input data array.
+    partition: tuple
+        Training:Validation ratio.
     """
 
-    def __init__(self, partition=None, db_path=None):
+    def __init__(self, db_path, data=None, partition=None, shuffle=False):
 
         super(MLPDataset).__init__()
-        self.partition = partition
 
-        # load database
-        if db_path:
-            self.db_path = db_path
-        elif cf.db:
-            self.db_path = cf.db
-        else:
-            print('Database not found.')
-            sys.exit(1)
+        # initialize database
+        self.db = DB().load(
+            path=db_path,
+            data=data,
+            partition=partition,
+            worker=torch.utils.data.get_worker_info()
+        )
 
-        self.db = DB().load(path=self.db_path, partition=partition, worker=torch.utils.data.get_worker_info())
-        self.md = None
-        self.buf_iter = iter(Buffer(self.db))
+        # initialize data buffer
+        self.buffer = iter(Buffer(self.db, shuffle=shuffle))
+
+        # parameters
+        self.size = self.db.dset.size
 
     def __iter__(self):
         # Iterate over preset dataset chunks ('buffer_size' in settings);
@@ -59,77 +58,47 @@ class MLPDataset(torch.utils.data.IterableDataset):
         return self
 
     def __next__(self):
-        item = next(self.buf_iter, None)
+        item = next(self.buffer, None)
         if item:
             return item
         else:
             raise StopIteration
 
+    def loader(self, batch_size=1, n_workers=0, drop_last=False):
+        """
+        Returns Torch Iterable DataLoader
+        (see: https://pytorch.org/docs/stable/data.html).
 
-def load_data(mode, db_path=None):
-    """
-     Wrapper convenience handler to initialize data loaders
-     - Multiprocessing enabled
+        Parameters
+        ------
+        batch_size: int
+            Batch size for sampler.
+        n_workers: into
+            Size of worker pool.
+        drop_last: bool
+            When fetching from iterable-style datasets with
+            multi-processing, the drop_last argument drops
+            the last non-full batch of each worker’s dataset
+            replica.
 
-    Parameters
-    ------
-    mode: enum
-        Run mode (see cf.py).
-    db_path: str
-        Database path (optional override of user configuration).
-    """
+        Returns
+        ------
+        self
+            For chaining.
+         """
+        return {
+            torch.utils.data.DataLoader(
+                self,
+                batch_size=batch_size,
+                num_workers=n_workers,
+                pin_memory=torch.cuda.is_available(),
+                drop_last=drop_last
+            ),
+            self.size//batch_size
+        }
 
-    # Load training data loader
-    if mode == cf.TRAIN:
-        print('Loading training data ... ')
-        # Note default training/validation partition ratio set in parameters (cf)
-        tr_dset = MLPDataset(partition=(0, 1 - cf.partition))
-        va_dset = MLPDataset(partition=(1 - cf.partition, 1.))
-
-        # create data loaders
-        tr_dloader = torch.utils.data.DataLoader(tr_dset,
-                                                 batch_size=cf.batch_size,
-                                                 num_workers=cf.n_workers,
-                                                 pin_memory=torch.cuda.is_available(),
-                                                 drop_last=True)
-        va_dloader = torch.utils.data.DataLoader(va_dset,
-                                                 batch_size=cf.batch_size,
-                                                 num_workers=cf.n_workers,
-                                                 pin_memory=torch.cuda.is_available(),
-                                                 drop_last=True)
-
-        return tr_dloader, va_dloader, tr_dset.db.dset_size, va_dset.db.dset_size, tr_dset.db.size
-
-    # Load extraction/db merge data loader
-    elif mode == cf.EXTRACT or mode == cf.MERGE:
-        dset = MLPDataset()
-        dloader = torch.utils.data.DataLoader(dset,
-                                              batch_size=cf.load_size,
-                                              num_workers=cf.n_workers,
-                                              pin_memory=torch.cuda.is_available(),
-                                              drop_last=False)
-        return dloader, dset.db.dset_size, dset.db.size
-
-    # Load augmentation data loader
-    elif mode == cf.AUGMENT:
-        dset = MLPDataset()
-        aug_dloader = torch.utils.data.DataLoader(dset,
-                                                  batch_size=cf.load_size,
-                                                  num_workers=0,
-                                                  pin_memory=torch.cuda.is_available(),
-                                                  drop_last=False)
-        return aug_dloader, dset.db.dset_size, dset.db.size
-
-    # Load profiler data loader
-    # Note: disable multi-processing for profiling data
-    elif mode == cf.PROFILE:
-        pre_dset = MLPDataset(db_path=db_path)
-        pre_dloader = torch.utils.data.DataLoader(pre_dset,
-                                                  batch_size=1,
-                                                  num_workers=0,
-                                                  pin_memory=torch.cuda.is_available())
-        return pre_dloader, pre_dset.db.dset_size
-
-    else:
-        print('Loading mode {} is not defined'.format(mode))
-        exit()
+    def save(self, db_path):
+        """
+        Save data in buffer to database file.
+         """
+        self.db.save(db_path)

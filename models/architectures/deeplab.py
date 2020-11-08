@@ -9,7 +9,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from models.sync_batchnorm.batchnorm import SynchronizedBatchNorm2d
-from models.utils.aspp import build_aspp
+from models.modules.aspp import build_aspp
 from models.backbone import resnet, xception
 from models.decoder import build_decoder
 

@@ -7,10 +7,9 @@ It can use Modified Aligned Xception and ResNet as backbone.
 """
 
 import math
-import os
 import torch.nn as nn
 from models.sync_batchnorm.batchnorm import SynchronizedBatchNorm2d
-from params import params
+from config import cf
 
 
 class Bottleneck(nn.Module):
@@ -147,7 +146,7 @@ class ResNet(nn.Module):
                 m.bias.data.zero_()
 
     def _load_pretrained_model(self):
-        resnet_path = os.path.join(params.get_path("pretrained"), 'resnet101-5d3b4d8f.pth')
+        resnet_path = cf.pretrained
         print('\nLoading ResNet101 pretrained model at {}.'.format(resnet_path))
         pretrain_dict = torch.load(resnet_path)
         model_dict = {}
@@ -160,7 +159,8 @@ class ResNet(nn.Module):
 
 
 def ResNet101(output_stride, BatchNorm, pretrained=True):
-    """Constructs a ResNet-101 model.
+    """
+    Constructs a ResNet-101 model.
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
     """

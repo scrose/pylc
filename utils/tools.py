@@ -80,11 +80,16 @@ def get_image(img_path, ch=3, scale=None, interpolate=cv2.INTER_AREA):
     Returns
     ------
     numpy array
-        Image array.
+        Image array; formats: grayscale: [HW]; colour: [HWC].
+    w: int
+        Image width (px).
+    h: int
+        Image height (px).
      """
 
-    assert ch == 3 or ch == 1, 'Invalid input channel number.'
+    assert ch == 3 or ch == 1, 'Invalid number of input channels:\t{}.'.format(ch)
     assert os.path.exists(img_path), 'Image path {} does not exist.'.format(img_path)
+
     img = None
     if ch == 1:
         img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
@@ -101,10 +106,10 @@ def get_image(img_path, ch=3, scale=None, interpolate=cv2.INTER_AREA):
             scale = cf.tile_size / min_dim
         dim = (int(scale * width), int(scale * height))
         img = cv2.resize(img, dim, interpolation=interpolate)
-    return img
+    return img, img.shape[1], img.shape[0]
 
 
-def adjust_to_tile(img, patch_size, stride, ch, interpolate=cv2.INTER_AREA):
+def adjust_to_tile(img, tile_size, stride, ch, interpolate=cv2.INTER_AREA):
     """
     Scales image to n x tile dimensions with stride
     and crops to match input image aspect ratio
@@ -113,7 +118,7 @@ def adjust_to_tile(img, patch_size, stride, ch, interpolate=cv2.INTER_AREA):
     ------
     img: np.array array
         Image array.
-    patch_size: int
+    tile_size: int
         Tile dimension.
     stride: int
         Stride of tile extraction.
@@ -138,16 +143,16 @@ def adjust_to_tile(img, patch_size, stride, ch, interpolate=cv2.INTER_AREA):
     w = img.shape[1]
     h = img.shape[0]
 
-    assert patch_size % stride == 0 and stride <= patch_size, "Tile size must be multiple of stride."
+    assert tile_size % stride == 0 and stride <= tile_size, "Tile size must be multiple of stride."
 
     # Get width scaling factor for tiling
-    scale_w = (int(w / patch_size) * patch_size) / w
+    scale_w = (int(w / tile_size) * tile_size) / w
     dim = (int(w * scale_w), int(h * scale_w))
 
     # resize image to fit tiled dimensions
     img_resized = cv2.resize(img, dim, interpolation=interpolate)
     h_resized = img_resized.shape[0]
-    h_tgt = int(h_resized / patch_size) * patch_size
+    h_tgt = int(h_resized / tile_size) * tile_size
 
     # crop top of image to match aspect ratio
     img_cropped = None
@@ -270,15 +275,20 @@ def class_encode(img_array, palette):
     """
 
     assert img_array.shape[1] == 3, "Input data must be 3 channel (RGB)"
+
     (n, ch, w, h) = img_array.shape
     input_data = np.moveaxis(img_array.numpy(), 1, -1).reshape(n * w * h, ch)
     encoded_data = np.ones(n * w * h)
 
     # map mask colours to segmentation classes
-    for idx, c in enumerate(palette):
-        bool_idx = input_data == np.array(c)
-        bool_idx = np.all(bool_idx, axis=1)
-        encoded_data[bool_idx] = idx
+    try:
+        for idx, c in enumerate(palette):
+            bool_idx = input_data == np.array(c)
+            bool_idx = np.all(bool_idx, axis=1)
+            encoded_data[bool_idx] = idx
+    except:
+        print('Mask cannot be encoded by selected palette. Please check schema settings.')
+        exit(1)
     return torch.tensor(encoded_data.reshape(n, w, h), dtype=torch.uint8)
 
 
@@ -456,9 +466,9 @@ def reconstruct(tiles, md):
     n_classes = md['n_classes']
 
     # Calculate reconstruction dimensions
-    patch_size = tiles.shape[2]
+    tile_size = tiles.shape[2]
 
-    if stride < patch_size:
+    if stride < tile_size:
         n_strides_in_row = w // stride - 1
         n_strides_in_col = h // stride - 1
     else:
@@ -466,7 +476,7 @@ def reconstruct(tiles, md):
         n_strides_in_col = h // stride
 
     # Calculate overlap
-    olap_size = patch_size - stride
+    olap_size = tile_size - stride
 
     # initialize full image numpy array
     mask_fullsized = np.empty((n_classes, h + offset, w), dtype=np.float32)
@@ -481,7 +491,7 @@ def reconstruct(tiles, md):
     for i in range(n_strides_in_col):
         # Get initial tile in row
         t_current = tiles[i * n_strides_in_row]
-        r_current = np.empty((n_classes, patch_size, w), dtype=np.float32)
+        r_current = np.empty((n_classes, tile_size, w), dtype=np.float32)
         col_idx = 0
         # Step 1: Collate column tiles in row
         for j in range(n_strides_in_row):
@@ -572,12 +582,12 @@ def load_files(path, exts):
         assert ext in exts, "File {} of type {} cannot be loaded.".format(path, ext)
         files.append(path)
     elif os.path.isdir(path):
-        files.append(list(sorted([f for f in os.listdir(path) if any(ext in f for ext in exts)])))
+        files.extend(list(sorted([f for f in os.listdir(path) if any(ext in f for ext in exts)])))
 
     return files
 
 
-def collate(img_dir, mask_dir):
+def collate(img_dir, mask_dir=None):
     """
     Verify and collate image/mask pairs.
 
@@ -590,19 +600,24 @@ def collate(img_dir, mask_dir):
 
       Returns
       ------
-      dict
-         Collated images/target filenames.
+      list
+        Collated images/mask filenames or image filenames (no masks given).
      """
-
-    # load file paths
-    img_files = load_files(img_dir, ['.tif', '.tiff', '.jpg', '.jpeg'])
-    target_files = load_files(mask_dir, ['.png'])
 
     files = []
 
+    # load file paths
+    img_files = load_files(img_dir, ['.tif', '.tiff', '.jpg', '.jpeg'])
+
+    # no masks provided
+    if not mask_dir:
+        return files
+
+    mask_files = load_files(mask_dir, ['.png'])
+
     for i, img_fname in enumerate(img_files):
-        assert i < len(target_files), 'Image {} does not have a target.'.format(img_fname)
-        target_fname = target_files[i]
+        assert i < len(mask_files), 'Image {} does not have a target.'.format(img_fname)
+        target_fname = mask_files[i]
         assert os.path.splitext(img_fname)[0] == os.path.splitext(target_fname)[0].replace('_mask', ''), \
             'Image {} does not match target {}.'.format(img_fname, target_fname)
 
@@ -612,9 +627,10 @@ def collate(img_dir, mask_dir):
         files += [{'img': img_fname, 'mask': target_fname}]
 
         # Validate image-target correspondence
-        assert i < len(target_files), 'target {} does not have an image.'.format(target_files[i])
+        assert i < len(mask_files), 'target {} does not have an image.'.format(mask_files[i])
 
-    print("{} image/target pairs found.".format(len(files)))
+    print("\nImage/mask pairs found:\t{}".format(len(files)))
+
     return files
 
 
@@ -638,3 +654,24 @@ def mk_path(path):
         os.makedirs(path)
         print('done.')
     return path
+
+
+def confirm_write_file(file_path):
+    """
+    Confirm overwrite of files.
+
+      Parameters
+      ------
+      file_path: str
+         File path.
+
+      Returns
+      ------
+      bool
+         User confirmation result.
+     """
+    return True \
+        if os.path.exists(file_path) and \
+                   input("\tFile {} exists. Overwrite? (Type \'Y\' for yes): ".format(file_path)) != 'Y' \
+        else False
+

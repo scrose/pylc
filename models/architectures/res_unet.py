@@ -13,8 +13,6 @@ PyTorch implementation of U-Net: Convolutional Networks for Biomedical Image Seg
 
 import torch
 from torch import nn
-import torch.nn.functional as F
-import params as params
 
 
 class ResUNet(nn.Module):
@@ -58,7 +56,7 @@ class ResUNet(nn.Module):
         assert up_mode in ('upconv', 'upsample')
         self.padding = padding
         self.depth = depth
-        self.activation = activ_func if activ_func else nn.reLU(inplace = True)
+        self.activation = activ_func if activ_func else nn.functional.relu(inplace=True)
 
         prev_channels = in_channels
 
@@ -98,7 +96,7 @@ class ResUNet(nn.Module):
             x = down(x)
             if i != len(self.encoder) - 1:
                 blocks.append(x)
-                x = F.max_pool2d(x, 2)
+                x = nn.functional.max_pool2d(x, 2)
         # upsample path
         for i, up in enumerate(self.decoder):
             x = up(x, blocks[-i - 1])

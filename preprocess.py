@@ -20,7 +20,7 @@ from utils.extract import extractor, Extractor
 from utils.augment import augmentor, Augmentor, merge_dbs
 from utils.profiler import Profiler
 from utils.db import DB
-from utils.dataset import load_data
+from utils.tools import collate
 from tqdm import tqdm
 from config import cf
 
@@ -32,15 +32,18 @@ def preprocess():
 
     # Initialize profiler, database
     profiler = Profiler()
-    db = DB()
 
     # --- Tile Extraction ---
     if cf.mode == cf.EXTRACT:
 
-        # Extract subimages from user-defined directories
-        print("Starting extraction of \n\timages: {}\n\t masks: {} ... ".format(cf.img_dir, cf.mask_dir))
-        extractor = Extractor()
-        extractor.load(cf.img_dir, cf.mask_dir).extract().profile().save()
+        print("Loading for extraction: \n\tImages: {}\n\t Masks: {}".format(cf.img, cf.mask))
+
+        # Get files that match images to masks
+        files = collate(cf.img, cf.mask)
+
+        # Extract subimages and metadata from image/mask pairs
+        tile_dset = extractor.load(files).extract().coshuffle().profile()
+        tile_dset.save(os.path.join(cf.output, cf.id + '.h5'))
         print('Extraction done.')
 
     # --- Data Augmentation ---
@@ -56,7 +59,7 @@ def preprocess():
         # Load db into augmenter and calculate sample rates
         augmentor.load(cf.db)
 
-        print('\nOptimizing sample rates  ... ', end='')
+        print('\nCalculating sample rates  ... ', end='')
         augmentor.optimize()
         print('done.')
 
@@ -70,13 +73,8 @@ def preprocess():
         augmentor.oversample()
         print('\nAugmented dataset size: {}'.format(augmentor.aug_size))
 
-        # save augmented database
-        aug_db_path = 'aug_' + cf.db
-        db.save(augmentor.aug_data, aug_db_path)
-
-        # Profile augmented database and save
-        print("\nStarting profile of augmented data ... ")
-        profiler.profile(aug_db_path).save()
+        # save augmented database + metadata
+        augmentor.save()
 
     # --- Data Profile ---
     elif cf.mode == cf.PROFILE:

@@ -28,15 +28,15 @@ class DB(object):
     """
 
     def __init__(self):
-        self.output_dir = cf.output
         self.path = None
+        self.data = None
         self.size = None
+        self.dset_size = None
+        self.buf_size = None
         self.input_shape = None
         self.target_shape = None
         self.start = None
         self.end = None
-        self.dset_size = None
-        self.buf_size = None
         self.current = None
         self.next = None
 
@@ -63,25 +63,41 @@ class DB(object):
     def __len__(self):
         return self.size
 
-    def load(self, path=None, data=None, partition=None, worker=None):
+    def load(self, path, data=None, partition=None, worker=None):
         """
-        Load database from path
+        Load database from path or from input data array.
 
         Parameters
         ------
         path: str
             Database path.
+        data: np.array
+            Input data.
         partition: tuple
             Training/validation dataset ratio [optional].
         worker: Worker
-            Worker pool [optional.
+            Worker pool [optional].
         """
+
+        assert os.path.exists(path), "Database path {} does not exist."
         self.path = path
-        f = self.open()
-        self.size = int(cf.clip * len(f['img']))
-        self.input_shape = f['img'].shape
-        self.target_shape = f['mask'].shape
-        f.close()
+
+        try:
+            if data:
+                # data provided (create default db path if path is empty)
+                self.size = int(cf.clip * len(data['img']))
+                self.input_shape = data['img'].shape
+                self.target_shape = data['mask'].shape
+                self.data = data
+            else:
+                # otherwise, load data from file
+                f = self.open()
+                self.size = int(cf.clip * len(f['img']))
+                self.input_shape = f['img'].shape
+                self.target_shape = f['mask'].shape
+                f.close()
+        except:
+            print('Error loading database file: {}.'.format(self.path))
 
         # partition database for dataset
         if partition:
@@ -112,31 +128,41 @@ class DB(object):
         """
         return h5py.File(self.path, mode='r', libver='latest', swmr=True)
 
-    def save(self, data_array, filename='db.h5'):
+    def save(self, db_path):
         """
-        Saves dataset to HDF5 database file.
+        Saves data buffer to HDF5 database file.
 
         Parameters
         ------
-        data_array: Numpy
-            Image/mask array.
-        filename: str
+        db_path: str
             Database file path.
         """
-        assert len(data_array['img']) == len(data_array['mask']), 'Image(s) missing paired mask(s). Save aborted.'
 
-        n_samples = len(data_array['img'])
-        print('\nSaving to database ... ')
-        db_path = os.path.join(self.output_dir, filename)
+        assert len(self.data['img']) == len(self.data['mask']), \
+            'Image(s) missing paired mask(s). Database not saved.'
+
+        n_samples = len(self.data['img'])
+        print('\nSaving buffer to database ... ')
         if not os.path.exists(db_path) or input(
-                "\tData file {} exists. Overwrite? (\'Y\' or \'N\'): ".format(filename)) == 'Y':
-            print('\nCopying {} samples to datafile {}  '.format(n_samples, filename), end='')
-            with h5py.File(filename, 'w') as f:
-                f.create_dataset("img", data_array['img'].shape, compression='gzip', chunks=True,
-                                 data=data_array['img'])
-                f.create_dataset("mask", data_array['mask'].shape, compression='gzip', chunks=True,
-                                 data=data_array['mask'])
+                "\tData file {} exists. Overwrite? (\'Y\' for yes): ".format(db_path)) == 'Y':
+            print('\nCopying {} samples to datafile {}  '.format(n_samples, db_path), end='')
+            with h5py.File(db_path, 'w') as f:
+                # create dataset partitions
+                f.create_dataset(
+                    "img",
+                    self.data['img'].shape,
+                    compression='gzip',
+                    chunks=True,
+                    data=self.data['img']
+                )
+                f.create_dataset(
+                    "mask",
+                    self.data['mask'].shape,
+                    compression='gzip',
+                    chunks=True,
+                    data=self.data['mask']
+                )
                 f.close()
             print('done.')
         else:
-            print('Save aborted.')
+            print('Database not saved.')

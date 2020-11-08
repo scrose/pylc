@@ -9,7 +9,7 @@ Spencer Rose <spencerrose@uvic.ca>, June 2020
 University of Victoria
 
 Module: Multi-loss classes
-File: models/utils/loss.py
+File: models/modules/loss.py
 
 """
 
@@ -17,7 +17,7 @@ import os
 import numpy as np
 import torch
 import utils.tools as utils
-from params import params
+from config import cf
 
 
 class MultiLoss(torch.nn.Module):
@@ -26,20 +26,18 @@ class MultiLoss(torch.nn.Module):
 
       Parameters
       ------
-      config: dict
-         User configuration settings.
       cls_weight: Tensor
          Class weights.
     """
 
-    def __init__(self, config, cls_weight):
+    def __init__(self, cls_weight):
 
         super(MultiLoss, self).__init__()
-        self.n_classes = config.n_classes
+        self.n_classes = cf.n_classes
         self.cls_weight = cls_weight
-        self.dsc_weight = config.dice_weight
-        self.ce_weight = config.ce_weight
-        self.fl_weight = config.focal_weight
+        self.dsc_weight = cf.dice_weight
+        self.ce_weight = cf.ce_weight
+        self.fl_weight = cf.focal_weight
         self.eps = 1e-8
 
         # recent loss bank
@@ -48,19 +46,19 @@ class MultiLoss(torch.nn.Module):
         self.fl = 0.
 
         # get user-defined categorization schema
-        categories = params.settings.schemas[config.schema].categories
+        self.categories = cf.class_labels
 
         # initialize cross entropy loss weights
         if isinstance(self.cls_weight, np.ndarray):
-            self.cls_weight = torch.tensor(self.cls_weight).float().to(params.device)
+            self.cls_weight = torch.tensor(self.cls_weight).float().to(cf.device)
         else:
-            self.cls_weight = torch.ones(self.n_classes).to(params.device)
+            self.cls_weight = torch.ones(self.n_classes).to(cf.device)
 
         # print class weight settings to console
         self.print_settings()
 
         # initialize cross-entropy loss function with class weights
-        if config.cls_weight:
+        if cf.weighted:
             print('\nCE losses will be weighted by class.')
             self.ce_loss = torch.nn.CrossEntropyLoss(self.cls_weight)
         else:
@@ -85,6 +83,18 @@ class MultiLoss(torch.nn.Module):
         assert pred.size(0) == target.size(0)
         assert pred.size(2) == target.size(1)
         assert pred.size(3) == target.size(2)
+
+        if not torch.is_tensor(pred):
+            raise TypeError("Input type is not a torch.Tensor. Got {}"
+                            .format(type(pred)))
+
+        if not len(pred.shape) >= 2:
+            raise ValueError("Invalid input shape, we expect BxCx*. Got: {}"
+                             .format(pred.shape))
+
+        if pred.size(0) != target.size(0):
+            raise ValueError('Expected input batch_size ({}) to match target batch_size ({}).'
+                             .format(pred.size(0), target.size(0)))
 
         # Combine ratio of losses (specified in parameters)
         self.ce = self.ce_loss(pred, target)
@@ -130,12 +140,12 @@ class MultiLoss(torch.nn.Module):
                              .format(pred.size(0), target.size(0)))
 
         y_true_1hot = torch.nn.functional.one_hot(target, num_classes=self.n_classes).permute(0, 3, 1, 2)
-        probs = torch.nn.functional.softmax(pred, dim=1).to(params.device)
+        probs = torch.nn.functional.softmax(pred, dim=1).to(cf.device)
 
         # compute mean of y_true U y_pred / (y_pred + y_true)
         intersection = torch.sum(probs * y_true_1hot, dim=(0, 2, 3))
         cardinality = torch.sum(probs + y_true_1hot, dim=(0, 2, 3))
-        dice = 1 - (2. * intersection + params.dice_smooth) / (cardinality + params.dice_smooth)
+        dice = 1 - (2. * intersection + cf.dice_smooth) / (cardinality + cf.dice_smooth)
 
         # loss is negative = 1 - DSC
         return dice.mean()
@@ -162,18 +172,6 @@ class MultiLoss(torch.nn.Module):
             Mean Focal Loss of prediction / ground-truth.
         """
 
-        if not torch.is_tensor(pred):
-            raise TypeError("Input type is not a torch.Tensor. Got {}"
-                            .format(type(pred)))
-
-        if not len(pred.shape) >= 2:
-            raise ValueError("Invalid input shape, we expect BxCx*. Got: {}"
-                             .format(pred.shape))
-
-        if pred.size(0) != target.size(0):
-            raise ValueError('Expected input batch_size ({}) to match target batch_size ({}).'
-                             .format(pred.size(0), target.size(0)))
-
         n = pred.size(0)
         out_size = (n,) + pred.size()[2:]
 
@@ -183,29 +181,30 @@ class MultiLoss(torch.nn.Module):
 
         if not pred.device == target.device:
             raise ValueError(
-                "input and target must be in the same device. Got: {} and {}" .format(
+                "input and target must be in the same device. Got: {} and {}".format(
                     pred.device, target.device))
 
         # compute softmax over the classes axis
         input_soft: torch.Tensor = torch.nn.functional.softmax(pred, dim=1) + self.eps
 
         # create the labels one hot tensor
-        target_one_hot: torch.Tensor = torch.nn.functional.one_hot(target, num_classes=self.n_classes).permute(0, 3, 1, 2)
+        target_one_hot: torch.Tensor = torch.nn.functional.one_hot(
+            target, num_classes=self.n_classes).permute(0, 3, 1, 2)
 
         # compute the actual focal loss
-        weight = torch.pow(-input_soft + 1., params.fl_gamma)
+        weight = torch.pow(-input_soft + 1., cf.fl_gamma)
 
-        focal = -params.fl_alpha * weight * torch.log(input_soft)
+        focal = -cf.fl_alpha * weight * torch.log(input_soft)
         loss_tmp = torch.sum(target_one_hot * focal, dim=1)
 
-        if params.fl_reduction == 'none':
+        if cf.fl_reduction == 'none':
             loss = loss_tmp
-        elif params.fl_reduction == 'mean':
+        elif cf.fl_reduction == 'mean':
             loss = torch.mean(loss_tmp)
-        elif params.fl_reduction == 'sum':
+        elif cf.fl_reduction == 'sum':
             loss = torch.sum(loss_tmp)
         else:
-            raise NotImplementedError("Invalid reduction mode: {}".format(params.fl_reduction))
+            raise NotImplementedError("Invalid reduction mode: {}".format(cf.fl_reduction))
         return loss
 
     def print_settings(self):
@@ -245,15 +244,15 @@ class RunningLoss(object):
         self.lr = []
 
         # initialize log files
-        self.dir_path = os.path.join(config.save_dir, config.id, 'log')
+        self.dir_path = os.path.join(cf.output, cf.id, 'log')
         self.output_file = os.path.join(utils.mk_path(self.dir_path), 'losses.pth')
         self.load()
 
     def load(self):
         """ load log file for losses"""
-        if self.config.mode == params.TRAIN and os.path.exists(self.output_file):
+        if cf.mode == cf.TRAIN and os.path.exists(self.output_file):
             print('Loss logs found at {} ... '.format(self.output_file), end='')
-            if self.config.resume:
+            if cf.resume:
                 print('Resuming loss tracking for {}.'.format(self.output_file))
                 loss_res = torch.load(self.output_file)
                 self.train = loss_res['train']

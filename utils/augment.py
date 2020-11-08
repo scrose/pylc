@@ -18,7 +18,7 @@ from tqdm import tqdm
 import utils.tools as utils
 import numpy as np
 from utils.profiler import Profiler
-from utils.dataset import load_data
+from utils.dataset import MLPDataset
 from utils.db import DB
 from config import cf
 
@@ -28,23 +28,24 @@ class Augmentor(object):
     Augmentor class for subimage augmentation from input database.
     Optimized rates minimize Jensen-Shannon divergence from balanced
     distribution
-
-    Parameters
-    ------
-    config: dict
-        User configuration settings.
     """
 
     def __init__(self):
-        self.metadata = None
-        self.rates = None
+        # profile init
         self.profiler = Profiler()
+        self.rates = None
 
-        self.dloader = None
-        self.dset_size = 0
-        self.db_size = 0
-        self.aug_data = None
-        self.aug_size = 0
+        # input data properties
+        self.input_dset = None
+        self.input_loader = None
+        self.input_path = None
+        self.input_db_size = 0
+
+        # augmented data properties
+        self.output_path = None
+        self.output_dset = None
+        self.output_path = None
+        self.output_db_size = 0
 
     def load(self, db_path):
         """
@@ -63,17 +64,19 @@ class Augmentor(object):
 
         assert os.path.exists(db_path), "Database file {} not found.".format(db_path)
 
-        # load database
-        self.dloader, self.dset_size, self.db_size = load_data(cf.AUGMENT, db_path)
-        print('\tSource Database: {}'.format(db_path))
-        print('\tSize: {}'.format(self.dset_size))
-        print('\tClasses: {}'.format(self.profiler))
+        # load dataset
+        self.input_path = db_path
+        self.input_dset = MLPDataset(db_path, partition=(1 - cf.partition, 1.))
+        self.input_loader = self.input_dset.loader(
+            batch_size=1,
+            n_workers=0,
+            drop_last=True
+        )
+
+        print('\tSource Database: {}'.format(self.input_path))
+        print('\tSize: {}'.format(self.input_dset_size))
+        print('\tClasses: {}'.format(self.input_dset_size))
         print('\tInput channels: {}'.format(cf.ch))
-
-        # load metadata
-
-
-        self.profiler.load(md_path)
 
         return self
 
@@ -179,7 +182,7 @@ class Augmentor(object):
         """
 
         assert self.profiler.metadata, "Metadata is not loaded."
-        assert self.dloader and self.dset_size and self.db_size, "Database is not loaded."
+        assert self.input_loader and self.dset_size and self.db_size, "Database is not loaded."
 
         # initialize main image arrays
         e_size = cf.tile_size
@@ -188,7 +191,7 @@ class Augmentor(object):
         idx = 0
 
         # iterate data loader
-        for i, data in tqdm(enumerate(self.dloader), total=self.dsize // cf.batch_size, unit=' batches'):
+        for i, data in tqdm(enumerate(self.input_loader), total=self.dsize // cf.batch_size, unit=' batches'):
             img, target = data
 
             # copy originals to dataset
@@ -221,6 +224,20 @@ class Augmentor(object):
         self.aug_size = len(imgs)
 
         return self
+
+    def save(self):
+        """
+        save augmented data to database.
+         """
+        db = DB()
+        db_path = os.path.join(cf.output, cf.id + '_augmented.h5')
+        if os.path.exists(db_path) and input(
+                "\tData file {} exists. Overwrite? (Type \'Y\' for yes): ".format(db_path)) != 'Y':
+            print('Skipping')
+            return
+
+        db.save(self.get_data(), db_path)
+
 
 
 def merge_dbs(cf):

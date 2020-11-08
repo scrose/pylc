@@ -17,6 +17,8 @@ import torch
 import utils.tools as utils
 import numpy as np
 import cv2
+
+from utils.dataset import MLPDataset
 from utils.profiler import Profiler
 from utils.db import DB
 from config import cf
@@ -32,32 +34,32 @@ class Extractor(object):
         # initialize profiler
         self.profiler = Profiler()
 
-        # select configured mask palette
-        self.palette = cf.pallette
-        self.profiler.set('palette', self.palette)
-
-        # initialize main image arrays
+        # main image arrays
         self.files = []
-        self.idx = 0
+        self.img_idx = 0
         self.imgs = None
+        self.mask_idx = 0
         self.masks = None
+        self.n_tiles = 0
+
+        # extraction parameters
+        self.ch = cf.ch
+        self.stride = cf.stride
+        self.tile_size = cf.tile_size
+        self.palette = cf.palette_rgb
+        self.fit = False
 
         # use scaling factors (if requested)
-        if cf.scale:
-            self.scales = cf.scales
-        else:
-            self.scales = [1.0]
+        self.scales = cf.scale if cf.scale else cf.scales
 
-    def load(self, imgs, masks):
+    def load(self, files):
         """
-        Initializes image/mask tile arrays.
+        Initializes image/mask tile arrays and metadata.
 
         Parameters
         ------
-        imgs: str
-            Image directory or file path.
-        masks: str
-            Mask directory or file path.
+        files: list
+            List of image files or image/mask pairs.
 
         Returns
         ------
@@ -65,145 +67,138 @@ class Extractor(object):
             For chaining.
          """
 
-        # Get files that match images to mask masks
-        self.files = utils.collate(imgs, masks)
+        n_files = len(files)
+
+        # abort if files not loaded
+        assert n_files > 0, 'File list is empty. Extraction stopped.'
+
+        self.files = files
+
+        # update profiler metadata
+        self.profiler.scales = self.scales
+        self.profiler.tile_size = self.tile_size
+        self.profiler.stride = self.stride
 
         # initialize image/mask tile arrays
         self.imgs = np.empty(
-            (len(self.files) * cf.n_patches_per_image,
-             cf.ch,
-             cf.tile_size,
-             cf.tile_size),
+            (n_files * cf.n_patches_per_image,
+             self.ch,
+             self.tile_size,
+             self.tile_size),
             dtype=np.uint8)
         self.masks = np.empty(
-            (len(self.files) * cf.n_patches_per_image,
-             cf.tile_size,
-             cf.tile_size),
+            (n_files * cf.n_patches_per_image,
+             self.tile_size,
+             self.tile_size),
             dtype=np.uint8)
 
         return self
 
-    def extract(self, fit=False, stride=None, scales=None):
+    def extract(self, fit=False, stride=None):
         """
         Extract square image/mask tiles from raw high-resolution images.
         Saves to database. mask data is also profiled for analysis and
         data augmentation. See parameters for default tile dimensions and
         stride.
 
-        Parameters
-        ----------
-        fit: bool
-            Adjust image size to fit tile size.
-        stride: int
-            Extraction stride size
-        scales: list
-            Scaling factors for extraction.
-
         Returns
         ------
         self
             For chaining.
         """
+        # extraction stride
+        if stride:
+            self.stride = stride
 
-        # abort if files not loaded
-        assert len(self.files) > 0, 'File were not loaded. Extraction stopped.'
+        # rescale image to fit tile dimensions
+        self.fit = fit
 
-        # extraction metadata
-        img_md = {}
-        md = []
-
-        # set  number of channels
-        ch = cf.ch
-
-        # set tile size to default
-        tile_size = cf.tile_size
-
-        # set stride size to default if not provided
-        if not stride:
-            stride = cf.stride
-
-        # set scales to default if none provided
-        if not scales:
-            scales = self.scales
-
-        # update profiler metadata
-        self.profiler.metadata.update({'scales': scales, 'tile_size': tile_size, 'stride': stride})
-
-        # check defined settings to console
+        # print extraction settings to console and confirm
         self.print_settings()
-        if input("\tProceed?. (\'Y\' for Yes): ") == 'Y':
+        if input("\nProceed with extraction?. (\'Y\' for Yes): ") == 'Y':
             print('\nStarting extraction ...')
         else:
             print('Extraction stopped.')
             exit(0)
 
-        # Extract over given scaling factors
-        for scale in scales:
-
-            print('\nExtraction scale: {}'.format(scale))
-
+        # Extract over defined scaling factors
+        for scale in self.scales:
+            print('\nExtraction scale: {}\n'.format(scale))
             for i, fpair in enumerate(self.files):
 
                 # get image and associated mask data
-                img_path = fpair.get('img')
-                mask_path = fpair.get('mask')
+                if type(fpair) == dict and 'img' in fpair and 'mask' in fpair:
+                    img_path = fpair.get('img')
+                    mask_path = fpair.get('mask')
+                else:
+                    img_path = fpair
+                    mask_path = None
 
                 # load image as numpy array
-                img = utils.get_image(img_path, ch, scale=scale, interpolate=cv2.INTER_AREA)
-                img_md.update({'w_full': img.shape[1], 'h_full': img.shape[0]})
+                img, w_img, h_img = utils.get_image(img_path, cf.ch, scale=scale, interpolate=cv2.INTER_AREA)
 
-                # adjust image size to fit tile size
-                if fit:
-                    img, w, h, offset = utils.adjust_to_tile(img, tile_size, stride, ch)
-                    img_md.update({'w': w, 'h': h, 'offset': offset})
+                # adjust image size to fit tile size (optional)
+                img, w_resized, h_resized, offset = utils.adjust_to_tile(
+                    img, self.tile_size, self.stride, cf.ch) if self.fit else (img, w_img, h_img, 0)
 
-                img_data = torch.as_tensor(img, dtype=torch.uint8)
+                # fold tensor into tiles
+                img_tiles, n_tiles = self.__split(img)
 
-                # extract image subimages [NCWH format]
-                img_data = img_data.unfold(0, tile_size, stride).unfold(1, tile_size, stride)
-                img_data = torch.reshape(img_data, (
-                    img_data.shape[0] * img_data.shape[1], ch, tile_size, tile_size))
+                # print results to console and store in metadata
+                self.print_result("Image", img_path, n_tiles, w_img, h_img,
+                                  w_resized=w_resized, h_resized=h_resized, offset=offset)
 
-                # print results to console
-                self.print_result("Image", img_path, img_data)
-
-                # number of tiles generated
-                size = img_data.shape[0]
-                img_md.update({'n_samples': size})
-
-                # Extract mask subimages [NCWH format]
-                mask = utils.get_image(mask_path, 3, scale=scale, interpolate=cv2.INTER_NEAREST)
-                mask_data = torch.as_tensor(mask, dtype=torch.uint8)
-
-                mask_data = mask_data.unfold(0, tile_size, stride).unfold(1, tile_size, stride)
-                mask_data = torch.reshape(mask_data, (
-                    mask_data.shape[0] * mask_data.shape[1], 3, tile_size, tile_size))
-
-                # print results to console
-                self.print_result("Mask", img_path, img_data)
-
-                # Encode masks to class encoding [NWH format] using configured palette
-                mask_data = utils.class_encode(mask_data, self.palette)
+                self.profiler.extract.append({
+                    'n_samples': n_tiles,
+                    'w': w_img,
+                    'h': h_img,
+                    'w_resized': w_resized,
+                    'h_resized': h_resized,
+                    'offset': offset
+                })
 
                 # copy tiles to main data arrays
-                np.copyto(self.imgs[self.idx:self.idx + size, ...], img_data)
-                np.copyto(self.masks[self.idx:self.idx + size, ...], mask_data)
+                np.copyto(self.imgs[self.img_idx:self.img_idx + n_tiles, ...], img_tiles)
+                self.img_idx += n_tiles
 
-                # append extraction metadata
-                md.append(img_md)
+                # extract from mask (if provided)
+                if mask_path:
+                    # load mask image [NCWH format]
+                    mask, w_mask, h_mask = utils.get_image(mask_path, 3, scale=scale, interpolate=cv2.INTER_NEAREST)
 
-                self.idx += size
+                    assert h_mask == h_img and w_mask == w_img, \
+                        "Dimensions do not match: \n\tImage {}\n\tMask {}.".format(img_path, mask_path)
 
-        # update profiler metadata with extraction details
-        self.profiler.metadata.update({'extraction', md})
+                    # extract tiles
+                    mask_tiles, n_tiles = self.__split(mask)
+
+                    # print results to console
+                    self.print_result("Mask", mask_path, n_tiles, w_mask, h_mask)
+
+                    # Encode masks to class encoding [NWH format] using configured palette
+                    mask_tiles = utils.class_encode(mask_tiles, self.palette)
+
+                    # copy tiles to main data arrays
+                    np.copyto(self.masks[self.mask_idx:self.mask_idx + n_tiles, ...], mask_tiles)
+                    self.mask_idx += n_tiles
 
         # truncate dataset by last index value
-        self.imgs = self.imgs[:self.idx]
-        self.masks = self.masks[:self.idx]
+        self.imgs = self.imgs[:self.img_idx]
+        self.masks = self.masks[:self.mask_idx]
+        self.n_tiles = len(self.imgs)
+        print('\nTotal tiles generated: {}'.format(self.n_tiles))
+        self.profiler.n_samples = self.n_tiles
 
-        n_samples = len(self.imgs)
-        print('\n{} tiles generated in total.'.format(n_samples))
-        self.profiler.metadata.update({'n_samples', n_samples})
+        return self
+
+    def profile(self):
+        """
+        Run profiler on extracted data to generate metadata
+         """
+
+        assert len(self.imgs) > 0 or len(self.masks) > 0, "Profile failed. Extraction incomplete (i.e. run extract())."
+
+        self.profiler.profile(imgs=self.imgs, masks=self.masks)
 
         return self
 
@@ -215,23 +210,47 @@ class Extractor(object):
 
         return self
 
-    def profile(self):
+    def __split(self, img):
         """
-        Profile data using profiler.
+        [Private] Split image tensor [NCHW] into tiles.
+
+        Parameters
+        ----------
+        img: np.array
+            Image file data; formats: grayscale: [HW]; colour: [HWC].
+
+        Returns
+        -------
+        img_data: np.array
+            Tile image array; format: [NCHW]
+        n_tiles: int
+            Number of generated tiles.
          """
-        self.profiler.load(self.masks)
+        # convert to Pytorch tensor
+        img_data = torch.as_tensor(img, dtype=torch.uint8)
+
+        # set number of channels
+        ch = 3 if len(img.shape) == 3 else 1
+
+        # extract image subimages [NCWH format]
+        img_data = img_data.unfold(0, self.tile_size, self.stride).unfold(1, self.tile_size, self.stride)
+        img_data = torch.reshape(img_data, (
+            img_data.shape[0] * img_data.shape[1], ch, self.tile_size, self.tile_size))
+
+        return img_data, img_data.shape[0]
 
     def print_settings(self):
         """
         Prints extraction settings to console
          """
-        print('\nExtraction settings: ')
-        print('\tChannels: {}'.format(cf.ch))
-        print('\tPatch dimensions: {}px x {}px'.format(cf.tile_size, cf.tile_size))
-        print('\tExpected tiles per image: {}'.format(cf.n_patches_per_image))
-        print('\tStride: {}px'.format(cf.stride))
+        print('\nExtraction settings:\n--------------------')
+        print('{:30s} {}'.format('Channels', cf.ch))
+        print('{:30s} {}px'.format('Stride', cf.stride))
+        print('{:30s} {}px x {}px'.format('Tile (WxH)', cf.tile_size, cf.tile_size))
+        print('{:30s} {}'.format('Maximum Tiles/Image', cf.n_patches_per_image))
+        print('--------------------')
 
-    def print_result(self, img_type, img_path, img_data):
+    def print_result(self, img_type, img_path, n, w, h, w_resized=None, h_resized=None, offset=None):
         """
         Prints extraction results to console
 
@@ -241,39 +260,44 @@ class Extractor(object):
             Image or mask.
         img_path: str
             Image path.
-        img_data: tensor
-            Image tiles [NCHW].
+        n: int
+            Number of tiles generated.
+        w: int
+            Image width.
+        h: int
+            Image height.
+        w_resized: int
+            Image resized width.
+        h_resized: int
+            Image resized height.
+        offset: int
+            Cropped offset.
          """
-        print('\t{} {}\n\tDims (HxW):\t{}px x {}px'.format(
-            img_type,
-            os.path.basename(img_path),
-            img_data.shape[0],
-            img_data.shape[1]))
-
-        print('\tN Tiles:\t{}\n\tChannels:\t{}\n\tTile Dims (HxW):\t{}px x {}px'.format(
-            img_data.shape[0],
-            img_data.shape[1],
-            img_data.shape[2],
-            img_data.shape[3]))
+        print()
+        print('{:30s} {}'.format('{} File'.format(img_type), os.path.basename(img_path)))
+        print(' {:30s} {}px x {}px'.format('W x H', w, h))
+        if w_resized and h_resized:
+            print(' {:30s} {}px x {}px'.format('Resized W x H', w_resized, h_resized))
+        if offset:
+            print(' {:30s} {}'.format('Offset', offset))
+        print(' {:30s} {}'.format('Number of Tiles', n))
+        print()
 
     def get_data(self):
         """
-        Returns extracted data.
+        Returns extracted data as MLP Dataset.
 
           Returns
           ------
-          dict
+          MLPDataset
              Extracted image/mask tiles with metadata.
          """
-        return {'img': self.imgs, 'mask': self.masks, 'metadata': self.profiler.metadata}
 
-    def save(self):
-        """
-        save extraction data to database.
-         """
-        db = DB()
-        db_path = os.path.join(cf.output, cf.id + '.h5')
-        db.save(self.get_data(), db_path)
+        # generate default database path
+        return MLPDataset(
+            os.path.join(cf.outout, cf.id, '_extracted.h5'),
+            {'img': self.imgs, 'mask': self.masks, 'meta': self.profiler.get_metadata()}
+        )
 
 
 # Create extractor instance

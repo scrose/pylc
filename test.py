@@ -16,8 +16,8 @@ import os
 import torch
 import utils.tools as utils
 from utils.metrics import Metrics
-from utils.extract import Extractor
-from models.base import Model
+from utils.extract import extractor
+from models.model import Model
 from tqdm import trange
 import cv2
 import numpy as np
@@ -38,42 +38,41 @@ def test():
     # Initialize metrics evaluator
     metrics = Metrics()
 
-    # get test file(s)
+    # get test file(s) - returns list of filenames
     files = utils.collate(cf.img, cf.mask)
 
     # model test
     print('\nRunning model test ... ')
 
-    # initialize extractor
-    extractor = Extractor()
-
     for f_idx, fpair in enumerate(files):
 
-        # Check if future outputs exist already
+        # get image and associated mask data
+        if type(fpair) == dict and fpair.has_key('img') and fpair.has_key('mask'):
+            img_file = fpair.get('img')
+            mask_file = fpair.get('mask')
+        else:
+            img_file = fpair
+            mask_file = None
+
+        # initialize output file paths (use cf.output directory)
         fid = os.path.basename(fpair.get('img')).replace('.', '_')
         output_file = os.path.join(cf.output, 'outputs', fid + '_output.pth')
-        mask_file = os.path.join(cf.output, 'masks', fid + '.png')
-        md_file = os.path.join(cf.output, 'outputs', fid + '_md.json')
-
-        if os.path.exists(output_file) and input(
-                "\tData file {} exists. Overwrite? (Type \'Y\' for yes): ".format(output_file)) != 'Y':
-            print('Skipping')
+        if utils.confirm_write_file(output_file):
             continue
-        if os.path.exists(mask_file) and input(
-                "\tData file {} exists. Overwrite? (Type \'Y\' for yes): ".format(mask_file)) != 'Y':
-            print('Skipping')
+        metrics_file = os.path.join(cf.output, 'outputs', fid + '_evaluation.json')
+        if utils.confirm_write_file(metrics_file):
+            continue
+        output_mask_file = os.path.join(cf.output, 'masks', fid + '.png')
+        if utils.confirm_write_file(output_mask_file):
             continue
 
-        # extract tiles
-        extractor.load(fpair.get('img'), fpair.get('mask')).extract(fit=True, stride=params.stride // 2, scale=cf.scale)
+        # extract image tiles
+        img_tiles = extractor.load(img_file).extract(fit=True, stride=cf.tile_size//2)
 
         # use default normalization if requested
         if cf.normalize_default:
             print(
-                '\tInput normalized to default mean: {}, std: {}'.format(params.px_mean_default, params.px_std_default))
-
-        # model.net.evaluate()
-        n_samples = extractor.profiler.metadata['n_samples']
+                '\tInput normalized to default mean: {}, std: {}'.format(cf.px_mean_default, cf.px_std_default))
 
         # apply model to input
         with torch.no_grad():

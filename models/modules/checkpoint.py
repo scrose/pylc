@@ -9,7 +9,7 @@ Spencer Rose <spencerrose@uvic.ca>, June 2020
 University of Victoria
 
 Module: Base Model Class
-File: base.py
+File: model.py
 """
 
 import os

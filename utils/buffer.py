@@ -15,12 +15,11 @@ File: buffer.py
 import numpy as np
 import torch
 from utils.db import DB
-from config import cf
 
 
 class Buffer(object):
     """
-    Database buffer class for MLP dataset
+    Database buffer class for MLP dataset sample loading.
      - Chunk loader for HDF5 image/mask database.
      - Multiprocessing enabled
      - See: <https://pytorch.org/docs/stable/data.html>
@@ -28,18 +27,21 @@ class Buffer(object):
     Parameters
     ------
     db: DB
-        Database instance.
+        Database instqance.
+    shuffle: bool
+        Shuffle buffer data.
     """
 
-    def __init__(self, db, mode):
-        self.mode = mode
+    def __init__(self, db, shuffle=False):
+        self.shuffle = shuffle
         self.db = db
-        self.db_iter = iter(db)
-        self.size = db.buf_size
+        self.db_iter = iter(self.db)
+        self.size = self.db.buf_size
         self.current = 0
-        self.input_shape = db.input_shape[1:]
-        self.target_shape = db.target_shape[1:]
+        self.input_shape = self.db.input_shape[1:]
+        self.target_shape = self.db.target_shape[1:]
         self.alloc(self.size)
+        # sample array
         self.input = None
         self.target = None
 
@@ -54,7 +56,7 @@ class Buffer(object):
             self.current = 0
             if not buffering:
                 raise StopIteration
-        # load data to output vars
+        # load image/mask data to output vars
         input_data = torch.tensor(self.input[self.current]).float()
         target_data = torch.tensor(self.target[self.current]).long()
         self.current += 1
@@ -73,8 +75,8 @@ class Buffer(object):
             f = self.db.open()
             f['img'].read_direct(self.input, db_sl)
             f['mask'].read_direct(self.target, db_sl)
-            # shuffle data (if training)
-            if self.mode == cf.TRAIN:
+            # shuffle data (if requested)
+            if self.shuffle:
                 idx_arr = np.arange(len(self.input))
                 np.random.seed(np.random.randint(0, 100000))
                 np.random.shuffle(idx_arr)

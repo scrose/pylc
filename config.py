@@ -22,15 +22,6 @@ import numpy as np
 import torch
 
 
-class Schema:
-    """
-    Defines Schema class
-    """
-
-    def __init__(self, **kwargs):
-        self.__dict__.update(kwargs)
-
-
 class Config:
     """
     Defines Package Default Parameters
@@ -45,6 +36,36 @@ class Config:
     """
 
     def __init__(self):
+        # Get parsed input arguments
+        self.parser = get_parser()
+        config, unparsed = self.parser.parse_known_args()
+
+        # If we have unparsed arguments, print usage and exit
+        if len(unparsed) > 0:
+            print("\n\'{}\' is not a valid option.\n".format(unparsed[0]))
+            self.parser.print_usage()
+            sys.exit(1)
+
+        # Copy user-defined settings
+        for key in vars(config):
+            setattr(self, key, vars(config).get(key))
+
+        # Get schema settings from local JSON file
+        if not os.path.isfile(config.schema):
+            print('Schema file {} not found.'.format(config.schema))
+            sys.exit(1)
+
+        with open(config.schema) as f:
+            schema = json.load(f)
+
+            # extract palettes, labels, categories
+            self.palette_rgb = [cls['colour']['rgb'] for cls in schema['classes']]
+            self.palette_hex = [cls['colour']['hex'] for cls in schema['classes']]
+            self.class_labels = [cls['label'] for cls in schema['classes']]
+            self.class_codes = [cls['code'] for cls in schema['classes']]
+            self.n_classes = len(schema['classes'])
+
+
 
         # Device settings
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -134,6 +155,9 @@ class Config:
         # Affine coefficient (elastic deformation)
         self.alpha = 0.19
 
+        # pretrained network
+        self.pretrained = '/data/pretrained/resnet101-5d3b4d8f.pth'
+
         # Network default hyperparameters
         self.dropout = 0.5
         self.lr_min = 1e-6
@@ -144,6 +168,7 @@ class Config:
         self.momentum = 0.9
         self.dice_weight = 0.5
         self.ce_weight = 0.5
+        self.focal_weight = 0.5
         self.dice_smooth = 1.
         self.weight_decay = 5e-5
         self.grad_steps = 16
@@ -154,43 +179,22 @@ class Config:
         self.fl_alpha = 0.25
         self.fl_reduction = 'mean'
 
-        # Get parsed input arguments
-        self.parser = get_parser()
-        config, unparsed = self.parser.parse_known_args()
+    def print(self):
+        """
+          Prints parameters to console
+        """
+        readout = '\nGlobal Parameters\n------\n'
+        for key, value in vars(self).items():
+            readout += '\n{:20s}{:20s}'.format(str(key), str(value))
+        readout += '\n------\n'
 
-        # If we have unparsed arguments, print usage and exit
-        if len(unparsed) > 0:
-            print("\n\'{}\' is not a valid option.\n".format(unparsed[0]))
-            self.parser.print_usage()
-            sys.exit(1)
+        print(readout)
 
-        # Copy user-defined settings
-        self.__dict__.update(config.__dict__)
-
-        # Get schema settings from local JSON file
-        if not os.path.isfile(config.schema):
-            print('Schema file {} not found.'.format(config.schema))
-            sys.exit(1)
-
-        with open(config.schema) as f:
-            schema = json.load(f)
-
-            # extract palettes, labels, categories
-            self.palette_rgb = [cls['colour']['rgb'] for cls in schema['classes']],
-            self.palette_hex = [cls['colour']['hex'] for cls in schema['classes']],
-            self.labels = [cls['label'] for cls in schema['classes']],
-            self.codes = [cls['code'] for cls in schema['classes']],
-            self.n_classes = len(schema['classes'])
 
 
 def get_parser():
     """
-     Parses stdin input arguments (see README for details)
-
-     Parameters
-     ------
-     mode: str
-        Mode of operation ['train', ].
+     Parses user input arguments (see README for details).
 
      Returns
      ------

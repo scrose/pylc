@@ -25,7 +25,7 @@ from sklearn.metrics import f1_score
 from sklearn.metrics import matthews_corrcoef
 import utils.tex as tex
 import utils.tools as utils
-from params import params
+from config import cf
 
 
 class Metrics:
@@ -49,7 +49,6 @@ class Metrics:
         self.md = {
             'id': cf.id
         }
-        self.schema = params.settings.schemas[cf.schema]
         self.labels = []
         self.fid = None
         self.y_true = None
@@ -81,8 +80,8 @@ class Metrics:
         y_pred = torch.as_tensor(utils.get_image(mask_pred, 3), dtype=torch.uint8).permute(2, 0, 1).unsqueeze(0)
 
         # Class encode input predicted data
-        y_pred = utils.class_encode(y_pred, self.schema.palette)
-        y_true = utils.class_encode(y_true, self.schema.palette)
+        y_pred = utils.class_encode(y_pred, cf.palette_rgb)
+        y_true = utils.class_encode(y_true, cf.palette_rgb)
 
         # Verify same size of target == input
         assert y_pred.shape == y_true.shape, "Input dimensions {} not same as target {}.".format(
@@ -109,10 +108,10 @@ class Metrics:
         self.labels = []
         # load category labels
         for idx in label_idx:
-            self.labels += [self.schema.labels[idx]]
+            self.labels += [self.schema.class_labels[idx]]
 
         # Ensure true mask has all of the categories
-        for idx in range(len(self.schema.labels)):
+        for idx in range(len(self.schema.class_labels)):
             if idx not in target_idx:
                 self.y_true[idx] = idx
 

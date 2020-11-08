@@ -14,15 +14,16 @@ File: train.py
 
 import os
 import torch
-from utils.dataset import load_data
-from models.base import Model
+from utils.dataset import MLPDataset
+from models.model import Model
 from tqdm import tqdm
 from config import cf
 
 
 def train():
     """
-     Main training loop
+     Main training loop. Note default training/validation partition
+     ratio is defined in parameters (config.py)
     """
 
     # Build model from hyperparameters
@@ -34,11 +35,23 @@ def train():
     model.net.train()
     model.print_settings()
 
-    # Load training dataset (db)
-    db_path = os.path.join(cf.db)
-    tr_dloader, va_dloader, tr_size, va_size, db_size = load_data(mode=cf.TRAIN, db_path=db_path)
-    tr_batches = tr_size//cf.batch_size
-    va_batches = va_size//cf.batch_size
+    # load training dataset, loader
+    tr_dset = MLPDataset(cf.db, partition=(0, 1 - cf.partition))
+    tr_loader, tr_batches = tr_dset.loader(
+        batch_size=cf.batch_size,
+        n_workers=cf.n_workers,
+        drop_last=True
+    )
+
+    # load validation dataset, loader
+    va_dset = MLPDataset(cf.db, partition=(1 - cf.partition, 1.))
+    va_loader, tr_batches = va_dset.loader(
+        batch_size=cf.batch_size,
+        n_workers=cf.n_workers,
+        drop_last=True
+    )
+    # get database size
+    db_size = tr_dset.db.size
 
     # get offset epoch if resuming from checkpoint
     epoch_offset = model.epoch

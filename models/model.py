@@ -9,19 +9,19 @@ Spencer Rose <spencerrose@uvic.ca>, June 2020
 University of Victoria
 
 Module: Base Model Class
-File: base.py
+File: model.py
 """
 
 import os
 import sys
 import torch
 import numpy as np
-from models.unet import UNet
-from models.res_unet import ResUNet
-from models.deeplab import DeepLab
-from models.utils.loss import MultiLoss, RunningLoss
-from models.evaluator import Evaluator
-from models.checkpoint import Checkpoint
+from models.architectures.unet import UNet
+from models.architectures.res_unet import ResUNet
+from models.architectures.deeplab import DeepLab
+from models.modules.loss import MultiLoss, RunningLoss
+from models.modules.evaluator import Evaluator
+from models.modules.checkpoint import Checkpoint
 from numpy import random
 from config import cf
 

@@ -9,7 +9,7 @@ Spencer Rose <spencerrose@uvic.ca>, June 2020
 University of Victoria
 
 Module: Application
-File: app.py
+File: pylc.py
 """
 
 from preprocess import preprocess

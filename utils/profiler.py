@@ -16,7 +16,6 @@ import os
 import torch
 from tqdm import tqdm
 import utils.tools as utils
-from utils.dataset import load_data
 import numpy as np
 from config import cf
 
@@ -28,42 +27,43 @@ class Profiler(object):
     """
 
     def __init__(self):
-        self.dloader = None
-        self.dset_size = 0
-        self.metadata = None
+        self.id = cf.id
+        self.channels = cf.ch
         self.n_classes = cf.n_classes
+        self.class_labels = cf.class_labels
+        self.class_codes = cf.class_codes
+        self.palette_rgb = cf.palette_rgb
+        self.palette_hex = cf.palette_hex
+        self.n_samples = 0
+        self.tile_size = 0
+        self.scales = []
+        self.stride = 0
+        self.m2 = 0
+        self.jsd = 0
+        self.px_mean = 0.
+        self.px_std = 0.
+        self.px_dist = []
+        self.tile_px_count = 0
+        self.dset_px_dist = []
+        self.dset_px_count = 0
+        self.probs = None
+        self.weights = None
+        self.rates = []
+        self.extract = []
 
-    def load(self, md_path):
+    def profile(self, imgs, masks):
         """
-        Load metadata into profiler.
-
-        Parameters
-        ------
-        md_path: str
-            Metadata file path.
-
-        Returns
-        ------
-        self
-            For chaining.
-         """
-
-        self.metadata = np.load(md_path, allow_pickle=True)
-        return self
-
-    def profile(self, data=None, data_path=None):
-        """
-         Computes dataset statistical profile
+        Computes dataset statistical profile
           - probability class distribution for database at db_path
           - sample metrics and statistics
           - image mean / standard deviation
 
         Parameters
         ------
-        data: numpy
-            Input data.
-        data_path: str
-            Database file path.
+        imgs: np.array
+            Input image data.
+        masks: np.array
+            Input mask data.
 
         Returns
         ------
@@ -71,30 +71,24 @@ class Profiler(object):
             For chaining.
         """
 
-        assert not data and not data_path, "Profiler input data and database path is empty."
-        assert data and data_path, "Profiler received both input data and database path."
+        assert type(imgs) == np.ndarray, "Profiler image data must be a numpy array."
+        assert type(masks) == np.ndarray, "Profiler mask data must be a numpy array."
+        assert imgs.shape[0] == masks.shape[0], "Number of images must match number of masks."
 
-        # load data source
-        if isinstance(data_path, str):
-            self.load_db(data_path)
-            print("\nProfiling {}... ".format(data_path))
-        else:
-            assert type(data) == np.ndarray, "Profiler input data must be numpy array."
-            self.load_data(data)
-            print("\nProfiling ... ")
-
-        # Obtain overall class stats for dataset
-        n_samples = self.dset_size
+        # obtain overall class stats for dataset
+        self.n_samples = imgs.shape[0]
         px_dist = []
-        px_count = cf.tile_size * cf.tile_size
         px_mean = torch.zeros(cf.ch)
         px_std = torch.zeros(cf.ch)
 
+        print(imgs.shape)
+
         # load image and target batches from database
-        for i, data in tqdm(enumerate(self.dloader), total=self.dset_size, unit=' batches'):
-            img, target = data
+        for i, img in tqdm(enumerate(np.nditer(imgs)), total=self.n_samples, unit=' batches'):
+            target = masks[i]
 
             # Compute dataset pixel global mean / standard deviation
+            print(img.shape)
             px_mean += torch.mean(img, (0, 2, 3))
             px_std += torch.std(img, (0, 2, 3))
 
@@ -104,123 +98,64 @@ class Profiler(object):
             px_dist += px_dist_sample
 
         # Divide by dataset size
-        px_mean /= self.dset_size
-        px_std /= self.dset_size
+        px_mean /= self.n_samples
+        px_std /= self.n_samples
 
         # Calculate sample pixel distribution / sample pixel count
         px_dist = np.concatenate(px_dist)
 
         # Calculate dataset pixel distribution / dataset total pixel count
-        dset_px_dist = np.sum(px_dist, axis=0)
-        dset_px_count = np.sum(dset_px_dist)
-        probs = dset_px_dist / dset_px_count
-        print('Total pixel count: {} / estimated: {}.'.format(dset_px_count, n_samples * px_count))
+        self.dset_px_dist = np.sum(px_dist, axis=0)
+        self.dset_px_count = np.sum(self.dset_px_dist)
+        probs = self.dset_px_dist / self.dset_px_count
 
         # Calculate class weight balancing
         weights = 1 / (np.log(1.02 + probs))
-        weights = weights / np.max(weights)
+        self.weights = weights / np.max(weights)
 
         # Calculate JSD and M2 metrics
         balanced_px_prob = np.empty(self.n_classes)
         balanced_px_prob.fill(1 / self.n_classes)
-        m2 = (self.n_classes / (self.n_classes - 1)) * (1 - np.sum(probs ** 2))
-        jsd = utils.jsd(probs, balanced_px_prob)
 
-        self.metadata = {
-            'id': cf.id,
-            'channels': cf.ch,
-            'n_samples': n_samples,
-            'px_dist': px_dist,
-            'px_count': px_count,
-            'dset_px_dist': dset_px_dist,
-            'dset_px_count': dset_px_count,
-            'probs': probs,
-            'weights': weights,
-            'm2': m2,
-            'jsd': jsd,
-            'px_mean': px_mean,
-            'px_std': px_std
-        }
+        # store metadata values
+        self.m2 = (self.n_classes / (self.n_classes - 1)) * (1 - np.sum(probs ** 2))
+        self.jsd = utils.jsd(probs, balanced_px_prob)
+        self.px_mean = px_mean
+        self.px_std = px_std
+        self.px_dist = px_dist
+        self.tile_px_count = cf.tile_size * cf.tile_size
+        self.probs = probs
 
         # print profile metadata to console
         self.print()
 
         return self
 
-    def load_data(self, data):
+    def get_metadata(self):
         """
-          Loads input data for profiling.
+        Returns current metadata.
         """
-
-        # abort if database path not provided
-        assert not data, 'Data not loaded. Profile aborted.'
-
-        # Load input data into data loader
-        self.dloader = np.nditer(data)
-        self.dset_size = data.shape[0]
-
-        return self
-
-    def set(self, key, data):
-        """
-          Set metadata value in profile.
-        """
-        self.metadata[key] = data
-
-    def get(self, key):
-        """
-          Get metadata value from profile.
-        """
-        return self.metadata[key]
-
-    def load_db(self, db_path):
-        """
-          Loads database for profiling.
-        """
-
-        # abort if database path not provided
-        assert not db_path, 'Database not loaded. Profile aborted.'
-
-        # Load extraction db into data loader
-        # Important: set loader to PROFILE to force no workers and single batches
-        cf.batch_size = 1
-        self.dloader, self.dset_size = load_data(cf.PROFILE, db_path)
-        print('\tLoaded database {}\n\tSize: {} \n\tBatch size: {})'.format(db_path, self.dset_size, cf.batch_size))
-
-        return self
-
-    def save(self, dir_path):
-        """
-        Save current metadata to user-defined file path
-
-        Parameters
-        ----------
-        dir_path: str
-            Metadata directory path.
-        """
-        assert self.metadata, "Metadata is empty. Save aborted."
-        file_path = os.path.join(dir_path, cf.id, '.npy')
-        if not os.path.exists(file_path) or \
-                input("\tData file {} exists. Overwrite? (\'Y\' or \'N\'): ".format(file_path)) == 'Y':
-            print('\nSaving profile metadata to {} ... '.format(file_path))
-            np.save(file_path, self.metadata)
+        return vars(self)
 
     def print(self):
         """
           Prints profile metadata to console
         """
         readout = '\nData Profile\n'
-        for key, value in self.metadata.items():
+        for key, value in vars(self):
             if key == 'weights':
                 readout = '\n------\n{:20s} {:3s} \t {:3s}\n'.format('Class', 'Probs', 'Weights')
                 # add class weights
-                for i, w in enumerate(self.metadata['weights']):
+                for i, w in enumerate(self.weights):
                     readout += '{:20s} {:3f} \t {:3f}'.format(
-                        cf.labels[i], self.metadata['probs'][i], w)
+                        cf.class_labels[i], self.probs[i], w)
             else:
                 readout += '\n\t' + key.upper + ': ' + value
-            readout += print('\tSample Size: {} x {} = {} pixels'.format(
-                cf.tile_size, cf.tile_size, cf.tile_size * cf.tile_size))
+            readout += '------'
+            readout += 'Total pixel count: {} / Estimated: {}.'.format(
+                self.dset_px_count, self.n_samples * self.tile_px_count)
+            readout += 'Tile size: {} x {} = {} pixels'.format(
+                cf.tile_size, cf.tile_size, self.tile_px_count)
             readout += '------'
 
         print(readout)
