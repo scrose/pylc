@@ -46,7 +46,7 @@ class Config:
             self.parser.print_usage()
             sys.exit(1)
 
-        # Copy user-defined settings
+        # Copy user-defined settings to main parameters
         for key in vars(config):
             setattr(self, key, vars(config).get(key))
 
@@ -128,13 +128,14 @@ class Config:
         self.clip = 1.
         self.clip_overfit = 0.003
 
-        # Random seed for cross validation setup
+        # Initialize random seeds
+        np.random.seed(np.random.randint(0, 100000))
         self.seed = random.randrange(sys.maxsize)
         random.seed(self.seed)  # set the seed
-        # print(f"random seed (note down for reproducibility): {seed}")
 
         # Extraction scaling
-        self.scales = [0.2, 0.5, 1.]
+        self.scales = [1.]
+        # self.scales = [0.2, 0.5, 1.]
         self.n_patches_per_image = int(sum(200 * self.scales))
 
         # Image normalization default settings (normally computed during preprocessing)

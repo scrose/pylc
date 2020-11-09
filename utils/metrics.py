@@ -207,3 +207,26 @@ class Metrics:
         with open(os.path.join(self.output_path, 'outputs', self.fid + '_md.tex'), 'w') as fp:
             md_tex = tex.convert_md_to_tex(self.md)
             fp.write(md_tex)
+
+
+def jsd(p, q):
+    """
+    Calculates Jensen–Shannon Divergence coefficient
+    JSD measures the similarity between two probability
+    distributions p and q.
+
+      Parameters
+      ------
+      p: np.array array
+         Probability distribution [n].
+      q: np.array array
+         Probability distribution [n].
+
+      Returns
+      ------
+      float
+         Computed JSD metric.
+     """
+
+    m = 0.5 * (p + q)
+    return 0.5 * np.sum(np.multiply(p, np.log(p / m))) + 0.5 * np.sum(np.multiply(q, np.log(q / m)))

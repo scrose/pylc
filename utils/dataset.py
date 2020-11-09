@@ -49,8 +49,8 @@ class MLPDataset(torch.utils.data.IterableDataset):
         # initialize data buffer
         self.buffer = iter(Buffer(self.db, shuffle=shuffle))
 
-        # parameters
-        self.size = self.db.dset.size
+        # get size of dataset
+        self.size = self.db.partition_size
 
     def __iter__(self):
         # Iterate over preset dataset chunks ('buffer_size' in settings);
@@ -86,7 +86,7 @@ class MLPDataset(torch.utils.data.IterableDataset):
         self
             For chaining.
          """
-        return {
+        return (
             torch.utils.data.DataLoader(
                 self,
                 batch_size=batch_size,
@@ -95,7 +95,8 @@ class MLPDataset(torch.utils.data.IterableDataset):
                 drop_last=drop_last
             ),
             self.size//batch_size
-        }
+        )
+
 
     def save(self, db_path):
         """

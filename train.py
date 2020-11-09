@@ -45,7 +45,7 @@ def train():
 
     # load validation dataset, loader
     va_dset = MLPDataset(cf.db, partition=(1 - cf.partition, 1.))
-    va_loader, tr_batches = va_dset.loader(
+    va_loader, va_batches = va_dset.loader(
         batch_size=cf.batch_size,
         n_workers=cf.n_workers,
         drop_last=True
@@ -58,24 +58,24 @@ def train():
     for e in range(cf.n_epochs - epoch_offset):
         # initial validation step
         if e == 0:
-            model = validate(model, va_dloader, va_batches)
+            model = validate(model, va_loader, va_batches)
 
         # log learning rate
         model.loss.lr += [(model.iter, model.get_lr())]
 
         print('\nEpoch {} / {} for Experiment \'{}\''.format(e + epoch_offset + 1, cf.n_epochs, cf.id))
         print('\tBatch size: {}'.format(cf.batch_size))
-        print('\tTraining dataset size: {} / batches: {}'.format(tr_size, tr_batches))
-        print('\tValidation dataset size: {} / batches: {}'.format(va_size, va_batches))
+        print('\tTraining dataset size: {} / batches: {}'.format(tr_dset.size, tr_batches))
+        print('\tValidation dataset size: {} / batches: {}'.format(va_dset.size, va_batches))
         print('\tCurrent learning rate: {}'.format(model.loss.lr[-1][1]))
 
         # train over epoch
-        model = train_epoch(model, tr_dloader, tr_batches)
+        model = train_epoch(model, tr_loader, tr_batches)
         print("\n\n[Train] Losses: \n\tCE avg: %4.4f \n\tFocal: %4.4f \n\tDice: %4.4f\n" %
               (model.loss.avg_ce, model.loss.avg_fl, model.loss.avg_dice))
 
         # validate epoch results
-        model = validate(model, va_dloader, va_batches)
+        model = validate(model, va_loader, va_batches)
         print("\n[Valid] Losses: \n\tCE avg: %4.4f \n\tFL avg: %4.4f \n\tDSC avg: %4.4f (DSC Best: %4.4f)\n" %
               (model.loss.avg_ce, model.loss.avg_fl, model.loss.avg_dice, model.loss.best_dice))
 

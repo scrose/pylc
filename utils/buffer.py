@@ -15,6 +15,7 @@ File: buffer.py
 import numpy as np
 import torch
 from utils.db import DB
+from utils.tools import coshuffle
 
 
 class Buffer(object):
@@ -27,7 +28,7 @@ class Buffer(object):
     Parameters
     ------
     db: DB
-        Database instqance.
+        Database instance.
     shuffle: bool
         Shuffle buffer data.
     """
@@ -41,7 +42,7 @@ class Buffer(object):
         self.input_shape = self.db.input_shape[1:]
         self.target_shape = self.db.target_shape[1:]
         self.alloc(self.size)
-        # sample array
+        # sample array buffer
         self.input = None
         self.target = None
 
@@ -66,23 +67,26 @@ class Buffer(object):
         """
         Load images/masks into buffer.
         """
+        # get indices for next slice of database
         (db_sl, db_sl_size) = next(self.db_iter, (None, None))
         if db_sl:
             # check if at end chunk: reallocate to new buffer size
             if db_sl_size != self.size:
                 self.alloc(db_sl_size)
                 self.size = db_sl_size
-            f = self.db.open()
-            f['img'].read_direct(self.input, db_sl)
-            f['mask'].read_direct(self.target, db_sl)
+            # load from database buffer (if available)
+            if self.db.data:
+                self.input = self.db.data['img'][db_sl]
+                self.target = self.db.data['mask'][db_sl]
+            # load data from database
+            else:
+                f = self.db.open()
+                f['img'].read_direct(self.input, db_sl)
+                f['mask'].read_direct(self.target, db_sl)
+                f.close()
             # shuffle data (if requested)
             if self.shuffle:
-                idx_arr = np.arange(len(self.input))
-                np.random.seed(np.random.randint(0, 100000))
-                np.random.shuffle(idx_arr)
-                self.input = self.input[idx_arr]
-                self.target = self.target[idx_arr]
-            f.close()
+                self.input, self.target = coshuffle(self.input, self.target)
             return True
         return False
 

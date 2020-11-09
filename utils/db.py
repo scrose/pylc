@@ -31,7 +31,7 @@ class DB(object):
         self.path = None
         self.data = None
         self.size = None
-        self.dset_size = None
+        self.partition_size = None
         self.buf_size = None
         self.input_shape = None
         self.target_shape = None
@@ -42,7 +42,7 @@ class DB(object):
 
     def __iter__(self):
         """
-        Iterator to load indicies for next dataset chunky
+        Iterator to load indicies for next dataset chunk
         """
         return self
 
@@ -79,7 +79,6 @@ class DB(object):
             Worker pool [optional].
         """
 
-        assert os.path.exists(path), "Database path {} does not exist."
         self.path = path
 
         try:
@@ -90,6 +89,7 @@ class DB(object):
                 self.target_shape = data['mask'].shape
                 self.data = data
             else:
+                assert os.path.exists(path), "Database path {} does not exist."
                 # otherwise, load data from file
                 f = self.open()
                 self.size = int(cf.clip * len(f['img']))
@@ -107,20 +107,22 @@ class DB(object):
             self.start = 0
             self.end = self.size
 
-        self.dset_size = self.end - self.start
+        self.partition_size = self.end - self.start
 
         # partition dataset for worker pool
         if worker:
-            per_worker = int(math.ceil(self.dset_size / float(worker.num_workers)))
+            per_worker = int(math.ceil(self.partition_size / float(worker.num_workers)))
             self.start += worker.id * per_worker
             self.end = min(self.start + per_worker, self.end)
             self.start = self.end if self.end < self.start else self.start
-            self.dset_size = self.end - self.start
+            self.partition_size = self.end - self.start
 
         # initialize buffer size and iterator
-        self.buf_size = min(cf.buf_size, self.dset_size)
+        self.buf_size = min(cf.buf_size, self.partition_size)
         self.current = self.start
         self.next = self.current + self.buf_size
+
+        return self
 
     def open(self):
         """
@@ -145,7 +147,7 @@ class DB(object):
         print('\nSaving buffer to database ... ')
         if not os.path.exists(db_path) or input(
                 "\tData file {} exists. Overwrite? (\'Y\' for yes): ".format(db_path)) == 'Y':
-            print('\nCopying {} samples to datafile {}  '.format(n_samples, db_path), end='')
+            print('\nCopying {} samples to:\n\t{}  '.format(n_samples, db_path))
             with h5py.File(db_path, 'w') as f:
                 # create dataset partitions
                 f.create_dataset(
@@ -163,6 +165,5 @@ class DB(object):
                     data=self.data['mask']
                 )
                 f.close()
-            print('done.')
         else:
-            print('Database not saved.')
+            print('Database was not saved.')

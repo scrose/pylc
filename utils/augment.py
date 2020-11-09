@@ -15,6 +15,8 @@ File: augment.py
 import os
 import torch
 from tqdm import tqdm
+
+import utils.metrics
 import utils.tools as utils
 import numpy as np
 from utils.profiler import Profiler
@@ -133,7 +135,7 @@ class Augmentor(object):
         for i, rate_coef, in enumerate(rate_coefs):
             for j, threshold in enumerate(thresholds):
 
-                # create boolean target to oversample
+                # create boolean mask to oversample
                 assert rate_coef >= 1, 'Rate coefficient must be >= 1.'
                 over_sample = scores > threshold
 
@@ -148,7 +150,7 @@ class Augmentor(object):
                     aug_px_dist = np.multiply(np.expand_dims(rates, axis=1), px_dist)
                     full_px_dist = px_dist + aug_px_dist
                     full_px_probs = np.sum(full_px_dist, axis=0) / np.sum(full_px_dist)
-                    jsd_sample = utils.jsd(full_px_probs, balanced_px_prob)
+                    jsd_sample = utils.metrics.jsd(full_px_probs, balanced_px_prob)
                     jsd += [jsd_sample]
                     profile_data += [{
                         'probs': full_px_probs,
@@ -187,40 +189,40 @@ class Augmentor(object):
         # initialize main image arrays
         e_size = cf.tile_size
         imgs = np.empty((self.dsize * 2, cf.ch, e_size, e_size), dtype=np.uint8)
-        targets = np.empty((self.dsize * 2, e_size, e_size), dtype=np.uint8)
+        masks = np.empty((self.dsize * 2, e_size, e_size), dtype=np.uint8)
         idx = 0
 
         # iterate data loader
         for i, data in tqdm(enumerate(self.input_loader), total=self.dsize // cf.batch_size, unit=' batches'):
-            img, target = data
+            img, mask = data
 
             # copy originals to dataset
             np.copyto(imgs[idx:idx + 1, ...], img.numpy().astype(np.uint8))
-            np.copyto(targets[idx:idx + 1, ...], target.numpy().astype(np.uint8))
+            np.copyto(masks[idx:idx + 1, ...], mask.numpy().astype(np.uint8))
             idx += 1
             # append augmented data
             for j in range(self.rates[i]):
                 random_state = np.random.RandomState(j)
-                inp_data, tgt_data = utils.augment_transform(img.numpy(), target.numpy(), random_state)
+                inp_data, tgt_data = utils.augment_transform(img.numpy(), mask.numpy(), random_state)
                 inp_data = torch.as_tensor(inp_data, dtype=torch.uint8).unsqueeze(0)
                 tgt_data = torch.as_tensor(tgt_data, dtype=torch.uint8).unsqueeze(0)
                 np.copyto(imgs[idx:idx + 1, ...], inp_data.numpy().astype(np.uint8))
-                np.copyto(targets[idx:idx + 1, ...], tgt_data.numpy().astype(np.uint8))
+                np.copyto(masks[idx:idx + 1, ...], tgt_data.numpy().astype(np.uint8))
                 idx += 1
 
         # truncate to size
         imgs = imgs[:idx]
-        targets = targets[:idx]
+        masks = masks[:idx]
 
         # Shuffle data
         print('\nShuffling ... ', end='')
         idx_arr = np.arange(len(imgs))
         np.random.shuffle(idx_arr)
         imgs = imgs[idx_arr]
-        targets = targets[idx_arr]
+        masks = masks[idx_arr]
         print('done.')
 
-        self.aug_data = {'imgs': imgs, 'mask': targets}
+        self.aug_data = {'imgs': imgs, 'mask': masks}
         self.aug_size = len(imgs)
 
         return self
@@ -238,7 +240,20 @@ class Augmentor(object):
 
         db.save(self.get_data(), db_path)
 
-
+    def print_settings(self):
+        """
+        Prints augmentation settings to console
+         """
+        ch_label = 'Grayscale' if cf.ch == 1 else 'Colour'
+        print('\nExtraction Config\n--------------------')
+        print('{:30s} {}'.format('Image(s) path', cf.img))
+        print('{:30s} {}'.format('Masks(s) path', cf.mask))
+        print('{:30s} {}'.format('Number of files', self.n_files))
+        print('{:30s} {} ({})'.format('Channels', cf.ch, ch_label))
+        print('{:30s} {}px'.format('Stride', cf.stride))
+        print('{:30s} {}px x {}px'.format('Tile size (WxH)', cf.tile_size, cf.tile_size))
+        print('{:30s} {}'.format('Maximum tiles/image', cf.n_patches_per_image))
+        print('--------------------')
 
 def merge_dbs(cf):
     """
@@ -291,9 +306,9 @@ def merge_dbs(cf):
         # copy database to merged database
         print('\nCopying {} to merged database ... '.format(dl['name']), end='')
         for i, data in tqdm(enumerate(dl['dloader']), total=dl['dset_size'] // cf.batch_size, unit=' batches'):
-            img, target = data
+            img, mask = data
             np.copyto(merged_imgs[idx:idx + 1, ...], img.numpy().astype(np.uint8))
-            np.copyto(merged_masks[idx:idx + 1, ...], target.numpy().astype(np.uint8))
+            np.copyto(merged_masks[idx:idx + 1, ...], mask.numpy().astype(np.uint8))
             idx += 1
 
     # Shuffle data

@@ -20,7 +20,6 @@ import cv2
 
 from utils.dataset import MLPDataset
 from utils.profiler import Profiler
-from utils.db import DB
 from config import cf
 
 
@@ -36,6 +35,7 @@ class Extractor(object):
 
         # main image arrays
         self.files = []
+        self.n_files = 0
         self.img_idx = 0
         self.imgs = None
         self.mask_idx = 0
@@ -67,10 +67,10 @@ class Extractor(object):
             For chaining.
          """
 
-        n_files = len(files)
+        self.n_files = len(files)
 
         # abort if files not loaded
-        assert n_files > 0, 'File list is empty. Extraction stopped.'
+        assert self.n_files > 0, 'File list is empty. Extraction stopped.'
 
         self.files = files
 
@@ -81,13 +81,13 @@ class Extractor(object):
 
         # initialize image/mask tile arrays
         self.imgs = np.empty(
-            (n_files * cf.n_patches_per_image,
+            (self.n_files * cf.n_patches_per_image,
              self.ch,
              self.tile_size,
              self.tile_size),
             dtype=np.uint8)
         self.masks = np.empty(
-            (n_files * cf.n_patches_per_image,
+            (self.n_files * cf.n_patches_per_image,
              self.tile_size,
              self.tile_size),
             dtype=np.uint8)
@@ -123,7 +123,7 @@ class Extractor(object):
 
         # Extract over defined scaling factors
         for scale in self.scales:
-            print('\nExtraction scale: {}\n'.format(scale))
+            print('\nExtraction scale: {}'.format(scale))
             for i, fpair in enumerate(self.files):
 
                 # get image and associated mask data
@@ -198,7 +198,7 @@ class Extractor(object):
 
         assert len(self.imgs) > 0 or len(self.masks) > 0, "Profile failed. Extraction incomplete (i.e. run extract())."
 
-        self.profiler.profile(imgs=self.imgs, masks=self.masks)
+        self.profiler.profile(self.get_data())
 
         return self
 
@@ -239,15 +239,34 @@ class Extractor(object):
 
         return img_data, img_data.shape[0]
 
+    def get_data(self):
+        """
+        Returns extracted data as MLP Dataset.
+
+          Returns
+          ------
+          MLPDataset
+             Extracted image/mask tiles with metadata.
+         """
+
+        # generate default database path
+        return MLPDataset(
+            os.path.join(cf.output, cf.id, '_extracted.h5'),
+            {'img': self.imgs, 'mask': self.masks, 'meta': self.profiler.get_metadata()}
+        )
+
     def print_settings(self):
         """
         Prints extraction settings to console
          """
-        print('\nExtraction settings:\n--------------------')
-        print('{:30s} {}'.format('Channels', cf.ch))
+        print('\nExtraction Config\n--------------------')
+        print('{:30s} {}'.format('Image(s) path', cf.img))
+        print('{:30s} {}'.format('Masks(s) path', cf.mask))
+        print('{:30s} {}'.format('Number of files', self.n_files))
+        print('{:30s} {} ({})'.format('Channels', cf.ch, 'Grayscale' if cf.ch == 1 else 'Colour'))
         print('{:30s} {}px'.format('Stride', cf.stride))
-        print('{:30s} {}px x {}px'.format('Tile (WxH)', cf.tile_size, cf.tile_size))
-        print('{:30s} {}'.format('Maximum Tiles/Image', cf.n_patches_per_image))
+        print('{:30s} {}px x {}px'.format('Tile size (WxH)', cf.tile_size, cf.tile_size))
+        print('{:30s} {}'.format('Maximum tiles/image', cf.n_patches_per_image))
         print('--------------------')
 
     def print_result(self, img_type, img_path, n, w, h, w_resized=None, h_resized=None, offset=None):
@@ -275,29 +294,12 @@ class Extractor(object):
          """
         print()
         print('{:30s} {}'.format('{} File'.format(img_type), os.path.basename(img_path)))
-        print(' {:30s} {}px x {}px'.format('W x H', w, h))
-        if w_resized and h_resized:
-            print(' {:30s} {}px x {}px'.format('Resized W x H', w_resized, h_resized))
+        print('{:30s} {}px x {}px'.format('W x H', w, h))
+        if (type(w_resized) == int or type(h_resized) == int) and (w_resized != w or h_resized != h):
+            print('{:30s} {}px x {}px'.format('Resized W x H', w_resized, h_resized))
         if offset:
             print(' {:30s} {}'.format('Offset', offset))
-        print(' {:30s} {}'.format('Number of Tiles', n))
-        print()
-
-    def get_data(self):
-        """
-        Returns extracted data as MLP Dataset.
-
-          Returns
-          ------
-          MLPDataset
-             Extracted image/mask tiles with metadata.
-         """
-
-        # generate default database path
-        return MLPDataset(
-            os.path.join(cf.outout, cf.id, '_extracted.h5'),
-            {'img': self.imgs, 'mask': self.masks, 'meta': self.profiler.get_metadata()}
-        )
+        print('{:30s} {}'.format('Number of Tiles', n))
 
 
 # Create extractor instance

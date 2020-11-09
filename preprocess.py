@@ -30,19 +30,17 @@ def preprocess():
     Main preprocessing handler
     """
 
-    # Initialize profiler, database
     profiler = Profiler()
 
     # --- Tile Extraction ---
     if cf.mode == cf.EXTRACT:
 
-        print("Loading for extraction: \n\tImages: {}\n\t Masks: {}".format(cf.img, cf.mask))
-
-        # Get files that match images to masks
+        # get files that match images to masks
         files = collate(cf.img, cf.mask)
 
-        # Extract subimages and metadata from image/mask pairs
-        tile_dset = extractor.load(files).extract().coshuffle().profile()
+        # extract subimages and metadata from image/mask pairs
+        tile_dset = extractor.load(files).extract().coshuffle().profile().get_data()
+        # save to file
         tile_dset.save(os.path.join(cf.output, cf.id + '.h5'))
         print('Extraction done.')
 

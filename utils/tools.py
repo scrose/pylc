@@ -37,29 +37,6 @@ def rgb2hex(color):
     return "#{:02x}{:02x}{:02x}".format(int(color[0]), int(color[1]), int(color[2]))
 
 
-def jsd(p, q):
-    """
-    Calculates Jensen–Shannon Divergence coefficient
-    JSD measures the similarity between two probability
-    distributions p and q.
-
-      Parameters
-      ------
-      p: np.array array
-         Probability distribution [n].
-      q: np.array array
-         Probability distribution [n].
-
-      Returns
-      ------
-      float
-         Computed JSD metric.
-     """
-
-    m = 0.5 * (p + q)
-    return 0.5 * np.sum(np.multiply(p, np.log(p / m))) + 0.5 * np.sum(np.multiply(q, np.log(q / m)))
-
-
 def get_image(img_path, ch=3, scale=None, interpolate=cv2.INTER_AREA):
     """
     Loads image data into standard Numpy array
@@ -616,10 +593,10 @@ def collate(img_dir, mask_dir=None):
     mask_files = load_files(mask_dir, ['.png'])
 
     for i, img_fname in enumerate(img_files):
-        assert i < len(mask_files), 'Image {} does not have a target.'.format(img_fname)
+        assert i < len(mask_files), 'Image {} does not have a mask.'.format(img_fname)
         target_fname = mask_files[i]
         assert os.path.splitext(img_fname)[0] == os.path.splitext(target_fname)[0].replace('_mask', ''), \
-            'Image {} does not match target {}.'.format(img_fname, target_fname)
+            'Image {} does not match mask {}.'.format(img_fname, target_fname)
 
         # prepend full path to image and associated target data
         img_fname = os.path.join(img_dir, img_fname)
@@ -627,9 +604,7 @@ def collate(img_dir, mask_dir=None):
         files += [{'img': img_fname, 'mask': target_fname}]
 
         # Validate image-target correspondence
-        assert i < len(mask_files), 'target {} does not have an image.'.format(mask_files[i])
-
-    print("\nImage/mask pairs found:\t{}".format(len(files)))
+        assert i < len(mask_files), 'Mask {} does not have an image.'.format(mask_files[i])
 
     return files
 
