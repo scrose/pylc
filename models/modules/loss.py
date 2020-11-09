@@ -222,16 +222,10 @@ class MultiLoss(torch.nn.Module):
 class RunningLoss(object):
     """
     Tracks losses for training/validation/testing
-
-    Parameters
-    ------
-    config: dict
-        User configuration settings.
     """
 
-    def __init__(self, config):
+    def __init__(self):
         super(RunningLoss, self).__init__()
-        self.config = config
         self.train = []
         self.valid = []
         self.test = []
@@ -263,32 +257,27 @@ class RunningLoss(object):
                 print('Deleting and Restarting loss tracking.')
                 os.remove(self.output_file)
 
-    def log(self, iter, training):
+    def log(self, iteration, training):
         """ log running losses"""
         if self.intv:
             # get interval average for losses
             (self.avg_ce, self.avg_dice, self.avg_fl) = tuple([sum(l) / len(self.intv) for l in zip(*self.intv)])
             self.intv = []
             if training:
-                self.train += [(iter,) + (self.avg_ce, self.avg_dice, self.avg_fl)]
+                self.train += [(iteration,) + (self.avg_ce, self.avg_dice, self.avg_fl)]
             else:
-                self.valid += [(iter,) + (self.avg_ce, self.avg_dice, self.avg_fl)]
+                self.valid += [(iteration,) + (self.avg_ce, self.avg_dice, self.avg_fl)]
                 # set current validation accuracy to new average dice coefficient
                 self.is_best = self.avg_dice < self.best_dice
                 if self.is_best:
                     self.best_dice = self.avg_dice
 
-    def save(self, test=False):
-        """Save loss values to disk"""
-        if not test:
-            torch.save({
-                "train": self.train,
-                "valid": self.valid,
-                "test": self.test,
-                "best_dice": self.best_dice,
-                "lr": self.lr
-            }, self.output_file)
-        else:
-            torch.save({
-                "test": self.valid
-            }, self.output_file)
+    def save(self):
+        """Save training loss values to disk"""
+        torch.save({
+            "train": self.train,
+            "valid": self.valid,
+            "test": self.test,
+            "best_dice": self.best_dice,
+            "lr": self.lr
+        }, self.output_file)

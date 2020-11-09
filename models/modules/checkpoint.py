@@ -15,19 +15,19 @@ File: model.py
 import os
 import torch
 import utils.tools as utils
+from config import cf
 
 
 class Checkpoint:
     """ Tracks model for training/validation/testing """
 
-    def __init__(self, cf):
+    def __init__(self):
 
         # Prepare checkpoint tracking indicies
         self.iter = 0
         self.epoch = 0
         self.model = None
         self.optim = None
-        self.cf = cf
 
         # save checkpoint in save folder
         save_dir = os.path.join(cf.save, cf.id)
@@ -54,12 +54,12 @@ class Checkpoint:
             "iter": model.iter,
             "model": model.net.state_dict(),
             "optim": model.optim.state_dict(),
-            "metadata": model.metadata
+            "meta": model.meta
         }, self.checkpoint_file)
         # Save best model state
         if is_best:
             torch.save({
                 "model": model.net.state_dict(),
                 "optim": model.optim.state_dict(),
-                "metadata": model.metadata
+                "meta": model.meta
             }, self.model_file)

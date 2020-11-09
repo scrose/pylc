@@ -4,7 +4,7 @@
 
 ## Overview
 
-The PyLC (Python Landscape Classifier) is a Pytorch-based trainable segmentation network and land cover classification tool for oblique landscape photography. This tool was developed for the land cover classification of high-resolution greyscale and colour oblique mountain photography. PyLC was developed for the [Mountain Legacy Project](http://mountainlegacy.ca/) at the [University of Victoria](https://uvic.ca/) .
+The PyLC (Python Landscape Classifier) is a Pytorch-based trainable segmentation network and land cover classification tool for oblique landscape photography. PyLC was developed for the land cover classification of high-resolution greyscale and colour oblique mountain photographs. The training dataset is sampled from the [Mountain Legacy Project](http://mountainlegacy.ca/) repeat photography collection hosted at the [University of Victoria](https://uvic.ca/) .
 
 ### Mountain Legacy Project (MLP)
 
@@ -152,22 +152,23 @@ Multiple databases can be combined and shuffled.
 ```
 python preprocess.py --merge --dbs [paths to databases] --output [path/to/output/directory/] 
 ```
+
 For example, using historic database files `db_1.h5` and `db_2.h5`
+
 ```
 python preprocess.py --merge --dbs data/db/db_1.h5, data/db/db_2.h5 --output data/db/merged/ --id merged_dbs_1_and_2
 ```
 
 ### Training
 
-Training or retraining a model requires an extraction or augmented database generated using the preprocessing steps above. The training model is CUDA-enabled.
+Training or retraining a model requires an extraction or augmented database generated using the preprocessing steps above. Model training is CUDA-enabled.
 
 #### Options: 
 - `--id <str>`: Unique identifier to label output files (default: Unix timestamp).
-- `--load <path>`: Path to pretrained model.
 - `--img <path>`: Path to images directory or single file. 
 - `--mask <path>`: Path to masks (i.e. ground truth segmentations) directory or single file. 
 - `--batch_size <int>`: Size of each data batch (default: 50). 
-
+- `--use_pretrained <bool>`: Use pretrained model to initialize network parameters (default: True; path is defined in `config.py`.).
 
 ```
 python train.py  --db [path/to/database.h5] --id [unique identifier]
@@ -178,16 +179,17 @@ Segmentation maps can be generated for input images
 
 #### Options: 
 - `--id <str>`: Unique identifier to label output files (default: Unix timestamp).
-- `--load <path>`: (Required) Path to pretrained model.
+- `--model <path>`: (Required) Path to pretrained model.
 - `--img <path>`: (Required) Path to images directory or single file. 
 - `--mask <path>`: Path to masks directory or single file. This option triggers an evaluation of model outputs using various metrics: F1, mIoU, Matthew's Correlation Coefficient, and generates a confusion matrix. 
-- `--save_output <bool>`: Save unnormalized model output(s) to file (default: False).
+- `--output <path>`: Path to output directory. 
+- `--save_raw_output <bool>`: Save unnormalized model output(s) to file (default: False).
 - `--normalize_default <bool>`: Use preset image normalization coefficients instead of database metadata (default: False -- see default values in parameter settings).
 - `--scale <float>`: Scale the input image(s) by given factor (default: None).
-- `--global_metrics <bool>`: Report global metrics for model evaluation (default: False).
+- `--global_metrics <bool>`: Report aggregate metrics for batched evaluations (default: False).
                          
 ```
-python test.py --mode [] --load [path/to/model] --img [path/to/images(s)] --mask [path/to/mask(s)] --id [unique identifier]
+python pylc.py test --load [path/to/model] --img [path/to/images(s)] --mask [path/to/mask(s)] --output [path/to/output/directory] --id [(Optional) unique identifier]
 ```
 
 

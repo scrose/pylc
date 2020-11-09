@@ -25,6 +25,10 @@ class DB(object):
      version 5 (HDF5) database
      - General database operations for image/mask datasets
      - Multiprocessing enabled
+     Data model schema:
+     - img: images dataset
+     - mask: masks dataset
+     - meta: metadata (see Profiler for metadata schema)
     """
 
     def __init__(self):
@@ -62,6 +66,47 @@ class DB(object):
 
     def __len__(self):
         return self.size
+
+    def get_attr(self, attr_key=None):
+        """
+        Get attribute from dataset by key.
+
+        Parameters
+        ------
+        attr_key: str
+            Dataset attribute key.
+
+        Returns
+        -------
+        attr: np.array
+            Attribute value or full metadata (np.array).
+        """
+        f = self.open()
+        if attr_key:
+            attr = f['mask'].attrs[attr_key]
+        else:
+            attr = vars(f['mask'].attrs)
+        f.close()
+        return attr
+
+    def get_data(self, dset_key):
+        """
+        Get dataset from database by key.
+
+        Parameters
+        ------
+        dset_key: str
+            Dataset key.
+
+        Returns
+        -------
+        data: np.array
+            Dataset array.
+        """
+        f = self.open()
+        data = f[dset_key]
+        f.close()
+        return data
 
     def load(self, path, data=None, partition=None, worker=None):
         """
@@ -149,7 +194,7 @@ class DB(object):
                 "\tData file {} exists. Overwrite? (\'Y\' for yes): ".format(db_path)) == 'Y':
             print('\nCopying {} samples to:\n\t{}  '.format(n_samples, db_path))
             with h5py.File(db_path, 'w') as f:
-                # create dataset partitions
+                # create image dataset partition
                 f.create_dataset(
                     "img",
                     self.data['img'].shape,
@@ -157,6 +202,7 @@ class DB(object):
                     chunks=True,
                     data=self.data['img']
                 )
+                # create masks dataset partition
                 f.create_dataset(
                     "mask",
                     self.data['mask'].shape,
@@ -164,6 +210,13 @@ class DB(object):
                     chunks=True,
                     data=self.data['mask']
                 )
+                # include metadata with masks as new attributes to database
+                for key, attr in self.data['meta'].items():
+                    # omit extraction metadata
+                    if key == 'extract':
+                        continue
+                    f.attrs[key] = attr
+
                 f.close()
         else:
             print('Database was not saved.')

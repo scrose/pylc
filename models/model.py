@@ -11,16 +11,14 @@ University of Victoria
 Module: Base Model Class
 File: model.py
 """
-
 import os
-import sys
 import torch
+from torch import utils
 import numpy as np
 from models.architectures.unet import UNet
 from models.architectures.res_unet import ResUNet
 from models.architectures.deeplab import DeepLab
 from models.modules.loss import MultiLoss, RunningLoss
-from models.modules.evaluator import Evaluator
 from models.modules.checkpoint import Checkpoint
 from numpy import random
 from config import cf
@@ -30,11 +28,6 @@ class Model:
     """
     Abstract model for Pytorch network configuration.
     Uses Pytorch Model class as superclass
-
-      Parameters
-      ------
-      cf: dict
-         User configuration settings.
     """
 
     def __init__(self):
@@ -43,61 +36,75 @@ class Model:
 
         # input configuration
         self.id = cf.id
-        self.n_classes = cf.n_classes
         self.ch = cf.ch
-        self.arch = cf.arch
+        self.n_classes = cf.n_classes
 
         # activation functions
         self.activ_func = activation
 
         # build network
         self.net = None
+        self.model_path = None
         self.crop_target = False
-
-        # If loading, load model from '.pth' file, otherwise build new
-        if cf.load:
-            self.load()
-        else:
-            self.build()
 
         # initialize global iteration counter
         self.iter = 0
 
         # initialize preprocessed metadata -> parameters
-        self.metadata = self.init_metadata()
-        self.cls_weight = self.metadata.item().get('weights')
-        self.px_mean = self.metadata.item().get('px_mean')
-        self.px_std = self.metadata.item().get('px_std')
+        self.meta = None
+        self.cls_weight = None
+        self.px_mean = None
+        self.px_std = None
 
         # load loss handlers
-        self.crit = MultiLoss(self.cls_weight)
-        self.loss = RunningLoss()
+        self.crit = None
+        self.loss = None
 
         # initialize run parameters
         self.epoch = 0
-        self.optim = self.init_optim()
-        self.sched = self.init_sched()
+        self.optim = None
+        self.sched = None
 
-        # initialize training checkpoint and test evaluator
+        # initialize training checkpoint
         self.checkpoint = Checkpoint()
-        self.evaluator = Evaluator()
 
-    def load(self):
+    def load(self, model_path):
         """
-        Loads pretrained model for evaluation.
+        Loads pretrained PyLC model for evaluation.
+
+        Parameters
+        ----------
+        model_path: str
+            Path to PyLC pretrained model.
         """
-        model_data = self.evaluator.load(cf.load)
+        self.model_path = model_path
         try:
-            self.metadata = model_data["metadata"]
-            self.net.load_state_dict(model_data["model"])
+            if os.path.exists(self.model_path):
+
+                # use default pixel normalization if requested
+                if cf.normalize_default:
+                    print('\tInput normalized to defaults:\n\tPixel mean: {}\n\tPixel std-dev: {}'.format(
+                            cf.px_mean_default, cf.px_std_default))
+
+                model_data = torch.load(self.model_path, map_location=cf.device)
+                # self.meta = model_data["meta"]
+                self.net.load_state_dict(model_data["model"])
+            else:
+                print('Model file: {} does not exist ... exiting.'.format(self.model_path))
+                exit()
         except:
-            print('An error occurred loading pretrained model at: \n{}'.format(
-                cf.load))
+            print('An error occurred loading pretrained model at: \n\t{}'.format(
+                model_path))
             exit()
 
-    def build(self):
+    def build(self, meta):
         """
         Builds neural network model from configuration settings.
+
+        Parameters
+        ------
+        meta: dict
+            Database metadata.
         """
 
         # UNet
@@ -140,7 +147,7 @@ class Model:
 
         # Unknown model requested
         else:
-            print('Model {} not available.'.format(self.cf.model))
+            print('Model {} not available.'.format(cf.model))
             exit(1)
 
         # Enable CUDA
@@ -157,43 +164,38 @@ class Model:
             print('\tMulti-process data loading: {} workers enabled.'.format(
                 torch.utils.data.get_worker_info().num_workers))
 
+        # initialize metadata and loss calculators
+        self.meta = meta
+        self.cls_weight = self.meta.get('weights')
+        self.px_mean = self.meta.get('px_mean')
+        self.px_std = self.meta.get('px_std')
+        self.crit = MultiLoss(self.cls_weight)
+        self.loss = RunningLoss()
+        self.optim = self.init_optim()
+        self.sched = self.init_sched()
+
     def resume(self):
         """
         Check for existing checkpoint. If exists, resume from
         previous training. If not, delete the checkpoint.
         """
-        if self.cf.resume:
+        if cf.resume:
             checkpoint_data = self.checkpoint.load()
             self.epoch = checkpoint_data['epoch']
             self.iter = checkpoint_data['iter']
-            self.metadata = checkpoint_data["metadata"]
+            self.meta = checkpoint_data["meta"]
             self.net.load_state_dict(checkpoint_data["model"])
             self.optim.load_state_dict(checkpoint_data["optim"])
         else:
             self.checkpoint.reset()
 
-    def init_metadata(self):
-        """
-         Retrieve preprocessed metadata for training database.
-        """
-
-        path = os.path.join(self.cf.md_dir, self.cf.db + '.npy')
-
-        # select dataset metadata file
-        if os.path.isfile(path):
-            print("\nLoading dataset metadata from {}.".format(path))
-            return np.load(path, allow_pickle=True)
-        else:
-            print("Error: Metadata file {} not found. Parameters could not be initialized.".format(path))
-            sys.exit(0)
-
     def init_optim(self):
 
         # select optimizer
-        if self.cf.optim == 'adam':
-            return torch.optim.AdamW(self.net.parameters(), lr=self.cf.lr, weight_decay=cf.weight_decay)
-        elif self.cf.optim == 'sgd':
-            return torch.optim.SGD(self.net.parameters(), lr=self.cf.lr, momentum=cf.momentum)
+        if cf.optim == 'adam':
+            return torch.optim.AdamW(self.net.parameters(), lr=cf.lr, weight_decay=cf.weight_decay)
+        elif cf.optim == 'sgd':
+            return torch.optim.SGD(self.net.parameters(), lr=cf.lr, momentum=cf.momentum)
         else:
             print('Optimizer is not defined.')
             exit()
@@ -201,22 +203,31 @@ class Model:
     def init_sched(self):
 
         # (Optional) Scheduled learning rate step
-        if self.cf.sched == 'step_lr':
+        if cf.sched == 'step_lr':
             return torch.optim.lr_scheduler.StepLR(self.optim, step_size=1, gamma=cf.gamma)
-        elif self.cf.sched == 'cyclic_lr':
+        elif cf.sched == 'cyclic_lr':
             return torch.optim.lr_scheduler.CyclicLR(self.optim, cf.lr_min, cf.lr_max, step_size_up=2000)
-        elif self.cf.sched == 'anneal':
-            steps_per_epoch = int(self.cf.clip * 29000 // self.cf.batch_size)
+        elif cf.sched == 'anneal':
+            steps_per_epoch = int(cf.clip * 29000 // cf.batch_size)
             scheduler = torch.optim.lr_scheduler.OneCycleLR(self.optim, max_lr=cf.lr_max,
                                                             steps_per_epoch=steps_per_epoch,
-                                                            epochs=self.cf.n_epochs)
+                                                            epochs=cf.n_epochs)
         else:
             print('Optimizer scheduler is not defined.')
             exit()
 
     def train(self, x, y):
 
-        """model training step"""
+        """
+        Model training step.
+
+        Parameters
+        ----------
+        x: torch.tensor
+            Input training image tensor.
+        y: torch.tensor
+            Input training mask tensor.
+        """
 
         # apply random vertical flip
         if bool(random.randint(0, 1)):
@@ -229,11 +240,11 @@ class Model:
         y = y.to(cf.device)
 
         # crop target mask to fit output size (e.g. UNet model)
-        if self.cf.model == 'unet':
+        if cf.model == 'unet':
             y = y[:, cf.crop_left:cf.crop_right, cf.crop_up:cf.crop_down]
 
         # stack single-channel input tensors (deeplab)
-        if self.ch == 1 and self.cf.model == 'deeplab':
+        if self.ch == 1 and cf.model == 'deeplab':
             x = torch.cat((x, x, x), 1)
 
         # forward pass
@@ -253,7 +264,7 @@ class Model:
 
         self.optim.step()
 
-        if self.iter % self.cf.report == 0:
+        if self.iter % cf.report == 0:
             self.log()
 
         # log learning rate
@@ -261,7 +272,7 @@ class Model:
 
         self.iter += 1
 
-    def eval(self, x, y, test=False):
+    def eval(self, x, y):
 
         """model test/validation step"""
 
@@ -273,11 +284,11 @@ class Model:
         y = y.to(cf.device)
 
         # crop target mask to fit output size (UNet)
-        if self.cf.model == 'unet':
+        if cf.model == 'unet':
             y = y[:, cf.crop_left:cf.crop_right, cf.crop_up:cf.crop_down]
 
         # stack single-channel input tensors (Deeplab)
-        if self.ch == 1 and self.cf.model == 'deeplab':
+        if self.ch == 1 and cf.model == 'deeplab':
             x = torch.cat((x, x, x), 1)
 
         # run forward pass
@@ -288,25 +299,24 @@ class Model:
             focal = self.crit.focal_loss(y_hat, y).cpu().numpy()
             self.loss.intv += [(ce, dice, focal)]
 
-        if test:
-            self.evaluator.results += [y_hat]
+        return [y_hat]
 
     def test(self, x):
 
         """model test forward"""
 
         # normalize
-        x = self.normalize_image(x, default=self.cf.normalize_default)
+        x = self.normalize_image(x, default=cf.normalize_default)
         x = x.to(cf.device)
 
         # stack single-channel input tensors (Deeplab)
-        if self.ch == 1 and self.cf.model == 'deeplab':
+        if self.ch == 1 and cf.model == 'deeplab':
             x = torch.cat((x, x, x), 1)
 
         # run forward pass
         with torch.no_grad():
             y_hat = self.net.forward(x)
-            self.evaluator.results += [y_hat]
+            return [y_hat]
 
     def log(self):
 
@@ -317,19 +327,10 @@ class Model:
 
     def save(self, test=False):
 
-        """save output tiles to file"""
+        """save model checkpoint"""
 
-        if test:
-            self.evaluator.save()
-            self.loss.save()
-        else:
-            self.checkpoint.save(self, is_best=self.loss.is_best)
-
-    def save_image(self):
-
-        """save predicted mask image to file"""
-
-        self.evaluator.save_image()
+        self.checkpoint.save(self, is_best=self.loss.is_best)
+        self.loss.save()
 
     def get_lr(self):
         for param_group in self.optim.param_groups:
@@ -355,12 +356,12 @@ class Model:
 
         print("\n------\nModel Settings")
         print("\tID {}".format(self.id))
-        print("\tDatabase: {}".format(self.cf.db))
-        print("\tModel: {}".format(self.cf.arch))
+        print("\tDatabase: {}".format(cf.db))
+        print("\tModel: {}".format(cf.arch))
         # show encoder backbone for Deeplab
-        if self.cf.arch == 'deeplab':
-            print("\tBackbone: {}".format(self.cf.backbone))
-        print('\tInput channels: {}'.format(self.cf.ch))
+        if cf.arch == 'deeplab':
+            print("\tBackbone: {}".format(cf.backbone))
+        print('\tInput channels: {}'.format(cf.ch))
         print('\tOutput channels (classes): {}'.format(self.n_classes))
         print("------\n")
 

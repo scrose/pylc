@@ -14,12 +14,11 @@ File: extract.py
 
 import os
 import torch
-import utils.tools as utils
 import numpy as np
 import cv2
-
 from utils.dataset import MLPDataset
 from utils.profiler import Profiler
+import utils.tools as utils
 from config import cf
 
 
@@ -149,6 +148,7 @@ class Extractor(object):
                                   w_resized=w_resized, h_resized=h_resized, offset=offset)
 
                 self.profiler.extract.append({
+                    'fid': os.path.basename(img_path.replace('.', '_')),
                     'n_samples': n_tiles,
                     'w': w_img,
                     'h': h_img,
@@ -252,14 +252,15 @@ class Extractor(object):
         # generate default database path
         return MLPDataset(
             os.path.join(cf.output, cf.id, '_extracted.h5'),
-            {'img': self.imgs, 'mask': self.masks, 'meta': self.profiler.get_metadata()}
+            {'img': self.imgs, 'mask': self.masks, 'meta': self.profiler.get_meta()}
         )
 
     def print_settings(self):
         """
         Prints extraction settings to console
          """
-        print('\nExtraction Config\n--------------------')
+        print('\nExtraction Config')
+        print('--------------------')
         print('{:30s} {}'.format('Image(s) path', cf.img))
         print('{:30s} {}'.format('Masks(s) path', cf.mask))
         print('{:30s} {}'.format('Number of files', self.n_files))

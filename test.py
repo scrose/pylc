@@ -14,13 +14,11 @@ File: test.py
 
 import os
 import torch
+from tqdm import tqdm
 import utils.tools as utils
-from utils.metrics import Metrics
+from utils.evaluate import evaluator
 from utils.extract import extractor
 from models.model import Model
-from tqdm import trange
-import cv2
-import numpy as np
 from config import cf
 
 
@@ -31,22 +29,19 @@ def test():
 
     # Load pretrained model for testing or evaluation
     # Model file path is defined in user settings.
-    model = Model()
+    model = Model().load(cf.model)
     # self.net = torch.nn.DataParallel(self.net)
     model.net.eval()
-
-    # Initialize metrics evaluator
-    metrics = Metrics()
 
     # get test file(s) - returns list of filenames
     files = utils.collate(cf.img, cf.mask)
 
     # model test
-    print('\nRunning model test ... ')
+    print('\nStarting ... ')
 
     for f_idx, fpair in enumerate(files):
 
-        # get image and associated mask data
+        # get image and associated mask data (if provided)
         if type(fpair) == dict and fpair.has_key('img') and fpair.has_key('mask'):
             img_file = fpair.get('img')
             mask_file = fpair.get('mask')
@@ -54,101 +49,45 @@ def test():
             img_file = fpair
             mask_file = None
 
-        # initialize output file paths (use cf.output directory)
-        fid = os.path.basename(fpair.get('img')).replace('.', '_')
-        output_file = os.path.join(cf.output, 'outputs', fid + '_output.pth')
-        if utils.confirm_write_file(output_file):
-            continue
-        metrics_file = os.path.join(cf.output, 'outputs', fid + '_evaluation.json')
-        if utils.confirm_write_file(metrics_file):
-            continue
-        output_mask_file = os.path.join(cf.output, 'masks', fid + '.png')
-        if utils.confirm_write_file(output_mask_file):
-            continue
+        # extract image tiles (image is resized and cropped to fit tile size)
+        img_tiles = extractor.load(img_file).extract(fit=True, stride=cf.tile_size//2).get_data()
+        img_loader, n_batches = img_tiles.loader()
 
-        # extract image tiles
-        img_tiles = extractor.load(img_file).extract(fit=True, stride=cf.tile_size//2)
+        # get extraction metadata
+        meta = extractor.profiler.get_extract_meta()
 
-        # use default normalization if requested
-        if cf.normalize_default:
-            print(
-                '\tInput normalized to default mean: {}, std: {}'.format(cf.px_mean_default, cf.px_std_default))
-
-        # apply model to input
+        # apply model to input tiles
         with torch.no_grad():
-            for i in trange(n_samples):
-                x = extractor.imgs[i].unsqueeze(0).float()
-                model.test(x)
+            # get model outputs
+            results = []
+            for i, (tile, _) in tqdm(enumerate(img_loader), total=n_batches, desc=": ", unit=' batches'):
+                results.append(model.test(tile.unsqueeze(0).float()))
                 model.iter += 1
 
-                # Save prediction test segmentation output (logits) to file
-                if cf.save_output:
-                    # copy extraction details to evaluator
-                    model.evaluator.metadata = extractor.profiler.metadata['extraction']
-                    model.evaluator.save(fid)
-                    print("Output data saved to {}.".format(model.evaluator.output_path))
-
-                # Save full mask image to file
-                y_pred = model.evaluator.save_image(fid)
-                print("Output mask saved to {}.".format(model.evaluator.masks_path))
-
-        # If ground truth masks provided, evaluate segmentation accuracy
-        if cf.mask:
-
-            if not cf.global_metrics and os.path.exists(md_file) and input(
-                    "\tEvaluation metrics file {} exists. Re-do evaluation? (Type \'Y\' for yes): ".format(
-                        md_file)) != 'Y':
-                continue
-
+        # load results into evaluator
+        if mask_file:
+            evaluator.load(results, meta, utils.get_image(mask_file, 3))
             # Evaluate prediction against ground-truth
             if not cf.global_metrics:
                 print("\nStarting evaluation of outputs ... ")
-                metrics.load(fid, cf.mask, mask_file).evaluate()
+                evaluator.metrics.evaluate()
+        else:
+            evaluator.load(results, meta)
+
+        # save full-sized predicted mask image to file
+        model.evaluator.save_image()
+
+        # save unnormalized models outputs (i.e. raw logits) to file (if requested)
+        if cf.save_raw_output:
+            model.evaluator.save_logits()
+            print("Model output data saved to \n\t{}.".format(model.evaluator.output_path))
 
         # Reset evaluator
         model.evaluator.reset()
 
     # Compute global metrics
     if cf.global_metrics:
-        metrics.evaluate(aggregate=True)
-
-
-def reconstruct(config):
-    """
-    -------------------------------------
-     Reconstruct mask from output segmentation tiles
-    -------------------------------------
-     Inputs:     configuration settings (dict)
-     Outputs:    Reconstructed segmentation mask
-    -------------------------------------
-    """
-
-    # load output data
-    output = torch.load(config.output_path, map_location=lambda storage, loc: storage)
-    print('Loaded results for {}'.format(config.output_path))
-
-    # get unary output data / metadata
-    if type(output['results']) == list:
-        unary_data = np.concatenate(output['results'])
-    else:
-        unary_data = output['results'].numpy()
-
-    md = output['metadata']
-
-    # Reconstruct seg-mask from predicted tiles
-    mask_img = utils.reconstruct(unary_data, md)
-
-    # Extract image path
-    fid = os.path.basename(config.output_path).replace('.', '_')
-
-    mask_file = os.path.join(config.mask_path, fid + '.png')
-
-    # Save output mask image to file (RGB -> BGR conversion)
-    # Note that the default color format in OpenCV is often
-    # referred to as RGB but it is actually BGR (the bytes are reversed).
-    cv2.imwrite(mask_file, cv2.cvtColor(mask_img, cv2.COLOR_RGB2BGR))
-
-    print('Reconstructed mask saved to {}'.format(mask_file))
+        evaluator.metrics.evaluate(aggregate=True)
 
 
 # test.py ends here

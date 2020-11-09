@@ -97,6 +97,11 @@ class MLPDataset(torch.utils.data.IterableDataset):
             self.size//batch_size
         )
 
+    def get_meta(self):
+        """
+        Return metadata from database.
+         """
+        return self.db.get_attr()
 
     def save(self, db_path):
         """

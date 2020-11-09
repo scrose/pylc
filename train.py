@@ -12,7 +12,6 @@ Module: Model Trainer
 File: train.py
 """
 
-import os
 import torch
 from utils.dataset import MLPDataset
 from models.model import Model
@@ -25,15 +24,6 @@ def train():
      Main training loop. Note default training/validation partition
      ratio is defined in parameters (config.py)
     """
-
-    # Build model from hyperparameters
-    model = Model()
-
-    # Check for existing checkpoint. If exists, resume from
-    # previous training. If not, delete the checkpoint.
-    model.resume()
-    model.net.train()
-    model.print_settings()
 
     # load training dataset, loader
     tr_dset = MLPDataset(cf.db, partition=(0, 1 - cf.partition))
@@ -52,6 +42,16 @@ def train():
     )
     # get database size
     db_size = tr_dset.db.size
+    meta = tr_dset.get_meta()
+
+    # Build model from user-defined cofiguration and db metadata
+    model = Model().build(meta)
+
+    # Check for existing checkpoint. If exists, resume from
+    # previous training. If not, delete the checkpoint.
+    model.resume()
+    model.net.train()
+    model.print_settings()
 
     # get offset epoch if resuming from checkpoint
     epoch_offset = model.epoch

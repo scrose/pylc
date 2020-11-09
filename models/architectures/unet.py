@@ -110,11 +110,11 @@ class UNetConvBlock(nn.Module):
         block = []
 
         block.append(nn.Conv2d(in_size, out_size, kernel_size=3, padding=int(padding)))
-        block.append(normalizer.apply(out_size))
+        block.append(normalizer.evaluate(out_size))
         block.append(activ_func)
 
         block.append(nn.Conv2d(out_size, out_size, kernel_size=3, padding=int(padding)))
-        block.append(normalizer.apply(out_size))
+        block.append(normalizer.evaluate(out_size))
         block.append(activ_func)
         if dropout:
             block.append(nn.Dropout(p=dropout))

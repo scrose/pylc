@@ -12,10 +12,7 @@ Module: Metrics Evaluator
 File: metrics.py
 """
 
-import os
-import json
 import numpy as np
-import torch
 from seaborn import heatmap, set
 import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix
@@ -23,8 +20,6 @@ from sklearn.metrics import classification_report
 from sklearn.metrics import jaccard_score
 from sklearn.metrics import f1_score
 from sklearn.metrics import matthews_corrcoef
-import utils.tex as tex
-import utils.tools as utils
 from config import cf
 
 
@@ -38,80 +33,44 @@ class Metrics:
         Outputs accuracy metrics to file(s)
     """
 
-    def __init__(self, cf):
-        self.dpi = 400
+    def __init__(self):
         self.font = {'weight': 'bold', 'size': 18}
+        self.plt = plt
         # plt.rc('font', **font)
         set(font_scale=0.9)
 
         # metrics metadata
-        self.output_path = cf.output
-        self.md = {
+        self.meta = {
             'id': cf.id
         }
         self.labels = []
         self.fid = None
+
+        # single-image evaluation data buffers
         self.y_true = None
         self.y_pred = None
+        self.cmatrix = None
+        self.cmap = None
 
-        # global metrics available for multiple computations
-        self.y_true_global = None
-        self.y_pred_global = None
-
-    def load(self, fid, mask_true, mask_pred):
-        """
-        Initialize predicted/ground truth image masks for
-        evaluation metrics.
-
-        Parameters:
-        -----------
-        mask_true: numpy
-            ground-truth mask image [CHW]
-        mask_pred: numpy
-            predicted mask image [CHW]
-        fid: str
-            file ID
-        """
-        self.fid = fid
-        self.md.update({'fid': fid, 'mask_true': mask_true, 'mask_pred': mask_pred})
-
-        # load ground-truth data
-        y_true = torch.as_tensor(utils.get_image(mask_true, 3), dtype=torch.uint8).permute(2, 0, 1).unsqueeze(0)
-        y_pred = torch.as_tensor(utils.get_image(mask_pred, 3), dtype=torch.uint8).permute(2, 0, 1).unsqueeze(0)
-
-        # Class encode input predicted data
-        y_pred = utils.class_encode(y_pred, cf.palette_rgb)
-        y_true = utils.class_encode(y_true, cf.palette_rgb)
-
-        # Verify same size of target == input
-        assert y_pred.shape == y_true.shape, "Input dimensions {} not same as target {}.".format(
-            y_pred.shape, y_true.shape)
-
-        y_pred = y_pred.flatten()
-        y_true = y_true.flatten()
-
-        self.y_true_global += [y_true]
-        self.y_pred_global += [y_pred]
-
-        self.y_true = y_true
-        self.y_pred = y_pred
-
-        return self
+        # multi-image data buffers for aggregate evaluation
+        self.y_true_aggregate = None
+        self.y_pred_aggregate = None
 
     def validate(self):
-        """ Ensure true mask has all of the categories """
-
+        """
+        Ensures true mask includes all classes for computations.
+        """
         target_idx = np.unique(self.y_true)
         input_idx = np.unique(self.y_pred)
         label_idx = np.unique(np.concatenate((target_idx, input_idx)))
 
-        self.labels = []
         # load category labels
+        self.labels = []
         for idx in label_idx:
-            self.labels += [self.schema.class_labels[idx]]
+            self.labels += [cf.class_labels[idx]]
 
         # Ensure true mask has all of the categories
-        for idx in range(len(self.schema.class_labels)):
+        for idx in range(len(cf.class_labels)):
             if idx not in target_idx:
                 self.y_true[idx] = idx
 
@@ -119,94 +78,67 @@ class Metrics:
 
     def evaluate(self, aggregate=False):
         """
-        Compute evaluation metrics and save to file
+        Compute evaluation metrics
 
         Parameters
         ----------
         aggregate: bool
             Compute aggregate metrics for multiple data loads.
         """
+
+        assert self.y_true_aggregate and self.y_true_aggregate, "Global evaluation failed. Data buffer is empty."
+
         if aggregate:
             print("\nReporting global metrics ... ")
             # Concatenate aggregated data
-            self.y_true = np.concatenate((self.y_true_global))
-            self.y_true = np.concatenate((self.y_pred_global))
+            self.y_true = np.concatenate((self.y_true_aggregate))
+            self.y_true = np.concatenate((self.y_pred_aggregate))
 
         self.f1_score()
         self.jaccard()
         self.mcc()
         self.confusion_matrix()
-        self.print_report()
-        self.save()
+        self.report()
 
         return self
 
-    def print_report(self):
+    def report(self):
         """ Generate Classification Report """
         print(classification_report(self.y_true, self.y_pred, target_names=self.labels, zero_division=0))
-        self.md['report'] = classification_report(
+        self.meta['report'] = classification_report(
             self.y_true, self.y_pred, target_names=self.labels, output_dict=True, zero_division=0)
 
     def f1_score(self):
         """ Compute Weighted F1 Score (DSC) """
-        self.md['f1'] = f1_score(self.y_true, self.y_pred, average='weighted', zero_division=0)
-        print('Weighted F1 Score: {}'.format(self.md['f1']))
+        self.meta['f1'] = f1_score(self.y_true, self.y_pred, average='weighted', zero_division=0)
+        print('Weighted F1 Score: {}'.format(self.meta['f1']))
 
     def jaccard(self):
         """ Compute Weighted Jaccard (ioU) """
-        self.md['iou'] = jaccard_score(self.y_true, self.y_pred, average='weighted')
-        print('Weighted IoU: {}'.format(self.md['iou']))
+        self.meta['iou'] = jaccard_score(self.y_true, self.y_pred, average='weighted')
+        print('Weighted IoU: {}'.format(self.meta['iou']))
 
     def mcc(self):
         """ Compute Matthews correlation coefficient """
-        self.md['mcc'] = matthews_corrcoef(self.y_true, self.y_pred)
-        print('MCC: {}'.format(self.md['mcc']))
+        self.meta['mcc'] = matthews_corrcoef(self.y_true, self.y_pred)
+        print('MCC: {}'.format(self.meta['mcc']))
 
     def reset(self):
         """ Reset metric properties """
         self.y_true = None
         self.y_pred = None
-        self.y_true_global = None
-        self.y_pred_global = None
+        self.y_true_aggregate = None
+        self.y_pred_aggregate = None
 
     def confusion_matrix(self):
         """
-        Generate confusion matrix.
-
-        Parameters:
-        -----------
-        cf: dict
-            configuration settings
-        y_true: numpy
-            ground-truth data
-        y_pred: numpy
-            predicted data
-        fid: str
-            file ID
-         Returns:
-         --------
-         Saves accuracy metrics to file(s)
+        Generate confusion matrix (Matplotlib).
         """
-        conf_matrix = confusion_matrix(self.y_true, self.y_pred, normalize='true')
-        cmap_path = os.path.join(self.output_path, 'outputs', self.fid + '_cmap.pdf')
-        # np.save(os.path.join(cf.output_path, 'outputs', fname + '_cmap.npy'), conf_matrix)
-        cmap = heatmap(conf_matrix, vmin=0.01, vmax=1.0, fmt='.1g', xticklabels=self.labels, yticklabels=self.labels,
-                       annot=True)
-        plt.ylabel('Ground-truth', fontsize=16, labelpad=6)
-        plt.xlabel('Predicted', fontsize=16, labelpad=6)
-        cmap.get_figure().savefig(cmap_path, format='pdf', dpi=self.dpi)
-        plt.clf()
-
-    def save(self):
-        # Save image metadata
-        with open(os.path.join(self.output_path, 'outputs', self.fid + '_md.json'), 'w') as fp:
-            json.dump(self.md, fp, indent=4)
-
-        # Save metadata as latex table
-        # write back the new document
-        with open(os.path.join(self.output_path, 'outputs', self.fid + '_md.tex'), 'w') as fp:
-            md_tex = tex.convert_md_to_tex(self.md)
-            fp.write(md_tex)
+        self.cmatrix = confusion_matrix(self.y_true, self.y_pred, normalize='true')
+        self.cmap = heatmap(
+            self.cmatrix, vmin=0.01, vmax=1.0, fmt='.1g', xticklabels=self.labels, yticklabels=self.labels, annot=True)
+        self.plt.ylabel('Ground-truth', fontsize=16, labelpad=6)
+        self.plt.xlabel('Predicted', fontsize=16, labelpad=6)
 
 
 def jsd(p, q):
@@ -228,5 +160,27 @@ def jsd(p, q):
          Computed JSD metric.
      """
 
-    m = 0.5 * (p + q)
-    return 0.5 * np.sum(np.multiply(p, np.log(p / m))) + 0.5 * np.sum(np.multiply(q, np.log(q / m)))
+    eps = 1e-8
+    m = 0.5 * (p + q + eps)
+    return 0.5 * np.sum(np.multiply(p, np.log(p / m + eps))) + 0.5 * np.sum(np.multiply(q, np.log(q / m + eps)))
+
+
+def m2(p, n_classes):
+    """
+    Calculates the M2 Gibbs index that gives variance
+    of a multinomial distribution
+
+      Parameters
+      ------
+      p: np.array array
+         Probability distribution [n].
+      n_classes: int
+         Number of classes.
+
+      Returns
+      ------
+      float
+         Computed M2 metric.
+     """
+    assert n_classes > 1, "M2 variance for multiple classes."
+    return (n_classes / (n_classes - 1)) * (1 - np.sum(p ** 2))

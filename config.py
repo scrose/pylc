@@ -157,7 +157,7 @@ class Config:
         self.alpha = 0.19
 
         # pretrained network
-        self.pretrained = '/data/pretrained/resnet101-5d3b4d8f.pth'
+        self.pretrained = './data/pretrained/resnet101-5d3b4d8f.pth'
 
         # Network default hyperparameters
         self.dropout = 0.5
@@ -227,15 +227,15 @@ def get_parser():
                         help='Path to masks directory or file.')
     parser.add_argument('--db', type=str,
                         metavar='DATABASE_PATH',
-                        default='/data/db/',
+                        default='./data/db/',
                         help='Path to database directory or file.')
     parser.add_argument('--save', type=str,
                         metavar='FILE_SAVE_PATH',
-                        default='/data/save',
-                        help='Path to save files from training.')
+                        default='./data/save',
+                        help='Path to save directory (model training).')
     parser.add_argument('--output', type=str,
                         metavar='FILE_OUTPUT_PATH',
-                        default='/data/output',
+                        default='./data/output',
                         help='Path to output directory.')
     parser.add_argument('--schema', type=str,
                         metavar='SCHEMA_PATH',
@@ -269,7 +269,7 @@ def get_parser():
 
     # Training options
     train_parse = parser.add_mutually_exclusive_group()
-    train_parse.add_argument('--model', type=str,
+    train_parse.add_argument('--arch', type=str,
                              default='deeplab',
                              choices=['unet', 'resunet', 'deeplab'],
                              help='Network architecture.')
@@ -314,11 +314,11 @@ def get_parser():
 
     # Testing options
     test_parse = parser.add_mutually_exclusive_group()
-    test_parse.add_argument('--load', type=str,
+    test_parse.add_argument('--model', type=str,
                             metavar='MODEL_PATH',
                             default=None,
                             help='Path to pretrained model.')
-    test_parse.add_argument('--save_output', help='Save model output to file.')
+    test_parse.add_argument('--save_raw_output', help='Save raw model output logits to file.')
     test_parse.add_argument('--normalize_default', help='Default input normalization (see parameter settings).')
     test_parse.add_argument('--global_metrics', help='Report only global metrics for model.')
     return parser

@@ -14,9 +14,7 @@ File: profiler.py
 
 import torch
 from tqdm import tqdm
-
-import utils.metrics
-import utils.tools as utils
+from utils.metrics import m2, jsd
 import numpy as np
 from config import cf
 
@@ -31,10 +29,7 @@ class Profiler(object):
         self.id = cf.id
         self.ch = cf.ch
         self.n_classes = cf.n_classes
-        self.class_labels = cf.class_labels
-        self.class_codes = cf.class_codes
         self.palette_rgb = cf.palette_rgb
-        self.palette_hex = cf.palette_hex
         self.n_samples = 0
         self.tile_size = 0
         self.scales = []
@@ -111,13 +106,15 @@ class Profiler(object):
         weights = 1 / (np.log(1.02 + probs))
         self.weights = weights / np.max(weights)
 
-        # Calculate JSD and M2 metrics
+        # initialize balanced distributions [n]
         balanced_px_prob = np.empty(self.n_classes)
         balanced_px_prob.fill(1 / self.n_classes)
 
+        # Calculate JSD and M2 metrics
+        self.m2 = m2(probs, self.n_classes)
+        self.jsd = jsd(probs, balanced_px_prob)
+
         # store metadata values
-        self.m2 = (self.n_classes / (self.n_classes - 1)) * (1 - np.sum(probs ** 2))
-        self.jsd = utils.metrics.jsd(probs, balanced_px_prob)
         self.px_mean = px_mean
         self.px_std = px_std
         self.px_dist = px_dist
@@ -129,11 +126,17 @@ class Profiler(object):
 
         return self
 
-    def get_metadata(self):
+    def get_meta(self):
         """
         Returns current metadata.
         """
         return vars(self)
+
+    def get_extract_meta(self):
+        """
+        Returns current extraction metadata.
+        """
+        return self.extract
 
     def print_metadata(self):
         """
@@ -166,11 +169,11 @@ class Profiler(object):
         readout += hline
         readout += '\n {:8s}{:25s}{:20s}{:15s}'.format('Code', 'Name', 'RGB', 'Hex')
         readout += hline
-        for i, class_label in enumerate(self.class_labels):
+        for i, rgb_colour in enumerate(self.palette_rgb):
             rgb = 'R{:3s} G{:3s} B{:3s}'.format(
-                str(self.palette_rgb[i][0]), str(self.palette_rgb[i][1]), str(self.palette_rgb[i][2]))
+                str(rgb_colour[0]), str(rgb_colour[1]), str(rgb_colour[2]))
             readout += '\n {:8s}{:25s}{:20s}{:15s}'.format(
-                self.class_codes[i], class_label, rgb, self.palette_hex[i])
+                cf.class_codes[i], cf.class_labels[i], rgb, cf.palette_hex[i])
         readout += hline
 
         # class weights
