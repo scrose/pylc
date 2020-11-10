@@ -11,35 +11,28 @@ University of Victoria
 Module: Application
 File: pylc.py
 """
-
-from preprocess import preprocess
-from train import train
-from test import test
-from config import cf
+from utils.argparser import get_parser
 
 
 def main():
     """
     Main application handler
     """
+    # Get parsed input arguments
+    parser = get_parser()
+    args, unparsed = parser.parse_known_args()
 
-    # --- Preprocessing ---
-    if cf.mode in (cf.EXTRACT, cf.AUGMENT, cf.MERGE, cf.GRAYSCALE):
-        preprocess()
+    print(args, unparsed)
 
-    # --- Model training ---
-    elif cf.mode == cf.TRAIN:
-        train()
+    # If we have unparsed arguments, print usage and exit
+    if len(unparsed) > 0:
+        print("\n\'{}\' is not a valid option.\n".format(unparsed[0]))
+        parser.print_usage()
+        exit(1)
 
-    # --- Model training ---
-    elif cf.mode == cf.TEST:
-        test()
-
-    else:
-        print("\'{}\' is not a valid application mode.".format(cf.mode))
-        cf.parser.print_usage()
+    # execute processing function
+    args.func(args)
 
 
 if __name__ == "__main__":
-
     main()

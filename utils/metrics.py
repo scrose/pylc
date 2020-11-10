@@ -11,6 +11,8 @@ University of Victoria
 Module: Metrics Evaluator
 File: metrics.py
 """
+import json
+import os
 
 import numpy as np
 from seaborn import heatmap, set
@@ -20,7 +22,8 @@ from sklearn.metrics import classification_report
 from sklearn.metrics import jaccard_score
 from sklearn.metrics import f1_score
 from sklearn.metrics import matthews_corrcoef
-from config import cf
+
+from utils.tools import get_schema
 
 
 class Metrics:
@@ -28,12 +31,17 @@ class Metrics:
     Defines metrics to evaluate model outputs.
     Evaluate segmentation output accuracy
 
-    Returns:
+    Parameters
+    ------
+    pid: str
+        Unique process ID value.
+
+    Returns
     --------
         Outputs accuracy metrics to file(s)
     """
 
-    def __init__(self):
+    def __init__(self, pid, args):
         self.font = {'weight': 'bold', 'size': 18}
         self.plt = plt
         # plt.rc('font', **font)
@@ -41,10 +49,18 @@ class Metrics:
 
         # metrics metadata
         self.meta = {
-            'id': cf.id
+            'id': pid
         }
         self.labels = []
         self.fid = None
+
+        # extract palettes, labels, categories
+        schema = get_schema(args.schema)
+        self.class_labels = schema.class_labels
+        self.class_codes = schema.class_codes
+        self.palette_hex = schema.palette_hex
+        self.palette_rgb = schema.palette_rgb
+        self.n_classes = schema.n_classes
 
         # single-image evaluation data buffers
         self.y_true = None
@@ -67,10 +83,10 @@ class Metrics:
         # load category labels
         self.labels = []
         for idx in label_idx:
-            self.labels += [cf.class_labels[idx]]
+            self.labels += [self.class_labels[idx]]
 
         # Ensure true mask has all of the categories
-        for idx in range(len(cf.class_labels)):
+        for idx in range(len(self.class_labels)):
             if idx not in target_idx:
                 self.y_true[idx] = idx
 

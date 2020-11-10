@@ -21,7 +21,6 @@ from models.architectures.deeplab import DeepLab
 from models.modules.loss import MultiLoss, RunningLoss
 from models.modules.checkpoint import Checkpoint
 from numpy import random
-from config import cf
 
 
 class Model:
@@ -30,14 +29,14 @@ class Model:
     Uses Pytorch Model class as superclass
     """
 
-    def __init__(self):
+    def __init__(self, args):
 
         super(Model, self).__init__()
 
         # input configuration
-        self.id = cf.id
-        self.ch = cf.ch
-        self.n_classes = cf.n_classes
+        self.id = args.id
+        self.ch = args.ch
+        self.n_classes = args.n_classes
 
         # activation functions
         self.activ_func = activation
@@ -64,6 +63,7 @@ class Model:
         self.epoch = 0
         self.optim = None
         self.sched = None
+        self.normalize_default = args.normalize_default
 
         # initialize training checkpoint
         self.checkpoint = Checkpoint()
@@ -77,10 +77,12 @@ class Model:
         model_path: str
             Path to PyLC pretrained model.
         """
-        self.model_path = model_path
         try:
+            if not model_path:
+                print("Model path is empty. Use \'--model\' option to specify path.")
+                exit(1)
+            self.model_path = model_path
             if os.path.exists(self.model_path):
-
                 # use default pixel normalization if requested
                 if cf.normalize_default:
                     print('\tInput normalized to defaults:\n\tPixel mean: {}\n\tPixel std-dev: {}'.format(
@@ -90,10 +92,10 @@ class Model:
                 # self.meta = model_data["meta"]
                 self.net.load_state_dict(model_data["model"])
             else:
-                print('Model file: {} does not exist ... exiting.'.format(self.model_path))
+                print('Model file does not exist:\n\t{}'.format(self.model_path))
                 exit()
         except:
-            print('An error occurred loading pretrained model at: \n\t{}'.format(
+            print('An error occurred loading the specified model.'.format(
                 model_path))
             exit()
 

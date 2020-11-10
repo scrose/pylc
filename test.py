@@ -12,29 +12,36 @@ Module: Model Test
 File: test.py
 """
 
-import os
 import torch
 from tqdm import tqdm
 import utils.tools as utils
-from utils.evaluate import evaluator
-from utils.extract import extractor
+from utils.extract import Extractor
+from utils.evaluate import Evaluator
 from models.model import Model
-from config import cf
 
 
-def test():
+def tester(args):
     """
     Apply model to input image(s) to generate segmentation maps.
+
+    Parameters
+    ----------
+    args: dict
+        User-defined options.
     """
 
     # Load pretrained model for testing or evaluation
     # Model file path is defined in user settings.
-    model = Model().load(cf.model)
+    model = Model().load(args.model)
     # self.net = torch.nn.DataParallel(self.net)
     model.net.eval()
 
     # get test file(s) - returns list of filenames
-    files = utils.collate(cf.img, cf.mask)
+    files = utils.collate(args.img, args.mask)
+
+    # initialize extractor, evaluator
+    extractor = Extractor(args)
+    evaluator = Evaluator(args)
 
     # model test
     print('\nStarting ... ')
@@ -50,7 +57,7 @@ def test():
             mask_file = None
 
         # extract image tiles (image is resized and cropped to fit tile size)
-        img_tiles = extractor.load(img_file).extract(fit=True, stride=cf.tile_size//2).get_data()
+        img_tiles = extractor.load(img_file, mask_file).extract(fit=True, stride=args.tile_size//2).get_data()
         img_loader, n_batches = img_tiles.loader()
 
         # get extraction metadata
@@ -60,17 +67,19 @@ def test():
         with torch.no_grad():
             # get model outputs
             results = []
-            for i, (tile, _) in tqdm(enumerate(img_loader), total=n_batches, desc=": ", unit=' batches'):
-                results.append(model.test(tile.unsqueeze(0).float()))
+            for i, (tile, _) in tqdm(enumerate(img_loader), total=n_batches, desc="Generating Maps: ", unit=' batches'):
+                results.append(model.tester(tile.unsqueeze(0).float()))
                 model.iter += 1
 
         # load results into evaluator
         if mask_file:
-            evaluator.load(results, meta, utils.get_image(mask_file, 3))
+            evaluator.load(results, meta, utils.get_image(args.mask, 3))
             # Evaluate prediction against ground-truth
-            if not cf.global_metrics:
+            # (skip if only global/aggregated metrics requested)
+            if not args.global_metrics:
                 print("\nStarting evaluation of outputs ... ")
                 evaluator.metrics.evaluate()
+                evaluator.save_metrics()
         else:
             evaluator.load(results, meta)
 
@@ -78,7 +87,7 @@ def test():
         model.evaluator.save_image()
 
         # save unnormalized models outputs (i.e. raw logits) to file (if requested)
-        if cf.save_raw_output:
+        if args.save_raw_output:
             model.evaluator.save_logits()
             print("Model output data saved to \n\t{}.".format(model.evaluator.output_path))
 
@@ -86,8 +95,7 @@ def test():
         model.evaluator.reset()
 
     # Compute global metrics
-    if cf.global_metrics:
+    if args.global_metrics:
         evaluator.metrics.evaluate(aggregate=True)
+        evaluator.save_metrics()
 
-
-# test.py ends here

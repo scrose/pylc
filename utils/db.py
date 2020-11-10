@@ -16,7 +16,6 @@ import os
 import math
 import h5py
 import numpy as np
-from config import cf
 
 
 class DB(object):
@@ -31,7 +30,7 @@ class DB(object):
      - meta: metadata (see Profiler for metadata schema)
     """
 
-    def __init__(self):
+    def __init__(self, clip=1., buffer_size=1000):
         self.path = None
         self.data = None
         self.size = None
@@ -43,6 +42,8 @@ class DB(object):
         self.end = None
         self.current = None
         self.next = None
+        self.clip = clip
+        self.buffer_size = buffer_size
 
     def __iter__(self):
         """
@@ -129,7 +130,7 @@ class DB(object):
         try:
             if data:
                 # data provided (create default db path if path is empty)
-                self.size = int(cf.clip * len(data['img']))
+                self.size = int(self.clip * len(data['img']))
                 self.input_shape = data['img'].shape
                 self.target_shape = data['mask'].shape
                 self.data = data
@@ -137,7 +138,7 @@ class DB(object):
                 assert os.path.exists(path), "Database path {} does not exist."
                 # otherwise, load data from file
                 f = self.open()
-                self.size = int(cf.clip * len(f['img']))
+                self.size = int(self.clip * len(f['img']))
                 self.input_shape = f['img'].shape
                 self.target_shape = f['mask'].shape
                 f.close()
@@ -163,7 +164,7 @@ class DB(object):
             self.partition_size = self.end - self.start
 
         # initialize buffer size and iterator
-        self.buf_size = min(cf.buf_size, self.partition_size)
+        self.buf_size = min(self.buffer_size, self.partition_size)
         self.current = self.start
         self.next = self.current + self.buf_size
 

@@ -9,14 +9,14 @@ Spencer Rose <spencerrose@uvic.ca>, June 2020
 University of Victoria
 
 Module: Profiler
-File: profiler.py
+File: profile.py
 """
 
 import torch
 from tqdm import tqdm
+from utils.tools import get_schema
 from utils.metrics import m2, jsd
 import numpy as np
-from config import cf
 
 
 class Profiler(object):
@@ -24,26 +24,33 @@ class Profiler(object):
     Profiler class for analyzing and generating metadata
     for database.
     """
+    def __init__(self, args):
 
-    def __init__(self):
-        self.id = cf.id
-        self.ch = cf.ch
-        self.n_classes = cf.n_classes
-        self.palette_rgb = cf.palette_rgb
-        self.n_samples = 0
-        self.tile_size = 0
-        self.scales = []
-        self.stride = 0
-        self.m2 = 0
-        self.jsd = 0
-        self.px_mean = 0.
-        self.px_std = 0.
-        self.px_dist = []
-        self.tile_px_count = 0
-        self.dset_px_dist = []
-        self.dset_px_count = 0
-        self.probs = None
-        self.weights = None
+        # extract palettes, labels, categories
+        schema = get_schema(args.schema)
+        self.class_labels = schema.class_labels
+        self.class_codes = schema.class_codes
+        self.palette_hex = schema.palette_hex
+        self.palette_rgb = schema.palette_rgb
+        self.n_classes = schema.n_classes
+
+        # initialize metadata
+        self.id = args.id
+        self.ch = args.ch
+        self.n_samples = args.n_samples
+        self.tile_size = args.tile_size
+        self.scales = args.n_samples
+        self.stride = args.stride
+        self.m2 = args.m2
+        self.jsd = args.jsd
+        self.px_mean = args.px_mean
+        self.px_std = args.px_std
+        self.px_dist = args.px_dist
+        self.tile_px_count = args.tile_px_count
+        self.dset_px_dist = args.dset_px_dist
+        self.dset_px_count = args.dset_px_count
+        self.probs = args.probs
+        self.weights = args.weights
         self.rates = []
         self.extract = []
 
@@ -75,8 +82,8 @@ class Profiler(object):
 
         # initialize global stats
         px_dist = []
-        px_mean = torch.zeros(cf.ch)
-        px_std = torch.zeros(cf.ch)
+        px_mean = torch.zeros(self.ch)
+        px_std = torch.zeros(self.ch)
 
         # load images and masks
         for i, (img, mask) in tqdm(enumerate(loader), total=n_batches, desc="Profiling: ", unit=' batches'):
@@ -118,7 +125,7 @@ class Profiler(object):
         self.px_mean = px_mean
         self.px_std = px_std
         self.px_dist = px_dist
-        self.tile_px_count = cf.tile_size * cf.tile_size
+        self.tile_px_count = self.tile_size * self.tile_size
         self.probs = probs
 
         # print profile metadata to console
@@ -130,7 +137,8 @@ class Profiler(object):
         """
         Returns current metadata.
         """
-        return vars(self)
+        metadata = vars(self)
+        return metadata
 
     def get_extract_meta(self):
         """
@@ -143,7 +151,7 @@ class Profiler(object):
           Prints profile metadata to console
         """
         hline = '\n' + '-' * 70
-        readout = '\n{} ({})'.format('Profile Metadata', cf.mode)
+        readout = '\n{} ({})'.format('Profile Metadata', self.mode)
         readout += hline
         readout += '\n{:30s}{}'.format('ID', self.id)
         readout += '\n{:30s}{} ({})'.format('Channels', self.ch, 'Grayscale' if self.ch == 1 else 'Colour')
@@ -165,7 +173,7 @@ class Profiler(object):
         readout += '\n{:30s}{}'.format('JSD', self.jsd)
 
         # palette
-        readout += '\n\n{} ({})'.format('Palette', cf.schema)
+        readout += '\n\n{} ({})'.format('Palette', self.schema)
         readout += hline
         readout += '\n {:8s}{:25s}{:20s}{:15s}'.format('Code', 'Name', 'RGB', 'Hex')
         readout += hline
@@ -173,7 +181,7 @@ class Profiler(object):
             rgb = 'R{:3s} G{:3s} B{:3s}'.format(
                 str(rgb_colour[0]), str(rgb_colour[1]), str(rgb_colour[2]))
             readout += '\n {:8s}{:25s}{:20s}{:15s}'.format(
-                cf.class_codes[i], cf.class_labels[i], rgb, cf.palette_hex[i])
+                self.class_codes[i], self.class_labels[i], rgb, self.palette_hex[i])
         readout += hline
 
         # class weights
@@ -183,7 +191,7 @@ class Profiler(object):
         readout += hline
         for i, w in enumerate(self.weights):
             readout += '\n {:25s}{:3f}  {:3f}'.format(
-                cf.class_labels[i], round(self.probs[i], 4), round(w, 4))
+                self.class_labels[i], round(self.probs[i], 4), round(w, 4))
         readout += hline
 
         readout += '\n{:25s}{:,}'.format('Tile pixel count', int(self.tile_px_count))

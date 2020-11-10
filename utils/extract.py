@@ -17,81 +17,86 @@ import torch
 import numpy as np
 import cv2
 from utils.dataset import MLPDataset
-from utils.profiler import Profiler
+from utils.profile import Profiler
 import utils.tools as utils
-from config import cf
 
 
 class Extractor(object):
     """
     Extractor class for subimage extraction from input images.
+
+    Parameters
+    ------
+    args: dict
+        Extractor arguments.
     """
 
-    def __init__(self):
+    def __init__(self, args):
 
-        # initialize profiler
-        self.profiler = Profiler()
-
-        # main image arrays
-        self.files = []
+        # initialize image/mask arrays
+        self.img_path = None
+        self.mask_path = None
+        self.files = None
         self.n_files = 0
         self.img_idx = 0
         self.imgs = None
         self.mask_idx = 0
         self.masks = None
-        self.n_tiles = 0
 
         # extraction parameters
-        self.ch = cf.ch
-        self.stride = cf.stride
-        self.tile_size = cf.tile_size
-        self.palette = cf.palette_rgb
+        self.ch = args.ch
+        self.stride = args.stride
+        self.tile_size = args.tile_size
+        self.palette = args.palette_rgb
+        self.n_patches_per_image = args.n_patches_per_image
         self.fit = False
+        self.n_tiles = 0
+
+        # save parameters
+        self.output = args.output
+        self.id = args.id
 
         # use scaling factors (if requested)
-        self.scales = cf.scale if cf.scale else cf.scales
+        self.scales = args.scales if args.scale else [1.]
 
-    def load(self, files):
+        # initialize profiler
+        self.profiler = Profiler(args)
+
+    def load(self, img_path, mask_path):
         """
-        Initializes image/mask tile arrays and metadata.
-
-        Parameters
-        ------
-        files: list
-            List of image files or image/mask pairs.
+        Load image/masks into extractor for processing.
 
         Returns
         ------
         self
             For chaining.
-         """
+        """
 
-        self.n_files = len(files)
+        self.img_path = img_path
+        self.mask_path = mask_path
 
-        # abort if files not loaded
-        assert self.n_files > 0, 'File list is empty. Extraction stopped.'
+        # load image/mask files
+        files = utils.collate(img_path, mask_path)
+
+        if len(files) == 0:
+            print('File list is empty. Extraction stopped.')
+            exit(1)
 
         self.files = files
+        self.n_files = len(self.files)
 
-        # update profiler metadata
-        self.profiler.scales = self.scales
-        self.profiler.tile_size = self.tile_size
-        self.profiler.stride = self.stride
-
-        # initialize image/mask tile arrays
         self.imgs = np.empty(
-            (self.n_files * cf.n_patches_per_image,
+            (self.n_files * self.n_patches_per_image,
              self.ch,
              self.tile_size,
              self.tile_size),
             dtype=np.uint8)
+
         self.masks = np.empty(
-            (self.n_files * cf.n_patches_per_image,
+            (self.n_files * self.n_patches_per_image,
              self.tile_size,
              self.tile_size),
             dtype=np.uint8)
-
-        return self
 
     def extract(self, fit=False, stride=None):
         """
@@ -134,11 +139,11 @@ class Extractor(object):
                     mask_path = None
 
                 # load image as numpy array
-                img, w_img, h_img = utils.get_image(img_path, cf.ch, scale=scale, interpolate=cv2.INTER_AREA)
+                img, w_img, h_img = utils.get_image(img_path, self.ch, scale=scale, interpolate=cv2.INTER_AREA)
 
                 # adjust image size to fit tile size (optional)
                 img, w_resized, h_resized, offset = utils.adjust_to_tile(
-                    img, self.tile_size, self.stride, cf.ch) if self.fit else (img, w_img, h_img, 0)
+                    img, self.tile_size, self.stride, self.ch) if self.fit else (img, w_img, h_img, 0)
 
                 # fold tensor into tiles
                 img_tiles, n_tiles = self.__split(img)
@@ -186,7 +191,7 @@ class Extractor(object):
         self.imgs = self.imgs[:self.img_idx]
         self.masks = self.masks[:self.mask_idx]
         self.n_tiles = len(self.imgs)
-        print('\nTotal tiles generated: {}'.format(self.n_tiles))
+        print('\nTotal tiles generated: {}\n'.format(self.n_tiles))
         self.profiler.n_samples = self.n_tiles
 
         return self
@@ -251,7 +256,7 @@ class Extractor(object):
 
         # generate default database path
         return MLPDataset(
-            os.path.join(cf.output, cf.id, '_extracted.h5'),
+            os.path.join(self.output, self.id, '_extracted.h5'),
             {'img': self.imgs, 'mask': self.masks, 'meta': self.profiler.get_meta()}
         )
 
@@ -261,13 +266,13 @@ class Extractor(object):
          """
         print('\nExtraction Config')
         print('--------------------')
-        print('{:30s} {}'.format('Image(s) path', cf.img))
-        print('{:30s} {}'.format('Masks(s) path', cf.mask))
+        print('{:30s} {}'.format('Image(s) path', self.img_path))
+        print('{:30s} {}'.format('Masks(s) path', self.mask_path))
         print('{:30s} {}'.format('Number of files', self.n_files))
-        print('{:30s} {} ({})'.format('Channels', cf.ch, 'Grayscale' if cf.ch == 1 else 'Colour'))
-        print('{:30s} {}px'.format('Stride', cf.stride))
-        print('{:30s} {}px x {}px'.format('Tile size (WxH)', cf.tile_size, cf.tile_size))
-        print('{:30s} {}'.format('Maximum tiles/image', cf.n_patches_per_image))
+        print('{:30s} {} ({})'.format('Channels', self.ch, 'Grayscale' if self.ch == 1 else 'Colour'))
+        print('{:30s} {}px'.format('Stride', self.stride))
+        print('{:30s} {}px x {}px'.format('Tile size (WxH)', self.tile_size, self.tile_size))
+        print('{:30s} {}'.format('Maximum tiles/image', self.n_patches_per_image))
         print('--------------------')
 
     def print_result(self, img_type, img_path, n, w, h, w_resized=None, h_resized=None, offset=None):
@@ -302,6 +307,3 @@ class Extractor(object):
             print(' {:30s} {}'.format('Offset', offset))
         print('{:30s} {}'.format('Number of Tiles', n))
 
-
-# Create extractor instance
-extractor: Extractor = Extractor()

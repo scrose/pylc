@@ -11,12 +11,11 @@ University of Victoria
 Module: Utilities
 File: tools.py
 """
-
+import json
 import os
 import numpy as np
 import torch
 import cv2
-from config import cf
 
 
 def rgb2hex(color):
@@ -37,7 +36,7 @@ def rgb2hex(color):
     return "#{:02x}{:02x}{:02x}".format(int(color[0]), int(color[1]), int(color[2]))
 
 
-def get_image(img_path, ch=3, scale=None, interpolate=cv2.INTER_AREA):
+def get_image(img_path, ch=3, scale=None, tile_size=512, interpolate=cv2.INTER_AREA):
     """
     Loads image data into standard Numpy array
     Reads image and reverses channel order.
@@ -51,6 +50,8 @@ def get_image(img_path, ch=3, scale=None, interpolate=cv2.INTER_AREA):
         Number of input channels (default = 3).
     scale: float
         Scaling factor.
+    tile_size: int
+        Tile dimension (square).
     interpolate: int
         Interpolation method (OpenCV).
 
@@ -79,8 +80,8 @@ def get_image(img_path, ch=3, scale=None, interpolate=cv2.INTER_AREA):
         height, width = img.shape[:2]
         min_dim = min(height, width)
         # adjust scale to minimum size (tile dimensions)
-        if min_dim < cf.tile_size:
-            scale = cf.tile_size / min_dim
+        if min_dim < tile_size:
+            scale = tile_size / min_dim
         dim = (int(scale * width), int(scale * height))
         img = cv2.resize(img, dim, interpolation=interpolate)
     return img, img.shape[1], img.shape[0]
@@ -442,6 +443,42 @@ def load_files(path, exts):
         files.extend(list(sorted([f for f in os.listdir(path) if any(ext in f for ext in exts)])))
 
     return files
+
+
+def get_schema(schema_path):
+    """
+    Get schema metadata from local file.
+
+      Parameters
+      ------
+      schema_path: str
+         Schema file path.
+
+      Returns
+      ------
+      schema: Schema
+     """
+
+    # Get schema settings from local JSON file
+    if not os.path.isfile(schema_path):
+        print('Schema file {} not found.'.format(schema_path))
+        exit(1)
+
+    class Schema(object):
+        pass
+
+    schema = Schema()
+
+    # extract palettes, labels, categories
+    with open(schema_path) as f:
+        schema_dict = json.load(f)
+        schema.class_labels = [cls['label'] for cls in schema_dict['classes']]
+        schema.class_codes = [cls['code'] for cls in schema_dict['classes']]
+        schema.palette_hex = [cls['colour']['hex'] for cls in schema_dict['classes']]
+        schema.palette_rgb = [cls['colour']['rgb'] for cls in schema_dict['classes']]
+        schema.n_classes = len(schema_dict['classes'])
+
+    return schema
 
 
 def collate(img_dir, mask_dir=None):

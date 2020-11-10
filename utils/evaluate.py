@@ -28,10 +28,10 @@ class Evaluator:
     Handles model test/evaluation functionality.
     """
 
-    def __init__(self):
+    def __init__(self, args):
 
         # initialize metrics
-        self.metrics = Metrics()
+        self.metrics = Metrics(args)
 
         # Model results
         self.fid = None
@@ -41,12 +41,13 @@ class Evaluator:
         self.meta = {}
 
         # Make output and mask directories for results
+        self.output_dir = args.output
         self.model_path = None
-        self.masks_dir = utils.mk_path(os.path.join(cf.output, 'masks'))
-        self.logits_dir = utils.mk_path(os.path.join(cf.output, 'logits'))
-        self.metrics_dir = utils.mk_path(os.path.join(cf.output, 'metrics'))
+        self.masks_dir = utils.mk_path(os.path.join(self.output_dir, 'masks'))
+        self.logits_dir = utils.mk_path(os.path.join(self.output_dir, 'logits'))
+        self.metrics_dir = utils.mk_path(os.path.join(self.output_dir, 'metrics'))
 
-    def load(self, fid, model_outputs, meta, target=None):
+    def load(self, model_outputs, meta, target=None):
         """
         Initialize predicted/ground truth image masks for
         evaluation metrics.
@@ -306,5 +307,3 @@ class Evaluator:
 
         return mask_resized
 
-# Create evaluator instance
-evaluator: Evaluator = Evaluator()

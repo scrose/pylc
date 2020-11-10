@@ -12,10 +12,6 @@
  File:          config.py
 """
 
-from argparse import ArgumentParser
-import time
-import json
-import os
 import random
 import sys
 import numpy as np
@@ -25,47 +21,14 @@ import torch
 class Config:
     """
     Defines Package Default Parameters
-
-    Parameters
-    ---------
         - General parameters
         - Model parameters
-        - Land Cover Categories (LCC.A, LCC.B, LCC.C)
+        - Land cover schema
         - Data Augmentation parameters
         - Network hyperparameters
     """
 
     def __init__(self):
-        # Get parsed input arguments
-        self.parser = get_parser()
-        config, unparsed = self.parser.parse_known_args()
-
-        # If we have unparsed arguments, print usage and exit
-        if len(unparsed) > 0:
-            print("\n\'{}\' is not a valid option.\n".format(unparsed[0]))
-            self.parser.print_usage()
-            sys.exit(1)
-
-        # Copy user-defined settings to main parameters
-        for key in vars(config):
-            setattr(self, key, vars(config).get(key))
-
-        # Get schema settings from local JSON file
-        if not os.path.isfile(config.schema):
-            print('Schema file {} not found.'.format(config.schema))
-            sys.exit(1)
-
-        with open(config.schema) as f:
-            schema = json.load(f)
-
-            # extract palettes, labels, categories
-            self.palette_rgb = [cls['colour']['rgb'] for cls in schema['classes']]
-            self.palette_hex = [cls['colour']['hex'] for cls in schema['classes']]
-            self.class_labels = [cls['label'] for cls in schema['classes']]
-            self.class_codes = [cls['code'] for cls in schema['classes']]
-            self.n_classes = len(schema['classes'])
-
-
 
         # Device settings
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -190,138 +153,6 @@ class Config:
         readout += '\n------\n'
 
         print(readout)
-
-
-
-def get_parser():
-    """
-     Parses user input arguments (see README for details).
-
-     Returns
-     ------
-     ArgumentParser
-        Parser for input parameters.
-    """
-
-    parser = ArgumentParser(
-        prog='MLP Classification Tool',
-        description="Deep learning land cover classification tool."
-    )
-
-    # run modes
-    parser.add_argument('mode',
-                        help='Application run mode.')
-
-    # general configuration settings
-    parser.add_argument('--id', type=str,
-                        metavar='UNIQUE_ID',
-                        default=str(int(time.time())),
-                        help='Unique identifier for output files. (default is Unix timestamp)')
-    parser.add_argument('--img', type=str,
-                        metavar='IMAGE_PATH',
-                        default='./data/raw/images/',
-                        help='Path to images directory or file.')
-    parser.add_argument('--mask', type=str,
-                        metavar='MASKS_PATH',
-                        default='./data/raw/masks/',
-                        help='Path to masks directory or file.')
-    parser.add_argument('--db', type=str,
-                        metavar='DATABASE_PATH',
-                        default='./data/db/',
-                        help='Path to database directory or file.')
-    parser.add_argument('--save', type=str,
-                        metavar='FILE_SAVE_PATH',
-                        default='./data/save',
-                        help='Path to save directory (model training).')
-    parser.add_argument('--output', type=str,
-                        metavar='FILE_OUTPUT_PATH',
-                        default='./data/output',
-                        help='Path to output directory.')
-    parser.add_argument('--schema', type=str,
-                        metavar='SCHEMA_PATH',
-                        default='./schema_a.json',
-                        help='Categorization schema (JSON file, default: schema_a.json).')
-    parser.add_argument('--ch', type=int,
-                        metavar='N_CHANNELS',
-                        default=3,
-                        help='Number of channels for image: 3 for colour image (default); 1 for grayscale images.')
-    parser.add_argument('--n_workers', type=int,
-                        default=6,
-                        help='Number of workers for worker pool.')
-    parser.add_argument('--clip', type=float,
-                        default=1.,
-                        help='Fraction of dataset to use in training.')
-    parser.add_argument('--scale', type=float,
-                        default=None,
-                        help='Scales input image by scaling factor.')
-
-    # preprocessing options
-    preprocess = parser.add_mutually_exclusive_group()
-    preprocess.add_argument('--pad', help='Pad extracted images (Optional: use for UNet model training).')
-    preprocess.add_argument('--dbs', type=str,
-                            default=None,
-                            metavar='DATABASE_PATHS',
-                            help='List of database file paths to merge.',
-                            nargs='+')
-    preprocess.add_argument('--load_size', type=int,
-                            default=50,
-                            help='Size of data loader batches.')
-
-    # Training options
-    train_parse = parser.add_mutually_exclusive_group()
-    train_parse.add_argument('--arch', type=str,
-                             default='deeplab',
-                             choices=['unet', 'resunet', 'deeplab'],
-                             help='Network architecture.')
-    train_parse.add_argument('--backbone', type=str,
-                             default='resnet',
-                             choices=['resnet', 'xception'],
-                             help='Network model encoder.')
-    train_parse.add_argument('--weighted', help='Weight applied to classes in loss computations.')
-    train_parse.add_argument('--ce_weight', type=float,
-                             default=0.5,
-                             help='Weight applied to Cross Entropy losses for back-propagation.')
-    train_parse.add_argument('--dice_weight', type=float,
-                             default=0.5,
-                             help='Weight applied to Dice losses for back-propagation.')
-    train_parse.add_argument('--focal_weight', type=float,
-                             default=0.5,
-                             help='Weight applied to Focal losses for back-propagation.')
-    train_parse.add_argument('--up_mode', type=str,
-                             default='upsample',
-                             choices=['upconv', 'upsample'],
-                             help='Interpolation for upsampling (Optional: use for U-Net).')
-    train_parse.add_argument('--optim', type=str,
-                             default='adam',
-                             choices=['adam', 'sgd'],
-                             help='Network model optimizer.')
-    train_parse.add_argument('--sched', type=str,
-                             default='step_lr',
-                             choices=['step_lr', 'cyclic_lr', 'anneal'],
-                             help='Network model optimizer.')
-    train_parse.add_argument('--lr', type=float, default=0.00005, help='Initial learning rate.')
-    train_parse.add_argument('--batch_size', type=int,
-                             default=8,
-                             help='Size of each training batch.')
-    train_parse.add_argument('--n_epochs', type=int,
-                             default=10,
-                             help='Number of epochs to train.')
-    train_parse.add_argument('--report', type=int,
-                             default=20,
-                             help='Report interval (number of iterations).')
-    train_parse.add_argument('--resume', help='Resume training from existing checkpoint.')
-    train_parse.add_argument('--pretrained', help='Load pretrained network.')
-
-    # Testing options
-    test_parse = parser.add_mutually_exclusive_group()
-    test_parse.add_argument('--model', type=str,
-                            metavar='MODEL_PATH',
-                            default=None,
-                            help='Path to pretrained model.')
-    test_parse.add_argument('--save_raw_output', help='Save raw model output logits to file.')
-    test_parse.add_argument('--normalize_default', help='Default input normalization (see parameter settings).')
-    test_parse.add_argument('--global_metrics', help='Report only global metrics for model.')
-    return parser
 
 
 # Create parameters instance

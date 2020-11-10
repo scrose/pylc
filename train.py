@@ -16,28 +16,32 @@ import torch
 from utils.dataset import MLPDataset
 from models.model import Model
 from tqdm import tqdm
-from config import cf
 
 
-def train():
+def trainer(args):
     """
      Main training loop. Note default training/validation partition
      ratio is defined in parameters (config.py)
+
+    Parameters
+    ----------
+    args: dict
+        User-defined options.
     """
 
     # load training dataset, loader
-    tr_dset = MLPDataset(cf.db, partition=(0, 1 - cf.partition))
+    tr_dset = MLPDataset(args.db, partition=(0, 1 - args.partition))
     tr_loader, tr_batches = tr_dset.loader(
-        batch_size=cf.batch_size,
-        n_workers=cf.n_workers,
+        batch_size=args.batch_size,
+        n_workers=args.n_workers,
         drop_last=True
     )
 
     # load validation dataset, loader
-    va_dset = MLPDataset(cf.db, partition=(1 - cf.partition, 1.))
+    va_dset = MLPDataset(args.db, partition=(1 - args.partition, 1.))
     va_loader, va_batches = va_dset.loader(
-        batch_size=cf.batch_size,
-        n_workers=cf.n_workers,
+        batch_size=args.batch_size,
+        n_workers=args.n_workers,
         drop_last=True
     )
     # get database size
@@ -50,12 +54,12 @@ def train():
     # Check for existing checkpoint. If exists, resume from
     # previous training. If not, delete the checkpoint.
     model.resume()
-    model.net.train()
+    model.net.trainer()
     model.print_settings()
 
     # get offset epoch if resuming from checkpoint
     epoch_offset = model.epoch
-    for e in range(cf.n_epochs - epoch_offset):
+    for e in range(args.n_epochs - epoch_offset):
         # initial validation step
         if e == 0:
             model = validate(model, va_loader, va_batches)
@@ -63,8 +67,8 @@ def train():
         # log learning rate
         model.loss.lr += [(model.iter, model.get_lr())]
 
-        print('\nEpoch {} / {} for Experiment \'{}\''.format(e + epoch_offset + 1, cf.n_epochs, cf.id))
-        print('\tBatch size: {}'.format(cf.batch_size))
+        print('\nEpoch {} / {} for Experiment \'{}\''.format(e + epoch_offset + 1, args.n_epochs, args.id))
+        print('\tBatch size: {}'.format(args.batch_size))
         print('\tTraining dataset size: {} / batches: {}'.format(tr_dset.size, tr_batches))
         print('\tValidation dataset size: {} / batches: {}'.format(va_dset.size, va_batches))
         print('\tCurrent learning rate: {}'.format(model.loss.lr[-1][1]))
@@ -105,7 +109,7 @@ def train_epoch(model, dloader, n_batches):
         Updated model paramters.
     """
 
-    model.net.train()
+    model.net.trainer()
     for i, (x, y) in tqdm(enumerate(dloader), total=n_batches, desc="Training: ", unit=' batches'):
         model.train(x, y)
     return model
@@ -140,4 +144,3 @@ def validate(model, dloader, n_batches):
         model.save()
     return model
 
-# train.py ends here
