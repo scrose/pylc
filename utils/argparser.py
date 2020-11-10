@@ -13,7 +13,6 @@ File: argparser.py
 """
 import time
 from argparse import ArgumentParser
-
 from preprocess import extract, augment, merge, grayscale
 from test import tester
 from train import trainer
@@ -41,7 +40,7 @@ def get_parser():
                         metavar='UNIQUE_ID',
                         default='_id' + str(int(time.time())),
                         help='Unique identifier for output files. (default is Unix timestamp)')
-    parser.add_argument('--schema', type=str, metavar='SCHEMA_PATH', default='./schema_a.json',
+    parser.add_argument('--schema', type=str, metavar='SCHEMA_PATH', default=None,
                         help='Categorization schema (JSON file, default: schema_a.json).')
     parser.add_argument('--ch', type=int, metavar='N_CHANNELS', default=3, choices=[1, 3],
                         help='Number of channels for image: 3 for colour image (default); 1 for grayscale images.')
@@ -49,9 +48,9 @@ def get_parser():
     # extraction options
     parser_extract = subparsers.add_parser('extract', help="Extract subimages from input image.")
     parser_extract.set_defaults(func=extract)
-    parser_extract.add_argument('--img', type=str, metavar='IMAGE_PATH', default='./data/raw/images/',
+    parser_extract.add_argument('-i', '--img', type=str, metavar='IMAGE_PATH', default='./data/raw/images/',
                                 help='Path to images directory or file.')
-    parser_extract.add_argument('--mask', type=str, metavar='MASKS_PATH', default='./data/raw/masks/',
+    parser_extract.add_argument('-t', '--mask', type=str, metavar='MASKS_PATH', default='./data/raw/masks/',
                                 help='Path to masks directory or file.')
     parser_extract.add_argument('--pad', help='Pad extracted images (Optional: use for UNet model training).')
     parser_extract.add_argument('--load_size', type=int, default=50, help='Size of data loader batches.')
@@ -86,6 +85,11 @@ def get_parser():
                               help='Network model optimizer.')
     parser_train.add_argument('--sched', type=str, default='step_lr', choices=['step_lr', 'cyclic_lr', 'anneal'],
                               help='Network model optimizer.')
+    parser_train.add_argument('--normalize', type=str, default='batch',
+                              choices=['batch', 'instance', 'layer', 'synbatch'],
+                              help='Network layer normalizer.')
+    parser_train.add_argument('--activation', type=str, default='relu', choices=['relu', 'lrelu', 'selu', 'synbatch'],
+                              help='Network activation function.')
     parser_train.add_argument('--lr', type=float, default=0.00005, help='Initial learning rate.')
     parser_train.add_argument('--batch_size', type=int, default=8, help='Size of each training batch.')
     parser_train.add_argument('--n_epochs', type=int, default=10, help='Number of epochs to train.')
@@ -94,20 +98,21 @@ def get_parser():
     parser_train.add_argument('--resume', help='Resume training from existing checkpoint.')
     parser_train.add_argument('--pretrained', help='Load pre-trained network weights (e.g. ResNet).')
     parser_train.add_argument('--clip', type=float, default=1.,
-                        help='Fraction of dataset to use in training.')
+                              help='Fraction of dataset to use in training.')
 
     # Testing options
     parser_test = subparsers.add_parser('test', help='Generate segmentation maps.', parents=[parser])
     parser_test.set_defaults(func=tester)
-    parser_test.add_argument('--model', type=str, metavar='MODEL_PATH',
+    parser_test.add_argument('-m', '--model', type=str, metavar='MODEL_PATH',
                              default=None,
                              help='Path to trained PyLC model.')
-    parser_test.add_argument('--img', type=str, metavar='IMAGE_PATH', default='./data/raw/images/',
+    parser_test.add_argument('-i', '--img', type=str, metavar='IMAGE_PATH', default='./data/raw/images/',
                              help='Path to images directory or file.')
-    parser_test.add_argument('--mask', type=str, metavar='MASKS_PATH', default='./data/raw/masks/',
+    parser_test.add_argument('-t', '--mask', type=str, metavar='MASKS_PATH', default='./data/raw/masks/',
                              help='Path to masks directory or file.')
-    parser_test.add_argument('--output', type=str, metavar='FILE_OUTPUT_PATH', default='./data/output',
-                        help='Path to output directory.')
+    parser_test.add_argument('-o', '--output', type=str, metavar='FILE_OUTPUT_PATH', default='./data/output',
+                             help='Path to output directory.')
+    parser_test.add_argument('--batch_size', type=int, default=8, help='Size of each testing batch.')
     parser_test.add_argument('--scale', type=float, default=None, help='Scales input image by scaling factor.')
     parser_test.add_argument('--save_raw_output', help='Save raw model output logits to file.')
     parser_test.add_argument('--normalize_default', help='Default input normalization (see parameter settings).')

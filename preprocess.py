@@ -46,7 +46,7 @@ def augment(args):
         User-defined options.
     """
     # Load db into augmentor
-    augmentor.load(args.db)
+    augmentor = Augmentor(args.db)
 
     print('\nCalculating sample rates  ... ', end='')
     augmentor.optimize()
@@ -76,8 +76,8 @@ def profile(args):
     args: dict
         User-defined options.
     """
-    profiler = Profiler()
-    profiler.profile(args.db).save()
+    profiler = Profiler(args)
+    meta = profiler.print_metadata().get_meta()
 
 
 def merge(args):
@@ -89,7 +89,8 @@ def merge(args):
     args: dict
         User-defined options.
     """
-    augmentor.merge_dbs().save()
+    augmentor = Augmentor(args.db)
+    augmentor.merge_dbs(args.dbs)
 
 
 def grayscale(args):

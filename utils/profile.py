@@ -11,9 +11,10 @@ University of Victoria
 Module: Profiler
 File: profile.py
 """
-
 import torch
 from tqdm import tqdm
+
+from config import cf
 from utils.tools import get_schema
 from utils.metrics import m2, jsd
 import numpy as np
@@ -23,10 +24,50 @@ class Profiler(object):
     """
     Profiler class for analyzing and generating metadata
     for database.
+
+    Arguments
+    ---------
+        args.id: int
+            Identifier.
+        args.ch: int
+            Number of channels
+        args.schema: str
+            Path to schema JSON file.
+        args.output: str
+            Output path
+        args.n_samples
+            Number of samples.
+        args.tile_size: int
+            Tile size.
+        args.scales: list
+            Image scaling factors.
+        args.stride: int
+            Stride.
+        args.m2: float
+            M2 variance metric.
+        args.jsd: float
+            JSD coefficient.
+        args.px_mean: np.array
+            Pixel mean value.
+        args.px_std: np.array
+            Pixel standard deviation value.
+        args.px_dist: np.array
+            Tile pixel frequency distribution.
+        args.tile_px_count: int
+            Tile pixel count.
+        args.dset_px_dist: np.array
+            Dataset pixel frequency distribution.
+        args.dset_px_count: int
+            Dataset pixel count.
+        args.probs: np.array
+            Dataset probability distribution.
+        args.weights:
+            Dataset inverse weights.
     """
     def __init__(self, args):
 
         # extract palettes, labels, categories
+        self.schema = args.schema if hasattr(args, 'schema') else cf.schema
         schema = get_schema(args.schema)
         self.class_labels = schema.class_labels
         self.class_codes = schema.class_codes
@@ -37,20 +78,22 @@ class Profiler(object):
         # initialize metadata
         self.id = args.id
         self.ch = args.ch
-        self.n_samples = args.n_samples
-        self.tile_size = args.tile_size
-        self.scales = args.n_samples
-        self.stride = args.stride
-        self.m2 = args.m2
-        self.jsd = args.jsd
-        self.px_mean = args.px_mean
-        self.px_std = args.px_std
-        self.px_dist = args.px_dist
-        self.tile_px_count = args.tile_px_count
-        self.dset_px_dist = args.dset_px_dist
-        self.dset_px_count = args.dset_px_count
-        self.probs = args.probs
-        self.weights = args.weights
+        self.output = args.output
+        self.n_samples = args.n_samples if hasattr(args, 'n_samples') else 0
+        self.n_patches_per_image = cf.tiles_per_image
+        self.tile_size = args.tile_size if hasattr(args, 'tile_size') else cf.tile_size
+        self.scales = args.scales if hasattr(args, 'scales') else cf.scales
+        self.stride = args.stride if hasattr(args, 'tile_size') else cf.stride
+        self.m2 = args.m2 if hasattr(args, 'm2') else 0.
+        self.jsd = args.jsd if hasattr(args, 'jsd') else 1.
+        self.px_mean = args.px_mean if hasattr(args, 'px_mean') else cf.px_mean_default
+        self.px_std = args.px_std if hasattr(args, 'px_std') else cf.px_std_default
+        self.px_dist = args.px_dist if hasattr(args, 'tile_size') else None
+        self.tile_px_count = args.px_count if hasattr(args, 'tile_size') else cf.tile_size * cf.tile_size
+        self.dset_px_dist = args.px_dist if hasattr(args, 'px_dist') else None
+        self.dset_px_count = args.px_count if hasattr(args, 'tile_size') else 0
+        self.probs = args.probs if hasattr(args, 'probs') else None
+        self.weights = args.weights if hasattr(args, 'weights') else None
         self.rates = []
         self.extract = []
 
@@ -133,6 +176,20 @@ class Profiler(object):
 
         return self
 
+    def update(self, meta):
+        """
+        Updates metadata with new values.
+
+        Parameters
+        ----------
+        meta: dict
+            Updated metadata.
+        """
+        for key in meta:
+            setattr(self, key, meta[key])
+
+        return self
+
     def get_meta(self):
         """
         Returns current metadata.
@@ -150,7 +207,7 @@ class Profiler(object):
         """
           Prints profile metadata to console
         """
-        hline = '\n' + '-' * 70
+        hline = '\n' + '-' * 50
         readout = '\n{} ({})'.format('Profile Metadata', self.mode)
         readout += hline
         readout += '\n{:30s}{}'.format('ID', self.id)

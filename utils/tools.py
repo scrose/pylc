@@ -436,11 +436,12 @@ def load_files(path, exts):
 
     files = []
     if os.path.isfile(path):
-        ext = os.path.splitext(os.path.basename(path))[0]
-        assert ext in exts, "File {} of type {} cannot be loaded.".format(path, ext)
+        ext = os.path.splitext(os.path.basename(path))[1]
+        assert ext in exts, "File {} of type {} is invalid.".format(path, ext)
         files.append(path)
     elif os.path.isdir(path):
-        files.extend(list(sorted([f for f in os.listdir(path) if any(ext in f for ext in exts)])))
+        files.extend(list(sorted([os.path.join(path, f)
+                                  for f in os.listdir(path) if any(ext in f for ext in exts)])))
 
     return files
 
@@ -458,6 +459,10 @@ def get_schema(schema_path):
       ------
       schema: Schema
      """
+
+    if not schema_path:
+        print('Schema path is empty.')
+        exit(1)
 
     # Get schema settings from local JSON file
     if not os.path.isfile(schema_path):
@@ -509,20 +514,17 @@ def collate(img_dir, mask_dir=None):
 
     mask_files = load_files(mask_dir, ['.png'])
 
-    for i, img_fname in enumerate(img_files):
-        assert i < len(mask_files), 'Image {} does not have a mask.'.format(img_fname)
-        target_fname = mask_files[i]
-        assert os.path.splitext(img_fname)[0] == os.path.splitext(target_fname)[0].replace('_mask', ''), \
-            'Image {} does not match mask {}.'.format(img_fname, target_fname)
-
-        # prepend full path to image and associated target data
-        img_fname = os.path.join(img_dir, img_fname)
-        target_fname = os.path.join(mask_dir, target_fname)
-        files += [{'img': img_fname, 'mask': target_fname}]
-
-        # Validate image-target correspondence
+    for i, img_path in enumerate(img_files):
+        # Validate mask-to-image count
+        assert i < len(mask_files), 'Image {} does not have a mask.'.format(img_path)
+        mask_path = mask_files[i]
+        img_fname = os.path.splitext(os.path.basename(img_path))[0]
+        mask_fname = os.path.splitext(os.path.basename(mask_path))[0]
+        assert img_fname == mask_fname, 'Image {} does not match mask {}.'.format(img_fname, mask_fname)
+        # append to file list
+        files += [{'img': img_path, 'mask': mask_path}]
+        # Validate image-to-mask count
         assert i < len(mask_files), 'Mask {} does not have an image.'.format(mask_files[i])
-
     return files
 
 

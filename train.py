@@ -49,7 +49,7 @@ def trainer(args):
     meta = tr_dset.get_meta()
 
     # Build model from user-defined cofiguration and db metadata
-    model = Model().build(meta)
+    model = Model(args).build(meta)
 
     # Check for existing checkpoint. If exists, resume from
     # previous training. If not, delete the checkpoint.

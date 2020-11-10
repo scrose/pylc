@@ -15,6 +15,7 @@ File: test.py
 import torch
 from tqdm import tqdm
 import utils.tools as utils
+from config import cf
 from utils.extract import Extractor
 from utils.evaluate import Evaluator
 from models.model import Model
@@ -32,7 +33,7 @@ def tester(args):
 
     # Load pretrained model for testing or evaluation
     # Model file path is defined in user settings.
-    model = Model().load(args.model)
+    model = Model(args).load(args.model)
     # self.net = torch.nn.DataParallel(self.net)
     model.net.eval()
 
@@ -43,13 +44,10 @@ def tester(args):
     extractor = Extractor(args)
     evaluator = Evaluator(args)
 
-    # model test
-    print('\nStarting ... ')
-
     for f_idx, fpair in enumerate(files):
 
         # get image and associated mask data (if provided)
-        if type(fpair) == dict and fpair.has_key('img') and fpair.has_key('mask'):
+        if type(fpair) == dict and 'img' in fpair and 'mask' in fpair:
             img_file = fpair.get('img')
             mask_file = fpair.get('mask')
         else:
@@ -57,23 +55,23 @@ def tester(args):
             mask_file = None
 
         # extract image tiles (image is resized and cropped to fit tile size)
-        img_tiles = extractor.load(img_file, mask_file).extract(fit=True, stride=args.tile_size//2).get_data()
-        img_loader, n_batches = img_tiles.loader()
+        img_tiles = extractor.load(img_file, mask_file).extract(fit=True, stride=cf.tile_size//2).get_data()
+        img_loader, n_batches = img_tiles.loader(batch_size=args.batch_size)
 
         # get extraction metadata
-        meta = extractor.profiler.get_extract_meta()
+        meta = extractor.meta.get_extract_meta()
 
         # apply model to input tiles
         with torch.no_grad():
             # get model outputs
             results = []
-            for i, (tile, _) in tqdm(enumerate(img_loader), total=n_batches, desc="Generating Maps: ", unit=' batches'):
-                results.append(model.tester(tile.unsqueeze(0).float()))
+            for i, (tile, _) in tqdm(enumerate(img_loader), total=n_batches, desc="Segmentation: ", unit=' batches'):
+                results.append(model.test(tile))
                 model.iter += 1
 
         # load results into evaluator
         if mask_file:
-            evaluator.load(results, meta, utils.get_image(args.mask, 3))
+            evaluator.load(results, meta, utils.get_image(mask_file, 3))
             # Evaluate prediction against ground-truth
             # (skip if only global/aggregated metrics requested)
             if not args.global_metrics:

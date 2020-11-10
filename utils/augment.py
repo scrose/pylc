@@ -27,20 +27,15 @@ class Augmentor(object):
     """
     Augmentor class for subimage augmentation from input database.
     Optimized rates minimize Jensen-Shannon divergence from balanced
-    distribution
+    distribution.
+
+    Parameters
+    ------
+    db_path: str
+        Path to database file.
     """
 
-    def __init__(self):
-        # profile init
-        self.profiler = None
-        self.rates = None
-
-        # input data properties
-        self.input_dset = None
-        self.input_meta = None
-        self.input_loader = None
-        self.input_path = None
-        self.input_db_size = 0
+    def __init__(self, db_path):
 
         # augmented data properties
         self.output_path = None
@@ -48,21 +43,6 @@ class Augmentor(object):
         self.output_dset = None
         self.output_path = None
         self.output_db_size = 0
-
-    def load(self, db_path):
-        """
-        Loads source database.
-
-        Parameters
-        ------
-        db_path: str
-            Path to database file.
-
-        Returns
-        ------
-        self
-            For chaining.
-         """
 
         assert os.path.exists(db_path), "Database file {} not found.".format(db_path)
 
@@ -76,8 +56,6 @@ class Augmentor(object):
             drop_last=True
         )
 
-        return self
-
     def optimize(self):
         """
          Optimizes augmentation parameters for class balancing
@@ -88,12 +66,12 @@ class Augmentor(object):
         """
 
         # Show previous profile metadata
-        self.profiler.print()
+        self.profiler.print_metadata()
 
         # Load metadata
-        px_dist = self.profiler.get('px_dist')
-        px_count = self.profiler.get('px_count')
-        dset_probs = self.profiler.get('probs')
+        px_dist = self.profiler.px_dist
+        px_count = self.profiler.tile_px_count
+        dset_probs = self.profiler.probs
 
         # Optimized profile data
         profile_data = []
@@ -164,7 +142,7 @@ class Augmentor(object):
 
         # Store optimal augmentation parameters (minimize JSD)
         self.metadata = profile_data[int(np.argmin(np.asarray(jsd)))]
-        self.rates = self.metadata['rates']
+        self.profiler.rates = self.metadata['rates']
 
         return self
 
@@ -179,7 +157,7 @@ class Augmentor(object):
             For chaining.
         """
 
-        assert self.profiler.metadata, "Metadata is not loaded."
+        assert self.profiler.get_extract_meta(), "Metadata is not loaded."
         assert self.input_loader and self.dset_size and self.db_size, "Database is not loaded."
 
         # initialize main image arrays
@@ -223,21 +201,17 @@ class Augmentor(object):
 
         return self
 
-    def merge_dbs(self):
+    def merge_dbs(self, dbs):
         """
         Loads source database.
 
         Parameters
         ------
-        cf: dict
-            User-defined configuration parameters
+        dbs: list
+            Databases to merge with current one.
 
-        Returns
-        ------
-        self
-            For chaining.
-         """
-        return
+        """
+        return self
 
         # # set batch size to single
         # cf.batch_size = 1
@@ -292,19 +266,13 @@ class Augmentor(object):
 
     def grayscale(self):
         """
-        Loads source database.
-
-        Parameters
-        ------
-        cf: dict
-            User-defined configuration parameters
+        Convert loaded database to grayscale.
 
         Returns
         ------
         self
             For chaining.
          """
-        return
 
         # # Data augmentation based on pixel profile
         # print('\nStarting {}:{} image grayscaling ...'.format(cf.capture, cf.id))
@@ -348,10 +316,12 @@ class Augmentor(object):
         # # save merged database file
         # db_base.save(data, path=db_path_grayscale)
 
+        return self
+
     def save(self):
         """
         save augmented data to database.
-         """
+        """
         db = DB()
         db_path = os.path.join(cf.output, cf.id + '_augmented.h5')
         if os.path.exists(db_path) and input(
@@ -375,14 +345,7 @@ class Augmentor(object):
         print('{:30s} {} ({})'.format('Channels', cf.ch, ch_label))
         print('{:30s} {}px'.format('Stride', cf.stride))
         print('{:30s} {}px x {}px'.format('Tile size (WxH)', cf.tile_size, cf.tile_size))
-        print('{:30s} {}'.format('Maximum tiles/image', cf.n_patches_per_image))
+        print('{:30s} {}'.format('Maximum tiles/image', cf.tiles_per_image))
         print('--------------------')
 
         return self
-
-
-
-
-
-# Create augmentor instance
-augmentor: Augmentor = Augmentor()

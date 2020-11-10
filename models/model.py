@@ -13,7 +13,7 @@ File: model.py
 """
 import os
 import torch
-from torch import utils
+from torch import utils, nn
 import numpy as np
 from models.architectures.unet import UNet
 from models.architectures.res_unet import ResUNet
@@ -21,30 +21,40 @@ from models.architectures.deeplab import DeepLab
 from models.modules.loss import MultiLoss, RunningLoss
 from models.modules.checkpoint import Checkpoint
 from numpy import random
+from utils.tools import get_schema
+from config import cf
 
 
 class Model:
     """
     Abstract model for Pytorch network configuration.
     Uses Pytorch Model class as superclass
+
+    Parameters
+    ----------
+    args: dict
+        User-defined configuration settings.
     """
 
     def __init__(self, args):
 
         super(Model, self).__init__()
 
+        # extract palettes, labels, categories
+        self.schema = args.schema if hasattr(args, 'schema') and args.schema else cf.schema
+        schema = get_schema(self.schema)
+        self.n_classes = schema.n_classes
+
         # input configuration
         self.id = args.id
         self.ch = args.ch
-        self.n_classes = args.n_classes
-
-        # activation functions
-        self.activ_func = activation
+        self.save_dir = None
 
         # build network
         self.net = None
         self.model_path = None
-        self.crop_target = False
+        self.arch = args.arch if hasattr(args, 'arch') else None
+        self.backbone = args.backbone if hasattr(args, 'backbone') else None
 
         # initialize global iteration counter
         self.iter = 0
@@ -52,21 +62,56 @@ class Model:
         # initialize preprocessed metadata -> parameters
         self.meta = None
         self.cls_weight = None
-        self.px_mean = None
-        self.px_std = None
+        self.px_mean = cf.px_mean_default
+        self.px_std = cf.px_std_default
+        self.normalize_default = True
+        self.crop_target = False
 
         # load loss handlers
         self.crit = None
+        self.loss_weights = {
+            'weighted': args.weighted if hasattr(args, 'weighted') else cf.weighted,
+            'ce': args.ce_weight if hasattr(args, 'ce_weight') else cf.ce_weight,
+            'dice': args.dice_weight if hasattr(args, 'dice_weight') else cf.dice_weight,
+            'focal': args.focal_weight if hasattr(args, 'focal_weight') else cf.focal_weight
+        }
         self.loss = None
 
         # initialize run parameters
+        self.n_epoches = args.n_epoches if hasattr(args, 'n_epoches') else cf.n_epoches
         self.epoch = 0
+        self.batch_size = args.batch_size if hasattr(args, 'batch_size') else cf.batch_size
+        self.lr = args.lr if hasattr(args, 'lr') else cf.lr
+        self.up_mode = args.up_mode if hasattr(args, 'up_mode') else cf.up_mode
+        self.clip = args.clip if hasattr(args, 'clip') else cf.clip
+        self.optim_type = args.optim if hasattr(args, 'optim') else cf.optim_type
         self.optim = None
+        self.sched_type = args.sched if hasattr(args, 'sched') else cf.sched_type
         self.sched = None
-        self.normalize_default = args.normalize_default
 
         # initialize training checkpoint
-        self.checkpoint = Checkpoint()
+        self.checkpoint = None
+        self.resume_checkpoint = False
+
+        # layer activation functions
+        self.activ_type = None
+        self.activations = nn.ModuleDict({
+            'relu': torch.nn.ReLU(inplace=True),
+            'lrelu': nn.LeakyReLU(negative_slope=0.01, inplace=True),
+            'prelu': nn.PReLU(),
+            'selu': torch.nn.SELU(inplace=True)
+        })
+
+        # layer normalizers
+        self.norm_type = None
+        self.normalizers = {
+            'batch': torch.nn.BatchNorm2d,
+            'instance': torch.nn.InstanceNorm2d,
+            'layer': torch.nn.LayerNorm,
+            'syncbatch': torch.nn.SyncBatchNorm
+        }
+
+        self.print_settings()
 
     def load(self, model_path):
         """
@@ -77,27 +122,73 @@ class Model:
         model_path: str
             Path to PyLC pretrained model.
         """
-        try:
-            if not model_path:
-                print("Model path is empty. Use \'--model\' option to specify path.")
-                exit(1)
+        # try:
+        if not model_path:
+            print("Model path is empty. Use \'--model\' option to specify path.")
+            exit(1)
+        if os.path.exists(model_path):
             self.model_path = model_path
-            if os.path.exists(self.model_path):
-                # use default pixel normalization if requested
-                if cf.normalize_default:
-                    print('\tInput normalized to defaults:\n\tPixel mean: {}\n\tPixel std-dev: {}'.format(
-                            cf.px_mean_default, cf.px_std_default))
+            # use default pixel normalization if requested
+            if self.normalize_default:
+                print('\nInput normalized to default settings:\n\tPixel mean: {}\n\tPixel std-dev: {}'.format(
+                    cf.px_mean_default, cf.px_std_default))
 
+            md = np.load('/Users/boutrous/Workspace/MLP/mountain-legacy-project/data/metadata/historic_augment.npy',
+                         allow_pickle=True)
+
+            meta = {
+                'cls_weight': md.item()['weights'],
+                'px_mean': md.item()['px_mean'],
+                'px_std': md.item()['px_std']
+            }
+
+            class Params(object):
+                def __init__(self):
+                    self.output = './output/'
+                    self.schema = './schemas/schema_a.json'
+                    self.id = 'testing'
+                    self.save_dir = './data/save/'
+                    self.ch = 1,
+                    self.n_classes = 9
+                    self.arch = 'deeplab'
+                    self.backbone = 'resnet'
+                    self.norm_type = 'batch'
+                    self.activ_type = 'relu'
+                    self.resume_checkpoint = True
+                    self.dice_weight=0.5
+                    self.ce_weight = 0.5
+                    self.focal_weight = 0.5
+                    self.weighted = True
+                    self.resume = False
+                    self.save_dir = './output/save/'
+                    self.optim = 'adam'
+                    self.lr = 0.0001
+                    self.sched = 'step_lr'
+
+            params = Params()
+
+            # update model parameters
+            for key in vars(params):
+                if hasattr(self, key):
+                    setattr(self, key, vars(params)[key])
+
+            self.build(meta)
+
+            try:
                 model_data = torch.load(self.model_path, map_location=cf.device)
-                # self.meta = model_data["meta"]
                 self.net.load_state_dict(model_data["model"])
-            else:
-                print('Model file does not exist:\n\t{}'.format(self.model_path))
+                # self.meta = model_data["meta"]
+            except Exception as inst:
+                print(inst)
+                print('An error occurred loading the specified model.'.format(
+                    model_path))
                 exit()
-        except:
-            print('An error occurred loading the specified model.'.format(
-                model_path))
+
+        else:
+            print('Model file does not exist:\n\t{}'.format(self.model_path))
             exit()
+
+        return self
 
     def build(self, meta):
         """
@@ -109,38 +200,41 @@ class Model:
             Database metadata.
         """
 
+        # initialize checkpoint
+        self.checkpoint = Checkpoint(self.id, self.save_dir)
+
         # UNet
         if self.arch == 'unet':
             self.net = UNet(
                 in_channels=self.ch,
                 n_classes=self.n_classes,
-                up_mode=cf.up_mode,
-                activ_func=self.activ_func('selu'),
-                normalizer=Normalizer('instance'),
+                up_mode=self.up_mode,
+                activ_func=self.activations[self.activ_type],
+                normalizer=self.normalizers[self.norm_type],
                 dropout=cf.dropout
             )
             self.net = self.net.to(cf.device)
-            self.crop_target = True
+            self.crop_target = self.crop_target
 
         # Alternate Residual UNet
         elif self.arch == 'resunet':
             self.net = ResUNet(
                 in_channels=self.ch,
                 n_classes=self.n_classes,
-                up_mode=cf.up_mode,
-                activ_func=self.activ_func('relu'),
-                # normalizer=Normalizer('layer'),
+                up_mode=self.up_mode,
+                activ_func=self.activations[self.activ_type],
+                batch_norm=True,
                 dropout=cf.dropout
             )
             self.net = self.net.to(cf.device)
-            self.crop_target = True
+            self.crop_target = self.crop_target
 
         # DeeplabV3+
         elif self.arch == 'deeplab':
             self.net = DeepLab(
-                activ_func=self.activ_func('relu'),
-                normalizer=torch.nn.BatchNorm2d,
-                backbone=cf.backbone,
+                activ_func=self.activations[self.activ_type],
+                normalizer=self.normalizers[self.norm_type],
+                backbone=self.backbone,
                 n_classes=self.n_classes,
                 in_channels=self.ch,
                 pretrained=cf.pretrained
@@ -149,12 +243,12 @@ class Model:
 
         # Unknown model requested
         else:
-            print('Model {} not available.'.format(cf.model))
+            print('Model {} not available.'.format(self.arch))
             exit(1)
 
         # Enable CUDA
         if torch.cuda.is_available():
-            print("\nCUDA enabled.")
+            print("\n --- CUDA enabled.")
 
         # Parallelize model on multiple GPUs (disabled)
         if torch.cuda.device_count() > 1:
@@ -163,25 +257,36 @@ class Model:
 
         # Check multiprocessing enabled
         if torch.utils.data.get_worker_info():
-            print('\tMulti-process data loading: {} workers enabled.'.format(
+            print('\tPooled data loading: {} workers enabled.'.format(
                 torch.utils.data.get_worker_info().num_workers))
 
-        # initialize metadata and loss calculators
+        # initialize metadata and
         self.meta = meta
         self.cls_weight = self.meta.get('weights')
         self.px_mean = self.meta.get('px_mean')
         self.px_std = self.meta.get('px_std')
-        self.crit = MultiLoss(self.cls_weight)
-        self.loss = RunningLoss()
+
+        # initialize network loss calculators, etc.
+        self.crit = MultiLoss(
+            loss_weights=self.loss_weights,
+            cls_weight=self.cls_weight,
+            schema=self.schema
+        )
+        self.loss = RunningLoss(
+            self.id,
+            resume=self.resume_checkpoint
+        )
         self.optim = self.init_optim()
         self.sched = self.init_sched()
+
+        return self
 
     def resume(self):
         """
         Check for existing checkpoint. If exists, resume from
         previous training. If not, delete the checkpoint.
         """
-        if cf.resume:
+        if self.resume_checkpoint:
             checkpoint_data = self.checkpoint.load()
             self.epoch = checkpoint_data['epoch']
             self.iter = checkpoint_data['iter']
@@ -192,28 +297,46 @@ class Model:
             self.checkpoint.reset()
 
     def init_optim(self):
-
-        # select optimizer
-        if cf.optim == 'adam':
-            return torch.optim.AdamW(self.net.parameters(), lr=cf.lr, weight_decay=cf.weight_decay)
-        elif cf.optim == 'sgd':
-            return torch.optim.SGD(self.net.parameters(), lr=cf.lr, momentum=cf.momentum)
+        """select optimizer"""
+        if self.optim_type == 'adam':
+            return torch.optim.AdamW(
+                self.net.parameters(),
+                lr=self.lr,
+                weight_decay=cf.weight_decay
+            )
+        elif self.optim_type == 'sgd':
+            return torch.optim.SGD(
+                self.net.parameters(),
+                lr=self.lr,
+                momentum=cf.momentum
+            )
         else:
             print('Optimizer is not defined.')
             exit()
 
     def init_sched(self):
+        """(Optional) Scheduled learning rate step"""
+        if self.sched == 'step_lr':
+            return torch.optim.lr_scheduler.StepLR(
+                self.optim,
+                step_size=1,
+                gamma=cf.gamma
+            )
+        elif self.sched == 'cyclic_lr':
+            return torch.optim.lr_scheduler.CyclicLR(
+                self.optim,
+                cf.lr_min,
+                cf.lr_max,
+                step_size_up=2000
+            )
+        elif self.sched == 'anneal':
+            steps_per_epoch = int(self.clip * 29000 // self.batch_size)
+            return torch.optim.lr_scheduler.OneCycleLR(
+                self.optim,
+                max_lr=cf.lr_max,
+                steps_per_epoch=steps_per_epoch,
+                epochs=self.n_epochs)
 
-        # (Optional) Scheduled learning rate step
-        if cf.sched == 'step_lr':
-            return torch.optim.lr_scheduler.StepLR(self.optim, step_size=1, gamma=cf.gamma)
-        elif cf.sched == 'cyclic_lr':
-            return torch.optim.lr_scheduler.CyclicLR(self.optim, cf.lr_min, cf.lr_max, step_size_up=2000)
-        elif cf.sched == 'anneal':
-            steps_per_epoch = int(cf.clip * 29000 // cf.batch_size)
-            scheduler = torch.optim.lr_scheduler.OneCycleLR(self.optim, max_lr=cf.lr_max,
-                                                            steps_per_epoch=steps_per_epoch,
-                                                            epochs=cf.n_epochs)
         else:
             print('Optimizer scheduler is not defined.')
             exit()
@@ -242,11 +365,11 @@ class Model:
         y = y.to(cf.device)
 
         # crop target mask to fit output size (e.g. UNet model)
-        if cf.model == 'unet':
+        if self.arch == 'unet':
             y = y[:, cf.crop_left:cf.crop_right, cf.crop_up:cf.crop_down]
 
         # stack single-channel input tensors (deeplab)
-        if self.ch == 1 and cf.model == 'deeplab':
+        if self.ch == 1 and self.arch == 'deeplab':
             x = torch.cat((x, x, x), 1)
 
         # forward pass
@@ -266,7 +389,7 @@ class Model:
 
         self.optim.step()
 
-        if self.iter % cf.report == 0:
+        if self.iter % self.report == 0:
             self.log()
 
         # log learning rate
@@ -286,11 +409,11 @@ class Model:
         y = y.to(cf.device)
 
         # crop target mask to fit output size (UNet)
-        if cf.model == 'unet':
+        if self.arch == 'unet':
             y = y[:, cf.crop_left:cf.crop_right, cf.crop_up:cf.crop_down]
 
         # stack single-channel input tensors (Deeplab)
-        if self.ch == 1 and cf.model == 'deeplab':
+        if self.ch == 1 and self.arch == 'deeplab':
             x = torch.cat((x, x, x), 1)
 
         # run forward pass
@@ -308,29 +431,26 @@ class Model:
         """model test forward"""
 
         # normalize
-        x = self.normalize_image(x, default=cf.normalize_default)
+        x = self.normalize_image(x, default=self.normalize_default)
         x = x.to(cf.device)
 
+        print(self.ch, self.arch)
         # stack single-channel input tensors (Deeplab)
-        if self.ch == 1 and cf.model == 'deeplab':
+        if self.ch == 1 and self.arch == 'deeplab':
             x = torch.cat((x, x, x), 1)
-
+        print(x.shape)
         # run forward pass
         with torch.no_grad():
             y_hat = self.net.forward(x)
             return [y_hat]
 
     def log(self):
-
         """log ce/dice losses at defined intervals"""
-
         self.loss.log(self.iter, self.net.training)
         self.loss.save()
 
-    def save(self, test=False):
-
+    def save(self):
         """save model checkpoint"""
-
         self.checkpoint.save(self, is_best=self.loss.is_best)
         self.loss.save()
 
@@ -355,17 +475,24 @@ class Model:
         """
         Prints model configuration settings to screen.
         """
-
-        print("\n------\nModel Settings")
-        print("\tID {}".format(self.id))
-        print("\tDatabase: {}".format(cf.db))
-        print("\tModel: {}".format(cf.arch))
+        print("\nModel Configuration\n")
+        print('{:30s} {}'.format('ID', self.id))
+        print('{:30s} {}'.format('Model File', self.model_path))
+        print('{:30s} {}'.format('Architecture', self.arch))
         # show encoder backbone for Deeplab
-        if cf.arch == 'deeplab':
-            print("\tBackbone: {}".format(cf.backbone))
-        print('\tInput channels: {}'.format(cf.ch))
-        print('\tOutput channels (classes): {}'.format(self.n_classes))
-        print("------\n")
+        if self.arch == 'deeplab':
+            print("\tBackbone: {}".format(self.backbone))
+        print('{:30s} {}'.format('Input channels', self.ch))
+        print('{:30s} {}'.format('Output channels', self.n_classes))
+        print('{:30s} {}'.format('Activation func', self.activ_type))
+        print('{:30s} {}'.format('Weights', self.cls_weight))
+        print('{:30s} {}'.format('Px mean', self.px_mean))
+        print('{:30s} {}'.format('Px std-dev', self.px_std))
+        print('{:30s} {}'.format('Normalize default', self.normalize_default))
+        print('{:30s} {}'.format('Batch size', self.batch_size))
+        print('{:30s} {}'.format('Optimizer', self.optim))
+        print('{:30s} {}'.format('Normalize default', self.normalize_default))
+        print('{:30s} {}'.format('Learning rate (default)', self.lr))
 
     def summary(self):
         """
@@ -379,44 +506,5 @@ class Model:
             pass  # module doesn't exist
 
 
-class Normalizer:
-    """
-    Class defines model normalizing functions.
-
-      Parameters
-      ------
-      norm_type: str
-         Type of normalizer to use.
-    """
-
-    def __init__(self, norm_type):
-        self.type = norm_type
-
-    def apply(self, n_features):
-        """
-        Network layer normalization functions
-        """
-        return torch.nn.ModuleDict([
-            ['batch', torch.nn.BatchNorm2d(n_features)],
-            ['instance', torch.nn.InstanceNorm2d(n_features)],
-            ['layer', torch.nn.LayerNorm(n_features)],
-            ['syncbatch', torch.nn.SyncBatchNorm(n_features)],
-            ['none', None]
-        ])[self.type]
 
 
-def activation(active_type):
-    """
-    Network layer activation functions
-
-    Paramters
-    ------
-    active_type: str
-        Activation function key.
-    """
-    return {
-        'relu': torch.nn.ReLU(inplace=True),
-        'leaky_relu': torch.nn.LeakyReLU(negative_slope=0.01, inplace=True),
-        'selu': torch.nn.SELU(inplace=True),
-        'none': torch.nn.Identity()
-    }[active_type]

@@ -11,9 +11,6 @@ University of Victoria
 Module: Metrics Evaluator
 File: metrics.py
 """
-import json
-import os
-
 import numpy as np
 from seaborn import heatmap, set
 import matplotlib.pyplot as plt
@@ -22,7 +19,6 @@ from sklearn.metrics import classification_report
 from sklearn.metrics import jaccard_score
 from sklearn.metrics import f1_score
 from sklearn.metrics import matthews_corrcoef
-
 from utils.tools import get_schema
 
 
@@ -33,28 +29,23 @@ class Metrics:
 
     Parameters
     ------
-    pid: str
-        Unique process ID value.
-
-    Returns
-    --------
-        Outputs accuracy metrics to file(s)
+    args: dict
+        User-defined configuration settings.
     """
 
-    def __init__(self, pid, args):
+    def __init__(self, args):
+        # initialize matplotlib settings
         self.font = {'weight': 'bold', 'size': 18}
         self.plt = plt
         # plt.rc('font', **font)
         set(font_scale=0.9)
 
         # metrics metadata
-        self.meta = {
-            'id': pid
-        }
+        self.meta = None
         self.labels = []
         self.fid = None
 
-        # extract palettes, labels, categories
+        # get schema palettes, labels, categories
         schema = get_schema(args.schema)
         self.class_labels = schema.class_labels
         self.class_codes = schema.class_codes
@@ -74,7 +65,8 @@ class Metrics:
 
     def validate(self):
         """
-        Ensures true mask includes all classes for computations.
+        Validates mask data for computations.
+        - Ensures all classes represented in ground truth mask
         """
         target_idx = np.unique(self.y_true)
         input_idx = np.unique(self.y_pred)

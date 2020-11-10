@@ -2,6 +2,11 @@
 # PyLC Landscape Classifier
 **Semantic segmentation for land cover classification of oblique ground-based photography**
 
+ Reference: Rose, Spencer, _An evaluation of deep learning semantic segmentation
+ for land cover classification of oblique ground-based photography_,
+ MSc. Thesis 2020, University of Victoria.
+ <http://hdl.handle.net/1828/12156>
+
 ## Overview
 
 The PyLC (Python Landscape Classifier) is a Pytorch-based trainable segmentation network and land cover classification tool for oblique landscape photography. PyLC was developed for the land cover classification of high-resolution greyscale and colour oblique mountain photographs. The training dataset is sampled from the [Mountain Legacy Project](http://mountainlegacy.ca/) repeat photography collection hosted at the [University of Victoria](https://uvic.ca/) .

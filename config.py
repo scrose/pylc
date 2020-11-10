@@ -60,6 +60,14 @@ class Config:
         self.RECONSTRUCT = 'reconstruct'
         self.SINGLE = 'single'
 
+        # Default schema (LCC.A)
+        self.schema = './schemas/schema_a.json'
+
+        # default paths
+        self.data_path = './data'
+        self.output_path = './data/output'
+        self.save_path = './data/save'
+
         # [U-Net] size of the output feature map
         self.output_size = 324
 
@@ -75,7 +83,8 @@ class Config:
         # in the patch)
         self.pad_size = (self.input_size - self.output_size) // 2
 
-        # [U-Net] Calculate crop sizes
+        # [U-Net] Parameters
+        self.up_mode = 'upsample'
         self.crop_left = self.pad_size
         self.crop_right = self.pad_size + self.output_size
         self.crop_up = self.pad_size
@@ -99,7 +108,7 @@ class Config:
         # Extraction scaling
         self.scales = [1.]
         # self.scales = [0.2, 0.5, 1.]
-        self.n_patches_per_image = int(sum(200 * self.scales))
+        self.tiles_per_image = int(sum(300 * self.scales))
 
         # Image normalization default settings (normally computed during preprocessing)
         self.gs_mean = 0.456
@@ -123,13 +132,17 @@ class Config:
         self.pretrained = './data/pretrained/resnet101-5d3b4d8f.pth'
 
         # Network default hyperparameters
+        self.n_epoches = 10
+        self.batch_size = 8
         self.dropout = 0.5
+        self.lr = 0.0001
         self.lr_min = 1e-6
         self.lr_max = 0.1
         self.gamma = 0.9
         self.l2_reg = 1e-4
         self.in_channels = 3
         self.momentum = 0.9
+        self.weighted = False
         self.dice_weight = 0.5
         self.ce_weight = 0.5
         self.focal_weight = 0.5
@@ -137,6 +150,8 @@ class Config:
         self.weight_decay = 5e-5
         self.grad_steps = 16
         self.test_intv = 70
+        self.optim_type = 'adam'
+        self.sched_type = 'lr_step'
 
         # Focal Loss
         self.fl_gamma = 2

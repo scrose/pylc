@@ -22,8 +22,6 @@ def main():
     parser = get_parser()
     args, unparsed = parser.parse_known_args()
 
-    print(args, unparsed)
-
     # If we have unparsed arguments, print usage and exit
     if len(unparsed) > 0:
         print("\n\'{}\' is not a valid option.\n".format(unparsed[0]))

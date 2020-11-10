@@ -11,17 +11,15 @@ University of Victoria
 Module: Base Model Class
 File: model.py
 """
-
 import os
 import torch
 import utils.tools as utils
-from config import cf
 
 
 class Checkpoint:
     """ Tracks model for training/validation/testing """
 
-    def __init__(self):
+    def __init__(self, model_id, save_dir):
 
         # Prepare checkpoint tracking indicies
         self.iter = 0
@@ -30,7 +28,7 @@ class Checkpoint:
         self.optim = None
 
         # save checkpoint in save folder
-        save_dir = os.path.join(cf.save, cf.id)
+        save_dir = os.path.join(save_dir, model_id)
         self.checkpoint_file = os.path.join(utils.mk_path(save_dir), 'checkpoint.pth')
 
         # save best model file in evaluation folder

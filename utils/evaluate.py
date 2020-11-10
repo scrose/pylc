@@ -19,7 +19,6 @@ import numpy as np
 import cv2
 import utils.tools as utils
 from utils.metrics import Metrics
-from config import cf
 from utils.tools import colourize
 
 
@@ -72,12 +71,14 @@ class Evaluator:
         if target:
 
             # load ground-truth data
-            y_true = torch.as_tensor(utils.get_image(target, 3), dtype=torch.uint8).permute(2, 0, 1).unsqueeze(0)
-            y_pred = torch.as_tensor(utils.get_image(self.mask_pred, 3), dtype=torch.uint8).permute(2, 0, 1).unsqueeze(0)
+            y_true = torch.as_tensor(utils.get_image(target, 3),
+                                     dtype=torch.uint8).permute(2, 0, 1).unsqueeze(0)
+            y_pred = torch.as_tensor(utils.get_image(self.mask_pred, 3),
+                                     dtype=torch.uint8).permute(2, 0, 1).unsqueeze(0)
 
             # Class encode input predicted data
-            y_pred = utils.class_encode(y_pred, cf.palette_rgb)
-            y_true = utils.class_encode(y_true, cf.palette_rgb)
+            y_pred = utils.class_encode(y_pred, self.metrics.palette_rgb)
+            y_true = utils.class_encode(y_true, self.metrics.palette_rgb)
 
             # Verify same size of target == input
             assert y_pred.shape == y_true.shape, "Input dimensions {} not same as target {}.".format(
@@ -168,7 +169,11 @@ class Evaluator:
 
     def save_image(self):
         """
-        Saves segmentation prediction as mask image.
+        Reconstructs segmentation prediction as mask image.
+        Output mask image saved to file (RGB -> BGR conversion)
+        Note that the default color format in OpenCV is often
+        referred to as RGB but it is actually BGR (the bytes are
+        reversed).
 
         Returns
         -------
@@ -180,14 +185,8 @@ class Evaluator:
         mask_file = os.path.join(self.masks_dir, self.fid + '.png')
 
         if utils.confirm_write_file(mask_file):
-
-            # Reconstruct seg-mask from predicted tiles
-            tiles = np.concatenate(self.results, axis=0)
+            # Reconstruct seg-mask from predicted tiles and write to file
             mask_img = self.reconstruct()
-
-            # Save output mask image to file (RGB -> BGR conversion)
-            # Note that the default color format in OpenCV is often
-            # referred to as RGB but it is actually BGR (the bytes are reversed).
             cv2.imwrite(mask_file, cv2.cvtColor(mask_img, cv2.COLOR_RGB2BGR))
 
             print("Output mask saved to: \n\t{}.".format(mask_file))
@@ -202,11 +201,12 @@ class Evaluator:
 
           Returns
           ------
-          numpy array
-             Reconstructed image.
+          mask_reconstructed: np.array
+             Reconstructed image data.
          """
 
         # load metadata
+        # self.results = np.concatenate(self.results, axis=0)
         w = self.meta['w']
         h = self.meta['h']
         w_full = self.meta['w_full']
@@ -303,7 +303,8 @@ class Evaluator:
         # Colourize and resize mask to full size
         mask_fullsized = np.expand_dims(mask_fullsized, axis=0)
         _mask_pred = colourize(np.argmax(mask_fullsized, axis=1), n_classes, palette=palette)
-        mask_resized = cv2.resize(_mask_pred[0].astype('float32'), (w_full, h_full), interpolation=cv2.INTER_NEAREST)
+        mask_reconstructed = cv2.resize(
+            _mask_pred[0].astype('float32'), (w_full, h_full), interpolation=cv2.INTER_NEAREST)
 
-        return mask_resized
+        return mask_reconstructed
 

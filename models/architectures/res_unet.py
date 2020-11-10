@@ -53,7 +53,9 @@ class ResUNet(nn.Module):
                            'upsample' will use bilinear upsampling.
         """
         super(ResUNet, self).__init__()
+
         assert up_mode in ('upconv', 'upsample')
+
         self.padding = padding
         self.depth = depth
         self.activation = activ_func if activ_func else nn.functional.relu(inplace=True)

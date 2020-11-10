@@ -30,14 +30,21 @@ class MultiLoss(torch.nn.Module):
          Class weights.
     """
 
-    def __init__(self, cls_weight):
+    def __init__(self, loss_weights, cls_weight=None, schema=None):
 
         super(MultiLoss, self).__init__()
-        self.n_classes = cf.n_classes
-        self.cls_weight = cls_weight
-        self.dsc_weight = cf.dice_weight
-        self.ce_weight = cf.ce_weight
-        self.fl_weight = cf.focal_weight
+
+        # get schema palettes, labels, categories
+        self.schema = schema if schema else cf.schema
+        schema = utils.get_schema(self.schema)
+        self.n_classes = schema.n_classes
+        self.codes = schema.class_codes
+        self.categories = schema.class_labels
+
+        self.weighted = loss_weights['weighted']
+        self.dsc_weight = loss_weights['dice']
+        self.ce_weight = loss_weights['ce']
+        self.fl_weight = loss_weights['focal']
         self.eps = 1e-8
 
         # recent loss bank
@@ -45,29 +52,26 @@ class MultiLoss(torch.nn.Module):
         self.dsc = 0.
         self.fl = 0.
 
-        # get user-defined categorization schema
-        self.categories = cf.class_labels
-
         # initialize cross entropy loss weights
-        if isinstance(self.cls_weight, np.ndarray):
-            self.cls_weight = torch.tensor(self.cls_weight).float().to(cf.device)
+        if isinstance(cls_weight, np.ndarray):
+            self.cls_weight = torch.tensor(cls_weight).float().to(cf.device)
         else:
             self.cls_weight = torch.ones(self.n_classes).to(cf.device)
+
+        # initialize cross-entropy loss function with class weights
+        if self.weighted:
+            self.ce_loss = torch.nn.CrossEntropyLoss(self.cls_weight)
+        else:
+            self.ce_loss = torch.nn.CrossEntropyLoss()
 
         # print class weight settings to console
         self.print_settings()
 
-        # initialize cross-entropy loss function with class weights
-        if cf.weighted:
-            print('\nCE losses will be weighted by class.')
-            self.ce_loss = torch.nn.CrossEntropyLoss(self.cls_weight)
-        else:
-            print('\nCE losses not weighted by class.')
-            self.ce_loss = torch.nn.CrossEntropyLoss()
-
     def forward(self, pred, target):
         """
         Forward pass of multi-loss computation.
+        Mask predictions are assumed to be BxCxWxH
+        Mask targets are assumed to be BxWxH with values equal to the class
 
           Parameters
           ------
@@ -76,10 +80,7 @@ class MultiLoss(torch.nn.Module):
           target: Tensor
              Target mask tensor.
         """
-
-        # mask predictions are assumed to be BxCxWxH
-        # mask targets are assumed to be BxWxH with values equal to the class
-        # assert that B, W and H are the same
+        # Assert that B, W and H are the same
         assert pred.size(0) == target.size(0)
         assert pred.size(2) == target.size(1)
         assert pred.size(3) == target.size(2)
@@ -208,14 +209,26 @@ class MultiLoss(torch.nn.Module):
         return loss
 
     def print_settings(self):
-        # Print the loaded class weights for training
+        """
+        Print the loaded class weights for training.
+        """
+        hline = '-' * 40
         print('\nLoss Weights Loaded')
-        print('\tCE: {:20f}'.format(self.ce_weight))
-        print('\tDSC: {:20f}'.format(self.dsc_weight))
-        print('\tFL: {:20f}'.format(self.fl_weight))
-        print('\n{:20s}{:>15s}\n'.format('Class', 'Weight'))
+        print()
+        print('{:30s}{:<10s}'.format('Loss', 'Weight'))
+        print(hline)
+        print('{:30s}{:<10f}'.format('Cross-entropy', self.ce_weight))
+        if self.weighted:
+            print('\tCE losses will be weighted by class.')
+        else:
+            print('\tCE losses not weighted by class.')
+        print('{:30s}{:<10f}'.format('Dice Coefficient', self.dsc_weight))
+        print('{:30s}{:<10f}'.format('Focal Loss', self.fl_weight))
+        print()
+        print('{:8s}{:22s}{:<10s}'.format('Class', 'Label', 'Weight'))
+        print(hline)
         for i, w in enumerate(self.cls_weight):
-            print('{:20s}{:15f}'.format(self.categories[i], w))
+            print('{:8s}{:22s}{:<10f}'.format(self.codes[i], self.categories[i], w))
         print()
 
 
@@ -224,7 +237,7 @@ class RunningLoss(object):
     Tracks losses for training/validation/testing
     """
 
-    def __init__(self):
+    def __init__(self, run_id, output_path=None, resume=False):
         super(RunningLoss, self).__init__()
         self.train = []
         self.valid = []
@@ -236,17 +249,19 @@ class RunningLoss(object):
         self.avg_fl = 0.
         self.is_best = False
         self.lr = []
+        self.resume = resume
+        self.output_dir = output_path if output_path else cf.output_path
 
         # initialize log files
-        self.dir_path = os.path.join(cf.output, cf.id, 'log')
+        self.dir_path = os.path.join(self.output_dir, run_id, 'log')
         self.output_file = os.path.join(utils.mk_path(self.dir_path), 'losses.pth')
         self.load()
 
     def load(self):
         """ load log file for losses"""
-        if cf.mode == cf.TRAIN and os.path.exists(self.output_file):
+        if os.path.exists(self.output_file):
             print('Loss logs found at {} ... '.format(self.output_file), end='')
-            if cf.resume:
+            if self.resume:
                 print('Resuming loss tracking for {}.'.format(self.output_file))
                 loss_res = torch.load(self.output_file)
                 self.train = loss_res['train']
@@ -258,10 +273,13 @@ class RunningLoss(object):
                 os.remove(self.output_file)
 
     def log(self, iteration, training):
-        """ log running losses"""
+        """
+        log running losses
+        """
         if self.intv:
             # get interval average for losses
-            (self.avg_ce, self.avg_dice, self.avg_fl) = tuple([sum(l) / len(self.intv) for l in zip(*self.intv)])
+            (self.avg_ce, self.avg_dice, self.avg_fl) = \
+                tuple([sum(loss) / len(self.intv) for loss in zip(*self.intv)])
             self.intv = []
             if training:
                 self.train += [(iteration,) + (self.avg_ce, self.avg_dice, self.avg_fl)]

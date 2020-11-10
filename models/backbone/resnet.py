@@ -7,6 +7,7 @@ It can use Modified Aligned Xception and ResNet as backbone.
 """
 
 import math
+import torch
 import torch.nn as nn
 from models.sync_batchnorm.batchnorm import SynchronizedBatchNorm2d
 from config import cf
