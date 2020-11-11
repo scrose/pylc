@@ -62,19 +62,16 @@ class Evaluator:
         """
         # store metadata
         self.meta = meta
-        self.fid = meta.extract['fid']
+        self.fid = self.meta.extract['fid']
 
         # reconstruct unnormalized model outputs into mask data array
         self.logits = model_outputs
         self.mask_pred = self.reconstruct()
 
         if target:
-
             # load ground-truth data
-            y_true = torch.as_tensor(utils.get_image(target, 3),
-                                     dtype=torch.uint8).permute(2, 0, 1).unsqueeze(0)
-            y_pred = torch.as_tensor(utils.get_image(self.mask_pred, 3),
-                                     dtype=torch.uint8).permute(2, 0, 1).unsqueeze(0)
+            y_true = torch.as_tensor(target, dtype=torch.uint8).permute(2, 0, 1).unsqueeze(0)
+            y_pred = torch.as_tensor(self.mask_pred, dtype=torch.uint8).permute(2, 0, 1).unsqueeze(0)
 
             # Class encode input predicted data
             y_pred = utils.class_encode(y_pred, self.metrics.palette_rgb)
@@ -138,10 +135,10 @@ class Evaluator:
         cmap_img_file = os.path.join(self.metrics_dir, self.fid + '_cmap.pdf')
         cmap_data_file = os.path.join(self.metrics_dir, self.fid + '_cmap.npy')
 
-        # save evaluation metrics as JSON file
+        # save evaluation metrics results as JSON file
         if utils.confirm_write_file(metrics_file):
             with open(metrics_file, 'w') as fp:
-                json.dump(self.meta, fp, indent=4)
+                json.dump(self.metrics.results, fp, indent=4)
         # save confusion matrix as PDF and data file
         if utils.confirm_write_file(cmap_img_file):
             self.metrics.cmap.get_figure().savefig(cmap_img_file, format='pdf', dpi=400)
@@ -205,19 +202,19 @@ class Evaluator:
              Reconstructed image data.
          """
 
-        # load metadata
-        # self.results = np.concatenate(self.results, axis=0)
-        w = self.meta['w']
-        h = self.meta['h']
-        w_full = self.meta['w_full']
-        h_full = self.meta['h_full']
-        offset = self.meta['offset']
-        stride = self.meta['stride']
-        palette = self.meta['palette']
-        n_classes = self.meta['n_classes']
+        # get tiles from tensor outputs
+        tiles = np.concatenate((self.logits), axis=0)
 
-        # Calculate reconstruction dimensions
-        tile_size = self.logits.shape[2]
+        # load metadata
+        w = self.meta.extract['w_resized']
+        h = self.meta.extract['h_resized']
+        w_full = self.meta.extract['w']
+        h_full = self.meta.extract['h']
+        offset = self.meta.extract['offset']
+        tile_size = self.meta.tile_size
+        stride = self.meta.stride
+        palette = self.meta.palette_rgb
+        n_classes = self.meta.n_classes
 
         if stride < tile_size:
             n_strides_in_row = w // stride - 1
@@ -241,7 +238,7 @@ class Evaluator:
 
         for i in range(n_strides_in_col):
             # Get initial tile in row
-            t_current = self.logits[i * n_strides_in_row]
+            t_current = tiles[i * n_strides_in_row]
             r_current = np.empty((n_classes, tile_size, w), dtype=np.float32)
             col_idx = 0
             # Step 1: Collate column tiles in row
@@ -249,7 +246,7 @@ class Evaluator:
                 t_current_width = t_current.shape[2]
                 if j < n_strides_in_row - 1:
                     # Get adjacent tile
-                    t_next = self.logits[i * n_strides_in_row + j + 1]
+                    t_next = tiles[i * n_strides_in_row + j + 1]
                     # Extract right overlap of current tile
                     olap_current = t_current[:, :, t_current_width - olap_size:t_current_width]
                     # Extract left overlap of next (adjacent) tile

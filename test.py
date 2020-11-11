@@ -30,8 +30,7 @@ def tester(args):
     args: dict
         User-defined options.
     """
-
-    # Load pretrained model for testing or evaluation
+    # Load models model for testing or evaluation
     # Model file path is defined in user settings.
     model = Model(args).load(args.model)
     # self.net = torch.nn.DataParallel(self.net)
@@ -56,33 +55,33 @@ def tester(args):
 
         # extract image tiles (image is resized and cropped to fit tile size)
         img_tiles = extractor.load(img_file, mask_file).extract(fit=True, stride=cf.tile_size//2).get_data()
-        img_loader, n_batches = img_tiles.loader(batch_size=args.batch_size)
+        img_loader, n_batches = img_tiles.loader(batch_size=1)
 
-        # get extraction metadata
-        meta = extractor.meta.get_extract_meta()
+        if not input("\nContinue with segmentation? (Enter \'y\' for Yes): ") == 'y':
+            print('Segmentation stopped.')
+            exit(0)
 
         # apply model to input tiles
         with torch.no_grad():
             # get model outputs
             results = []
             for i, (tile, _) in tqdm(enumerate(img_loader), total=n_batches, desc="Segmentation: ", unit=' batches'):
-                results.append(model.test(tile))
+                result = model.test(tile)
+                results.extend(result)
                 model.iter += 1
 
-        # load results into evaluator
+        # load results into evaluator and save
+        # full-sized predicted mask image to file
         if mask_file:
-            evaluator.load(results, meta, utils.get_image(mask_file, 3))
+            evaluator.load(results, extractor.meta, utils.get_image(mask_file, 3)).save_image()
             # Evaluate prediction against ground-truth
             # (skip if only global/aggregated metrics requested)
             if not args.global_metrics:
-                print("\nStarting evaluation of outputs ... ")
+                print("\nStarting evaluation ... ")
                 evaluator.metrics.evaluate()
                 evaluator.save_metrics()
         else:
-            evaluator.load(results, meta)
-
-        # save full-sized predicted mask image to file
-        model.evaluator.save_image()
+            evaluator.load(results, extractor.meta).save_image()
 
         # save unnormalized models outputs (i.e. raw logits) to file (if requested)
         if args.save_raw_output:

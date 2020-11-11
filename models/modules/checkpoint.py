@@ -52,12 +52,12 @@ class Checkpoint:
             "iter": model.iter,
             "model": model.net.state_dict(),
             "optim": model.optim.state_dict(),
-            "meta": model.meta
+            "meta": model.results
         }, self.checkpoint_file)
         # Save best model state
         if is_best:
             torch.save({
                 "model": model.net.state_dict(),
                 "optim": model.optim.state_dict(),
-                "meta": model.meta
+                "meta": model.results
             }, self.model_file)

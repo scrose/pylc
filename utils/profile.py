@@ -67,7 +67,6 @@ class Profiler(object):
     def __init__(self, args):
 
         # extract palettes, labels, categories
-        self.schema = args.schema if hasattr(args, 'schema') else cf.schema
         schema = get_schema(args.schema)
         self.class_labels = schema.class_labels
         self.class_codes = schema.class_codes
@@ -82,7 +81,7 @@ class Profiler(object):
         self.n_samples = args.n_samples if hasattr(args, 'n_samples') else 0
         self.n_patches_per_image = cf.tiles_per_image
         self.tile_size = args.tile_size if hasattr(args, 'tile_size') else cf.tile_size
-        self.scales = args.scales if hasattr(args, 'scales') else cf.scales
+        self.scales = [args.scale] if hasattr(args, 'scale') else cf.scales
         self.stride = args.stride if hasattr(args, 'tile_size') else cf.stride
         self.m2 = args.m2 if hasattr(args, 'm2') else 0.
         self.jsd = args.jsd if hasattr(args, 'jsd') else 1.
@@ -95,7 +94,8 @@ class Profiler(object):
         self.probs = args.probs if hasattr(args, 'probs') else None
         self.weights = args.weights if hasattr(args, 'weights') else None
         self.rates = []
-        self.extract = []
+        # extraction metadata
+        self.extract = None
 
     def profile(self, dset):
         """

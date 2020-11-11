@@ -67,7 +67,8 @@ class Model:
         self.normalize_default = True
         self.crop_target = False
 
-        # load loss handlers
+        # load loss calculators and trackers
+        self.report = args.report if hasattr(args, 'report') else cf.report
         self.crit = None
         self.loss_weights = {
             'weighted': args.weighted if hasattr(args, 'weighted') else cf.weighted,
@@ -111,36 +112,24 @@ class Model:
             'syncbatch': torch.nn.SyncBatchNorm
         }
 
-        self.print_settings()
-
     def load(self, model_path):
         """
-        Loads pretrained PyLC model for evaluation.
+        Loads models PyLC model for evaluation.
 
         Parameters
         ----------
         model_path: str
-            Path to PyLC pretrained model.
+            Path to PyLC models model.
         """
-        # try:
+
         if not model_path:
-            print("Model path is empty. Use \'--model\' option to specify path.")
+            print("\nModel path is empty. Use \'--model\' option to specify path.")
             exit(1)
+        else:
+            print('\nLoading model:\n\t{}'.format(model_path))
+
         if os.path.exists(model_path):
             self.model_path = model_path
-            # use default pixel normalization if requested
-            if self.normalize_default:
-                print('\nInput normalized to default settings:\n\tPixel mean: {}\n\tPixel std-dev: {}'.format(
-                    cf.px_mean_default, cf.px_std_default))
-
-            md = np.load('/Users/boutrous/Workspace/MLP/mountain-legacy-project/data/metadata/historic_augment.npy',
-                         allow_pickle=True)
-
-            meta = {
-                'cls_weight': md.item()['weights'],
-                'px_mean': md.item()['px_mean'],
-                'px_std': md.item()['px_std']
-            }
 
             class Params(object):
                 def __init__(self):
@@ -148,7 +137,7 @@ class Model:
                     self.schema = './schemas/schema_a.json'
                     self.id = 'testing'
                     self.save_dir = './data/save/'
-                    self.ch = 1,
+                    self.ch = 1
                     self.n_classes = 9
                     self.arch = 'deeplab'
                     self.backbone = 'resnet'
@@ -172,17 +161,29 @@ class Model:
                 if hasattr(self, key):
                     setattr(self, key, vars(params)[key])
 
-            self.build(meta)
-
+            # load model data
+            model_data = None
             try:
                 model_data = torch.load(self.model_path, map_location=cf.device)
-                self.net.load_state_dict(model_data["model"])
-                # self.meta = model_data["meta"]
             except Exception as inst:
                 print(inst)
-                print('An error occurred loading the specified model.'.format(
+                print('An error occurred loading model:\n\t{}.'.format(
                     model_path))
                 exit()
+
+            # get build metadata
+            # self.meta = model_data["meta"]
+            md = np.load('/Users/boutrous/Workspace/MLP/mountain-legacy-project/data/metadata/historic/historic_merged.npy',
+                         allow_pickle=True)
+            meta = {
+                'cls_weight': md.item()['weights'],
+                'px_mean': md.item()['px_mean'],
+                'px_std': md.item()['px_std']
+            }
+
+            # build model from metadata parameters
+            self.build(meta)
+            self.net.load_state_dict(model_data["model"])
 
         else:
             print('Model file does not exist:\n\t{}'.format(self.model_path))
@@ -260,11 +261,13 @@ class Model:
             print('\tPooled data loading: {} workers enabled.'.format(
                 torch.utils.data.get_worker_info().num_workers))
 
-        # initialize metadata and
+        # initialize model metadata
         self.meta = meta
         self.cls_weight = self.meta.get('weights')
         self.px_mean = self.meta.get('px_mean')
         self.px_std = self.meta.get('px_std')
+
+        self.print_settings()
 
         # initialize network loss calculators, etc.
         self.crit = MultiLoss(
@@ -278,6 +281,7 @@ class Model:
         )
         self.optim = self.init_optim()
         self.sched = self.init_sched()
+
 
         return self
 
@@ -434,11 +438,10 @@ class Model:
         x = self.normalize_image(x, default=self.normalize_default)
         x = x.to(cf.device)
 
-        print(self.ch, self.arch)
         # stack single-channel input tensors (Deeplab)
         if self.ch == 1 and self.arch == 'deeplab':
             x = torch.cat((x, x, x), 1)
-        print(x.shape)
+
         # run forward pass
         with torch.no_grad():
             y_hat = self.net.forward(x)
@@ -475,24 +478,30 @@ class Model:
         """
         Prints model configuration settings to screen.
         """
-        print("\nModel Configuration\n")
+        hline = '-' * 45
+        print("\nModel Configuration")
+        print(hline)
         print('{:30s} {}'.format('ID', self.id))
-        print('{:30s} {}'.format('Model File', self.model_path))
+        print('{:30s} {}'.format('Model File', os.path.basename(self.model_path)))
         print('{:30s} {}'.format('Architecture', self.arch))
         # show encoder backbone for Deeplab
         if self.arch == 'deeplab':
-            print("\tBackbone: {}".format(self.backbone))
+            print('     {:25s} {}'.format('Backbone', self.backbone))
+            print('     {:25s} {}'.format('Pretrained model', cf.pretrained))
         print('{:30s} {}'.format('Input channels', self.ch))
         print('{:30s} {}'.format('Output channels', self.n_classes))
-        print('{:30s} {}'.format('Activation func', self.activ_type))
-        print('{:30s} {}'.format('Weights', self.cls_weight))
-        print('{:30s} {}'.format('Px mean', self.px_mean))
-        print('{:30s} {}'.format('Px std-dev', self.px_std))
-        print('{:30s} {}'.format('Normalize default', self.normalize_default))
+        print('{:30s} {}'.format('Activation function', self.activ_type))
+        print('{:30s} {}{}'.format('Px mean', self.px_mean.tolist(), '*' if self.normalize_default else ''))
+        print('{:30s} {}{}'.format('Px std-dev', self.px_std.tolist(), '*' if self.normalize_default else ''))
         print('{:30s} {}'.format('Batch size', self.batch_size))
         print('{:30s} {}'.format('Optimizer', self.optim))
-        print('{:30s} {}'.format('Normalize default', self.normalize_default))
+        print('{:30s} {}'.format('Scheduler', self.sched))
+        print('{:30s} {}'.format('Scheduler', self.resume_checkpoint))
         print('{:30s} {}'.format('Learning rate (default)', self.lr))
+        print(hline)
+        # use default pixel normalization (if requested)
+        if self.normalize_default:
+            print('* Normalized default settings')
 
     def summary(self):
         """

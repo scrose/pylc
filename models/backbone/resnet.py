@@ -148,7 +148,6 @@ class ResNet(nn.Module):
 
     def _load_pretrained_model(self):
         resnet_path = cf.pretrained
-        print('\nLoading ResNet101 pretrained model at {}.'.format(resnet_path))
         pretrain_dict = torch.load(resnet_path)
         model_dict = {}
         state_dict = self.state_dict()

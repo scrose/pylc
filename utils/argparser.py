@@ -96,7 +96,7 @@ def get_parser():
     parser_train.add_argument('--n_workers', type=int, default=6, help='Number of workers for worker pool.')
     parser_train.add_argument('--report', type=int, default=20, help='Report interval (number of iterations).')
     parser_train.add_argument('--resume', help='Resume training from existing checkpoint.')
-    parser_train.add_argument('--pretrained', help='Load pre-trained network weights (e.g. ResNet).')
+    parser_train.add_argument('--models', help='Load pre-trained network weights (e.g. ResNet).')
     parser_train.add_argument('--clip', type=float, default=1.,
                               help='Fraction of dataset to use in training.')
 
@@ -113,7 +113,7 @@ def get_parser():
     parser_test.add_argument('-o', '--output', type=str, metavar='FILE_OUTPUT_PATH', default='./data/output',
                              help='Path to output directory.')
     parser_test.add_argument('--batch_size', type=int, default=8, help='Size of each testing batch.')
-    parser_test.add_argument('--scale', type=float, default=None, help='Scales input image by scaling factor.')
+    parser_test.add_argument('--scale', type=float, default=1., help='Factor to scale input image.')
     parser_test.add_argument('--save_raw_output', help='Save raw model output logits to file.')
     parser_test.add_argument('--normalize_default', help='Default input normalization (see parameter settings).')
     parser_test.add_argument('--global_metrics', help='Report only global metrics for model.')

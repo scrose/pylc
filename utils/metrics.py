@@ -40,8 +40,8 @@ class Metrics:
         # plt.rc('font', **font)
         set(font_scale=0.9)
 
-        # metrics metadata
-        self.meta = None
+        # metrics evaluation results
+        self.results = {}
         self.labels = []
         self.fid = None
 
@@ -113,23 +113,23 @@ class Metrics:
     def report(self):
         """ Generate Classification Report """
         print(classification_report(self.y_true, self.y_pred, target_names=self.labels, zero_division=0))
-        self.meta['report'] = classification_report(
+        self.results['report'] = classification_report(
             self.y_true, self.y_pred, target_names=self.labels, output_dict=True, zero_division=0)
 
     def f1_score(self):
         """ Compute Weighted F1 Score (DSC) """
-        self.meta['f1'] = f1_score(self.y_true, self.y_pred, average='weighted', zero_division=0)
-        print('Weighted F1 Score: {}'.format(self.meta['f1']))
+        self.results['f1'] = f1_score(self.y_true, self.y_pred, average='weighted', zero_division=0)
+        print('Weighted F1 Score: {}'.format(self.results['f1']))
 
     def jaccard(self):
         """ Compute Weighted Jaccard (ioU) """
-        self.meta['iou'] = jaccard_score(self.y_true, self.y_pred, average='weighted')
-        print('Weighted IoU: {}'.format(self.meta['iou']))
+        self.results['iou'] = jaccard_score(self.y_true, self.y_pred, average='weighted')
+        print('Weighted IoU: {}'.format(self.results['iou']))
 
     def mcc(self):
         """ Compute Matthews correlation coefficient """
-        self.meta['mcc'] = matthews_corrcoef(self.y_true, self.y_pred)
-        print('MCC: {}'.format(self.meta['mcc']))
+        self.results['mcc'] = matthews_corrcoef(self.y_true, self.y_pred)
+        print('MCC: {}'.format(self.results['mcc']))
 
     def reset(self):
         """ Reset metric properties """

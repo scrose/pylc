@@ -17,6 +17,8 @@ import numpy as np
 import torch
 import cv2
 
+from config import cf
+
 
 def rgb2hex(color):
     """
@@ -432,7 +434,9 @@ def load_files(path, exts):
          List of file names.
      """
 
-    assert os.path.exists(path), 'Path {} does not exist.'.format(path)
+    if not os.path.exists(path):
+        'Image/mask file does not exist:\n\t{} .'.format(path)
+        exit(1)
 
     files = []
     if os.path.isfile(path):
@@ -459,14 +463,12 @@ def get_schema(schema_path):
       ------
       schema: Schema
      """
-
-    if not schema_path:
-        print('Schema path is empty.')
-        exit(1)
+    # initialize path to default if empty
+    schema_path = schema_path if schema_path else cf.schema
 
     # Get schema settings from local JSON file
     if not os.path.isfile(schema_path):
-        print('Schema file {} not found.'.format(schema_path))
+        print('Schema file not found:\n\t{}'.format(schema_path))
         exit(1)
 
     class Schema(object):

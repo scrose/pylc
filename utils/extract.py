@@ -113,15 +113,10 @@ class Extractor(object):
 
         # print extraction settings to console and confirm
         self.print_settings()
-        if input("\nProceed with extraction?. (\'Y\' for Yes): ") == 'Y':
-            print('\nStarting extraction ...')
-        else:
-            print('Extraction stopped.')
-            exit(0)
 
         # Extract over defined scaling factors
         for scale in self.meta.scales:
-            print('\nExtraction scale: {}'.format(scale))
+            print('\nExtraction --- Scaling Factor: {}'.format(scale))
             for i, fpair in enumerate(self.files):
 
                 # get image and associated mask data
@@ -146,7 +141,7 @@ class Extractor(object):
                 self.print_result("Image", img_path, n_tiles, w_img, h_img,
                                   w_resized=w_resized, h_resized=h_resized, offset=offset)
 
-                self.meta.extract.append({
+                self.meta.extract = {
                     'fid': os.path.basename(img_path.replace('.', '_')),
                     'n_samples': n_tiles,
                     'w': w_img,
@@ -154,7 +149,7 @@ class Extractor(object):
                     'w_resized': w_resized,
                     'h_resized': h_resized,
                     'offset': offset
-                })
+                }
 
                 # copy tiles to main data arrays
                 np.copyto(self.imgs[self.img_idx:self.img_idx + n_tiles, ...], img_tiles)
@@ -189,7 +184,10 @@ class Extractor(object):
         self.imgs = self.imgs[:self.img_idx]
         self.masks = self.masks[:self.mask_idx]
         self.n_tiles = len(self.imgs)
-        print('\nTotal tiles generated: {}\n'.format(self.n_tiles))
+        print()
+        print('{:30s}{}'.format('Total image tiles generated:', self.n_tiles))
+        print('{:30s}{}'.format('Total mask tiles generated:', len(self.masks)))
+        print()
         self.meta.n_samples = self.n_tiles
 
         return self
@@ -271,6 +269,7 @@ class Extractor(object):
         print('{:30s} {}'.format('Image(s) path', self.img_path))
         print('{:30s} {}'.format('Masks(s) path', self.mask_path))
         print('{:30s} {}'.format('Number of files', self.n_files))
+        print('{:30s} {}'.format('Scaling', self.meta.scales))
         print('{:30s} {} ({})'.format('Channels', self.meta.ch, 'Grayscale' if self.meta.ch == 1 else 'Colour'))
         print('{:30s} {}px'.format('Stride', self.meta.stride))
         print('{:30s} {}px x {}px'.format('Tile size (WxH)', self.meta.tile_size, self.meta.tile_size))
@@ -306,5 +305,5 @@ class Extractor(object):
         if (type(w_resized) == int or type(h_resized) == int) and (w_resized != w or h_resized != h):
             print('{:20s} {}px x {}px'.format('Resized W x H', w_resized, h_resized))
         if offset:
-            print('{:20s} {}'.format('Offset', offset))
+            print('{:20s} {}px'.format('Crop (offset)', offset))
         print('{:20s} {}'.format('Number of Tiles', n))

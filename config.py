@@ -106,8 +106,8 @@ class Config:
         random.seed(self.seed)  # set the seed
 
         # Extraction scaling
-        self.scales = [1.]
-        # self.scales = [0.2, 0.5, 1.]
+        # self.scales = [1.]
+        self.scales = [0.2, 0.5, 1.]
         self.tiles_per_image = int(sum(300 * self.scales))
 
         # Image normalization default settings (normally computed during preprocessing)
@@ -128,8 +128,8 @@ class Config:
         # Affine coefficient (elastic deformation)
         self.alpha = 0.19
 
-        # pretrained network
-        self.pretrained = './data/pretrained/resnet101-5d3b4d8f.pth'
+        # models network
+        self.pretrained = './data/models/resnet101-5d3b4d8f.pth'
 
         # Network default hyperparameters
         self.n_epoches = 10
@@ -152,6 +152,9 @@ class Config:
         self.test_intv = 70
         self.optim_type = 'adam'
         self.sched_type = 'lr_step'
+
+        # loss tracking
+        self.report = 20
 
         # Focal Loss
         self.fl_gamma = 2

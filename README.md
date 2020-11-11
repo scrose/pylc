@@ -180,7 +180,7 @@ python train.py  --db [path/to/database.h5] --id [unique identifier]
 ```
 
 ### Testing
-Segmentation maps can be generated for input images 
+Segmentation maps can be generated for input images. Evaluation metrics can also be computed if ground truth masks are provided.
 
 #### Options: 
 - `--id <str>`: Unique identifier to label output files (default: Unix timestamp).
@@ -194,7 +194,7 @@ Segmentation maps can be generated for input images
 - `--global_metrics <bool>`: Report aggregate metrics for batched evaluations (default: False).
                          
 ```
-python pylc.py test --load [path/to/model] --img [path/to/images(s)] --mask [path/to/mask(s)] --output [path/to/output/directory] --id [(Optional) unique identifier]
+python pylc.py test --model [path/to/model] --img [path/to/images(s)] --mask [path/to/mask(s)] --output [path/to/output/directory] --id [(Optional) unique identifier]
 ```
 
 
