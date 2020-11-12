@@ -15,7 +15,6 @@ The PyLC (Python Landscape Classifier) is a Pytorch-based trainable segmentation
 
  The [Mountain Legacy Project](http://mountainlegacy.ca/) supports numerous research initiatives exploring the use of repeat photography to study ecosystem, landscape, and anthropogenic changes. MLP hosts the largest systematic collection of mountain photographs, with over 120,000 high-resolution historic (grayscale) survey photographs of Canada’s Western mountains captured from the 1880s through the 1950s, with over 9,000 corresponding modern (colour) repeat images. Over the years, the MLP has built a suite of custom tools for the classification and analysis of images in the collection (Gat et al. 2011; Jean et al. 2015b; Sanseverino et al. 2016). 
 
-
 ### Implementation
 
 PyLC uses deep convolutional neural networks (DCNNs) trained on high-resolution, grayscale and colour landscape photography from the MLP collection, specifically optimized for the segmentation of oblique mountain landscapes. This package uses [U-net][3] and [Deeplabv3+][4] segmentation models with a ResNet101 pretrained encoder, as well as a fully-connected [conditional random fields model][5] used to boost segmentation accuracy.
@@ -26,7 +25,6 @@ PyLC uses deep convolutional neural networks (DCNNs) trained on high-resolution,
 - Uses multi-loss (weighted cross-entropy, Dice, Focal) to address semantic class imbalance
 - Uses threshold-based data augmentation designed to improve classification of low-frequency classes
 - Applies optional Conditional Random Fields (CRF) filter to boost segmentation accuracy
-
 
 ## Datasets
 
@@ -71,7 +69,6 @@ Landscape and biodiversity change in the Willmore Wilderness Park through Repeat
 | `b0fffd` |Cyan| Snow/Ice| 
 | `ff00ff` |Magenta| Regenerating area| 
 
-
 ## Requirements (Python 3.6)
 
 All DCNN models and preprocessing utilities are implemented in [PyTorch](https://pytorch.org/), an open source Python library based on the Torch library and [OpenCV](https://opencv.org/), a library of programming functions developed for computer vision. Dependencies are listed below.
@@ -85,7 +82,6 @@ All DCNN models and preprocessing utilities are implemented in [PyTorch](https:/
 - scikit-learn> =0.23.1(optional - evaluation)
 - torchsummary >=1.5.1 (optional)
 - tqdm >=4.47.1
-
 
 ## Usage
 
@@ -106,12 +102,12 @@ python test.py -h # prints usage configuration options
 
 Categorization schemas (i.e. class definitions) are defined in separate JSON files. Two examples are provided: `schema_a.json` and `schema_b.json`, that correspond to DST.A and DST.B respectively.
 
-
 ### 1. Preprocessing
 
 This package offers configurable preprocessing utilities to prepare raw input data for model training. Input images must be either JPG or TIF format, and masks PNG format. The image filename must match its mask filename (e.g. img_01.tif and msk_01.png). You can download the original image/mask dataset(s) (see repository links under Datasets section) and save to a local directory for model training and testing.
 
 #### Options: 
+
 - `--mode extract | profile | augment | merge | grayscale`: Run mode for data preprocessing 
 - `--img <path>`: Path to images directory or single file. 
 - `--mask <path>`: Path to masks directory or single file. 
@@ -169,6 +165,7 @@ python preprocess.py --merge --dbs data/db/db_1.h5, data/db/db_2.h5 --output dat
 Training or retraining a model requires an extraction or augmented database generated using the preprocessing steps above. Model training is CUDA-enabled.
 
 #### Options: 
+
 - `--id <str>`: Unique identifier to label output files (default: Unix timestamp).
 - `--img <path>`: Path to images directory or single file. 
 - `--mask <path>`: Path to masks (i.e. ground truth segmentations) directory or single file. 

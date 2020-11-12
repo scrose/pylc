@@ -14,6 +14,8 @@ File: dataset.py
 
 import torch
 from torch.utils import data
+
+from config import defaults
 from utils.buffer import Buffer
 from utils.db import DB
 
@@ -28,20 +30,20 @@ class MLPDataset(torch.utils.data.IterableDataset):
     ------
     db_path: str
         Path to database file.
-    data: np.array
+    input_data: np.array
         Input data array.
     partition: tuple
         Training:Validation ratio.
     """
 
-    def __init__(self, db_path, data=None, partition=None, shuffle=False):
+    def __init__(self, db_path, input_data=None, partition=None, shuffle=False):
 
         super(MLPDataset).__init__()
 
         # initialize database
         self.db = DB().load(
             path=db_path,
-            data=data,
+            data=input_data,
             partition=partition,
             worker=torch.utils.data.get_worker_info()
         )
@@ -103,8 +105,10 @@ class MLPDataset(torch.utils.data.IterableDataset):
          """
         return self.db.get_attr()
 
-    def save(self, db_path):
+    def save(self, output_path=None):
         """
         Save data in buffer to database file.
          """
-        self.db.save(db_path)
+        if not output_path:
+            output_path = self.db.path if self.db.path else defaults.output
+        self.db.save(output_path)

@@ -12,7 +12,6 @@ Module: Data preprocessor
 File: preprocess.py
 """
 
-import os
 from utils.extract import Extractor
 from utils.augment import Augmentor
 from utils.profile import Profiler
@@ -27,11 +26,17 @@ def extract(args):
     args: dict
         User-defined options.
     """
+    img_path = args.img
+    mask_path = args.mask
+    output_path = args.output
+
     # extract subimages and metadata from image/mask pairs
     extractor = Extractor(args)
-    tile_dset = extractor.load(args.img, args.mask).extract().coshuffle().profile().get_data()
+    profiler = Profiler(args)
+    tile_dset = extractor.load(img_path, mask_path).extract().coshuffle().get_data()
+    tile_dset = profiler.profile(tile_dset).get_data()
     # save to file
-    tile_dset.save(os.path.join(args.output, args.id + '.h5'))
+    tile_dset.save(output_path)
     print('Extraction done.')
 
 
@@ -45,9 +50,10 @@ def augment(args):
     args: dict
         User-defined options.
     """
-    # Load db into augmentor
-    augmentor = Augmentor(args.db)
+    db_path = args.db
 
+    # Load db into augmentor
+    augmentor = Augmentor(db_path)
     print('\nCalculating sample rates  ... ', end='')
     augmentor.optimize()
     print('done.')
@@ -77,7 +83,7 @@ def profile(args):
         User-defined options.
     """
     profiler = Profiler(args)
-    meta = profiler.print_metadata().get_meta()
+    profiler.print_metadata().get_meta()
 
 
 def merge(args):
@@ -89,8 +95,10 @@ def merge(args):
     args: dict
         User-defined options.
     """
-    augmentor = Augmentor(args.db)
-    augmentor.merge_dbs(args.dbs)
+    db_path = args.db
+    db_paths = args.dbs
+    augmentor = Augmentor(db_path)
+    augmentor.merge_dbs(db_paths)
 
 
 def grayscale(args):
@@ -102,6 +110,7 @@ def grayscale(args):
     args: dict
         User-defined options.
     """
+    augmentor = Augmentor(args.db)
     augmentor.grayscale().save()
 
 

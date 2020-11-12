@@ -20,7 +20,7 @@ import numpy as np
 from utils.profile import Profiler
 from utils.dataset import MLPDataset
 from utils.db import DB
-from config import cf
+from config import defaults
 
 
 class Augmentor(object):
@@ -86,18 +86,18 @@ class Augmentor(object):
 
         # Initialize Augmentation Parameters
         print("\nAugmentation parameters")
-        print("\tSample maximum: {}".format(cf.aug_n_samples_max))
-        print("\tMinumum sample rate: {}".format(cf.min_sample_rate))
-        print("\tMaximum samples rate: {}".format(cf.max_sample_rate))
-        print("\tRate coefficient range: {:3f}-{:3f}".format(cf.sample_rate_coef[0], cf.sample_rate_coef[-1]))
-        print("\tThreshold range: {:3f}-{:3f}".format(cf.sample_threshold[0], cf.sample_threshold[-1]))
+        print("\tSample maximum: {}".format(defaults.aug_n_samples_max))
+        print("\tMinumum sample rate: {}".format(defaults.min_sample_rate))
+        print("\tMaximum samples rate: {}".format(defaults.max_sample_rate))
+        print("\tRate coefficient range: {:3f}-{:3f}".format(defaults.sample_rate_coef[0], defaults.sample_rate_coef[-1]))
+        print("\tThreshold range: {:3f}-{:3f}".format(defaults.sample_threshold[0], defaults.sample_threshold[-1]))
 
         # rate coefficient (default range of 1 - 21)
-        rate_coefs = cf.sample_rate_coef
+        rate_coefs = defaults.sample_rate_coef
         # threshold for oversampling (default range of 0 - 3)
-        thresholds = cf.sample_threshold
+        thresholds = defaults.sample_threshold
         # upper limit on number of augmentation samples
-        aug_n_samples_max = cf.aug_n_samples_max
+        aug_n_samples_max = defaults.aug_n_samples_max
         # Jensen-Shannon divergence coefficients
         jsd = []
 
@@ -117,7 +117,7 @@ class Augmentor(object):
                 rates = np.multiply(over_sample, rate_coef * scores).astype(int)
 
                 # clip rates to max value
-                rates = np.clip(rates, 0, cf.max_sample_rate)
+                rates = np.clip(rates, 0, defaults.max_sample_rate)
 
                 # limit to max number of augmented images
                 if np.sum(rates) < aug_n_samples_max:
@@ -133,7 +133,7 @@ class Augmentor(object):
                         'rates': rates,
                         'n_samples': int(np.sum(full_px_dist) / px_count),
                         'aug_n_samples': np.sum(rates),
-                        'rate_max': cf.max_sample_rate,
+                        'rate_max': defaults.max_sample_rate,
                         'jsd': jsd_sample
                     }]
 
@@ -161,13 +161,13 @@ class Augmentor(object):
         assert self.input_loader and self.dset_size and self.db_size, "Database is not loaded."
 
         # initialize main image arrays
-        e_size = cf.tile_size
-        imgs = np.empty((self.dsize * 2, cf.ch, e_size, e_size), dtype=np.uint8)
+        e_size = defaults.tile_size
+        imgs = np.empty((self.dsize * 2, defaults.ch, e_size, e_size), dtype=np.uint8)
         masks = np.empty((self.dsize * 2, e_size, e_size), dtype=np.uint8)
         idx = 0
 
         # iterate data loader
-        for i, data in tqdm(enumerate(self.input_loader), total=self.dsize // cf.batch_size, unit=' batches'):
+        for i, data in tqdm(enumerate(self.input_loader), total=self.dsize // defaults.batch_size, unit=' batches'):
             img, mask = data
 
             # copy originals to dataset
@@ -323,7 +323,7 @@ class Augmentor(object):
         save augmented data to database.
         """
         db = DB()
-        db_path = os.path.join(cf.output, cf.id + '_augmented.h5')
+        db_path = os.path.join(defaults.output, defaults.id + '_augmented.h5')
         if os.path.exists(db_path) and input(
                 "\tData file {} exists. Overwrite? (Type \'Y\' for yes): ".format(db_path)) != 'Y':
             print('Skipping')
@@ -337,15 +337,15 @@ class Augmentor(object):
         """
         Prints augmentation settings to console
          """
-        ch_label = 'Grayscale' if cf.ch == 1 else 'Colour'
+        ch_label = 'Grayscale' if defaults.ch == 1 else 'Colour'
         print('\nExtraction Config\n--------------------')
-        print('{:30s} {}'.format('Image(s) path', cf.img))
-        print('{:30s} {}'.format('Masks(s) path', cf.mask))
+        print('{:30s} {}'.format('Image(s) path', defaults.img))
+        print('{:30s} {}'.format('Masks(s) path', defaults.mask))
         print('{:30s} {}'.format('Number of files', self.n_files))
-        print('{:30s} {} ({})'.format('Channels', cf.ch, ch_label))
-        print('{:30s} {}px'.format('Stride', cf.stride))
-        print('{:30s} {}px x {}px'.format('Tile size (WxH)', cf.tile_size, cf.tile_size))
-        print('{:30s} {}'.format('Maximum tiles/image', cf.tiles_per_image))
+        print('{:30s} {} ({})'.format('Channels', defaults.ch, ch_label))
+        print('{:30s} {}px'.format('Stride', defaults.stride))
+        print('{:30s} {}px x {}px'.format('Tile size (WxH)', defaults.tile_size, defaults.tile_size))
+        print('{:30s} {}'.format('Maximum tiles/image', defaults.tiles_per_image))
         print('--------------------')
 
         return self

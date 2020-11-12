@@ -11,13 +11,12 @@ University of Victoria
 Module: Utilities
 File: tools.py
 """
-import json
 import os
 import numpy as np
 import torch
 import cv2
 
-from config import cf
+from config import defaults
 
 
 def rgb2hex(color):
@@ -38,7 +37,7 @@ def rgb2hex(color):
     return "#{:02x}{:02x}{:02x}".format(int(color[0]), int(color[1]), int(color[2]))
 
 
-def get_image(img_path, ch=3, scale=None, tile_size=512, interpolate=cv2.INTER_AREA):
+def get_image(img_path, ch=3, scale=None, tile_size=None, interpolate=cv2.INTER_AREA):
     """
     Loads image data into standard Numpy array
     Reads image and reverses channel order.
@@ -70,6 +69,9 @@ def get_image(img_path, ch=3, scale=None, tile_size=512, interpolate=cv2.INTER_A
     assert ch == 3 or ch == 1, 'Invalid number of input channels:\t{}.'.format(ch)
     assert os.path.exists(img_path), 'Image path {} does not exist.'.format(img_path)
 
+    if not tile_size:
+        tile_size = defaults.tile_size
+
     img = None
     if ch == 1:
         img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
@@ -77,16 +79,22 @@ def get_image(img_path, ch=3, scale=None, tile_size=512, interpolate=cv2.INTER_A
         img = cv2.imread(img_path, cv2.IMREAD_COLOR)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
+    # get dimensions
+    height, width = img.shape[:2]
+    height_resized = height
+    width_resized = width
+
     # apply scaling
     if scale:
-        height, width = img.shape[:2]
         min_dim = min(height, width)
         # adjust scale to minimum size (tile dimensions)
         if min_dim < tile_size:
             scale = tile_size / min_dim
         dim = (int(scale * width), int(scale * height))
         img = cv2.resize(img, dim, interpolation=interpolate)
-    return img, img.shape[1], img.shape[0]
+        height_resized, width_resized = img.shape[:2]
+
+    return img, width, height, width_resized, height_resized
 
 
 def adjust_to_tile(img, tile_size, stride, ch, interpolate=cv2.INTER_AREA):
@@ -266,7 +274,8 @@ def class_encode(img_array, palette):
             bool_idx = input_data == np.array(c)
             bool_idx = np.all(bool_idx, axis=1)
             encoded_data[bool_idx] = idx
-    except:
+    except Exception as inst:
+        print(inst)
         print('Mask cannot be encoded by selected palette. Please check schema settings.')
         exit(1)
     return torch.tensor(encoded_data.reshape(n, w, h), dtype=torch.uint8)
@@ -450,44 +459,6 @@ def load_files(path, exts):
     return files
 
 
-def get_schema(schema_path):
-    """
-    Get schema metadata from local file.
-
-      Parameters
-      ------
-      schema_path: str
-         Schema file path.
-
-      Returns
-      ------
-      schema: Schema
-     """
-    # initialize path to default if empty
-    schema_path = schema_path if schema_path else cf.schema
-
-    # Get schema settings from local JSON file
-    if not os.path.isfile(schema_path):
-        print('Schema file not found:\n\t{}'.format(schema_path))
-        exit(1)
-
-    class Schema(object):
-        pass
-
-    schema = Schema()
-
-    # extract palettes, labels, categories
-    with open(schema_path) as f:
-        schema_dict = json.load(f)
-        schema.class_labels = [cls['label'] for cls in schema_dict['classes']]
-        schema.class_codes = [cls['code'] for cls in schema_dict['classes']]
-        schema.palette_hex = [cls['colour']['hex'] for cls in schema_dict['classes']]
-        schema.palette_rgb = [cls['colour']['rgb'] for cls in schema_dict['classes']]
-        schema.n_classes = len(schema_dict['classes'])
-
-    return schema
-
-
 def collate(img_dir, mask_dir=None):
     """
     Verify and collate image/mask pairs.
@@ -512,7 +483,7 @@ def collate(img_dir, mask_dir=None):
 
     # no masks provided
     if not mask_dir:
-        return files
+        return img_files
 
     mask_files = load_files(mask_dir, ['.png'])
 
@@ -546,7 +517,7 @@ def mk_path(path):
      """
 
     if not os.path.exists(path):
-        print('Creating target path {} ... '.format(path), end='')
+        print('\nCreating path {} ... '.format(path), end='')
         os.makedirs(path)
         print('done.')
     return path
@@ -566,8 +537,7 @@ def confirm_write_file(file_path):
       bool
          User confirmation result.
      """
-    return True \
-        if os.path.exists(file_path) and \
-                   input("\tFile {} exists. Overwrite? (Type \'Y\' for yes): ".format(file_path)) != 'Y' \
+    return True if \
+        not os.path.exists(file_path) or \
+        input("\tFile {} exists. Overwrite? (Type \'y\' for yes): ".format(file_path)) == 'y' \
         else False
-

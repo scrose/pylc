@@ -19,21 +19,16 @@ from sklearn.metrics import classification_report
 from sklearn.metrics import jaccard_score
 from sklearn.metrics import f1_score
 from sklearn.metrics import matthews_corrcoef
-from utils.tools import get_schema
 
 
 class Metrics:
     """
     Defines metrics to evaluate model outputs.
     Evaluate segmentation output accuracy
-
-    Parameters
-    ------
-    args: dict
-        User-defined configuration settings.
     """
 
-    def __init__(self, args):
+    def __init__(self):
+
         # initialize matplotlib settings
         self.font = {'weight': 'bold', 'size': 18}
         self.plt = plt
@@ -42,109 +37,52 @@ class Metrics:
 
         # metrics evaluation results
         self.results = {}
-        self.labels = []
-        self.fid = None
-
-        # get schema palettes, labels, categories
-        schema = get_schema(args.schema)
-        self.class_labels = schema.class_labels
-        self.class_codes = schema.class_codes
-        self.palette_hex = schema.palette_hex
-        self.palette_rgb = schema.palette_rgb
-        self.n_classes = schema.n_classes
 
         # single-image evaluation data buffers
-        self.y_true = None
-        self.y_pred = None
         self.cmatrix = None
         self.cmap = None
 
-        # multi-image data buffers for aggregate evaluation
-        self.y_true_aggregate = None
-        self.y_pred_aggregate = None
-
-    def validate(self):
+    def report(self, y_true, y_pred, labels):
         """
-        Validates mask data for computations.
-        - Ensures all classes represented in ground truth mask
+        Generate Classification Report
         """
-        target_idx = np.unique(self.y_true)
-        input_idx = np.unique(self.y_pred)
-        label_idx = np.unique(np.concatenate((target_idx, input_idx)))
-
-        # load category labels
-        self.labels = []
-        for idx in label_idx:
-            self.labels += [self.class_labels[idx]]
-
-        # Ensure true mask has all of the categories
-        for idx in range(len(self.class_labels)):
-            if idx not in target_idx:
-                self.y_true[idx] = idx
-
-        return self
-
-    def evaluate(self, aggregate=False):
-        """
-        Compute evaluation metrics
-
-        Parameters
-        ----------
-        aggregate: bool
-            Compute aggregate metrics for multiple data loads.
-        """
-
-        assert self.y_true_aggregate and self.y_true_aggregate, "Global evaluation failed. Data buffer is empty."
-
-        if aggregate:
-            print("\nReporting global metrics ... ")
-            # Concatenate aggregated data
-            self.y_true = np.concatenate((self.y_true_aggregate))
-            self.y_true = np.concatenate((self.y_pred_aggregate))
-
-        self.f1_score()
-        self.jaccard()
-        self.mcc()
-        self.confusion_matrix()
-        self.report()
-
-        return self
-
-    def report(self):
-        """ Generate Classification Report """
-        print(classification_report(self.y_true, self.y_pred, target_names=self.labels, zero_division=0))
         self.results['report'] = classification_report(
-            self.y_true, self.y_pred, target_names=self.labels, output_dict=True, zero_division=0)
+            y_true,
+            y_pred,
+            target_names=labels,
+            output_dict=True,
+            zero_division=0
+        )
+        print('\nClassification Report')
+        print(classification_report(
+            y_true,
+            y_pred,
+            target_names=labels,
+            zero_division=0
+        ))
 
-    def f1_score(self):
+    def f1_score(self, y_true, y_pred):
         """ Compute Weighted F1 Score (DSC) """
-        self.results['f1'] = f1_score(self.y_true, self.y_pred, average='weighted', zero_division=0)
-        print('Weighted F1 Score: {}'.format(self.results['f1']))
+        self.results['f1'] = f1_score(y_true, y_pred, average='weighted', zero_division=0)
+        print('{:30s}{}'.format('Weighted F1 Score', self.results['f1']))
 
-    def jaccard(self):
+    def jaccard(self, y_true, y_pred):
         """ Compute Weighted Jaccard (ioU) """
-        self.results['iou'] = jaccard_score(self.y_true, self.y_pred, average='weighted')
-        print('Weighted IoU: {}'.format(self.results['iou']))
+        self.results['iou'] = jaccard_score(y_true, y_pred, average='weighted')
+        print('{:30s}{}'.format('Weighted IoU', self.results['iou']))
 
-    def mcc(self):
+    def mcc(self, y_true, y_pred):
         """ Compute Matthews correlation coefficient """
-        self.results['mcc'] = matthews_corrcoef(self.y_true, self.y_pred)
-        print('MCC: {}'.format(self.results['mcc']))
+        self.results['mcc'] = matthews_corrcoef(y_true, y_pred)
+        print('{:30s}{}'.format('MCC', self.results['mcc']))
 
-    def reset(self):
-        """ Reset metric properties """
-        self.y_true = None
-        self.y_pred = None
-        self.y_true_aggregate = None
-        self.y_pred_aggregate = None
-
-    def confusion_matrix(self):
+    def confusion_matrix(self, y_true, y_pred, labels):
         """
         Generate confusion matrix (Matplotlib).
         """
-        self.cmatrix = confusion_matrix(self.y_true, self.y_pred, normalize='true')
+        self.cmatrix = confusion_matrix(y_true, y_pred, normalize='true')
         self.cmap = heatmap(
-            self.cmatrix, vmin=0.01, vmax=1.0, fmt='.1g', xticklabels=self.labels, yticklabels=self.labels, annot=True)
+            self.cmatrix, vmin=0.01, vmax=1.0, fmt='.1g', xticklabels=labels, yticklabels=labels, annot=True)
         self.plt.ylabel('Ground-truth', fontsize=16, labelpad=6)
         self.plt.xlabel('Predicted', fontsize=16, labelpad=6)
 

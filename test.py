@@ -15,7 +15,7 @@ File: test.py
 import torch
 from tqdm import tqdm
 import utils.tools as utils
-from config import cf
+from config import defaults
 from utils.extract import Extractor
 from utils.evaluate import Evaluator
 from models.model import Model
@@ -30,14 +30,23 @@ def tester(args):
     args: dict
         User-defined options.
     """
+    img_path = args.img
+    mask_path = args.mask
+    model_path = args.model
+    scale = args.scale
+    aggregate_metrics = args.aggregate_metrics
+    save_logits = args.save_logits
+
     # Load models model for testing or evaluation
     # Model file path is defined in user settings.
-    model = Model(args).load(args.model)
+    model = Model(args).load(model_path)
+    # print model configuration
+    model.print_settings()
     # self.net = torch.nn.DataParallel(self.net)
     model.net.eval()
 
     # get test file(s) - returns list of filenames
-    files = utils.collate(args.img, args.mask)
+    files = utils.collate(img_path, mask_path)
 
     # initialize extractor, evaluator
     extractor = Extractor(args)
@@ -54,7 +63,12 @@ def tester(args):
             mask_file = None
 
         # extract image tiles (image is resized and cropped to fit tile size)
-        img_tiles = extractor.load(img_file, mask_file).extract(fit=True, stride=cf.tile_size//2).get_data()
+        img_tiles = extractor.load(img_file).extract(
+            fit=True,
+            stride=defaults.tile_size // 2,
+            scale=scale
+        ).get_data()
+        # get data loader
         img_loader, n_batches = img_tiles.loader(batch_size=1)
 
         if not input("\nContinue with segmentation? (Enter \'y\' for Yes): ") == 'y':
@@ -70,29 +84,32 @@ def tester(args):
                 results.extend(result)
                 model.iter += 1
 
-        # load results into evaluator and save
-        # full-sized predicted mask image to file
+        # load results into evaluator
+        # - save full-sized predicted mask image to file
         if mask_file:
-            evaluator.load(results, extractor.meta, utils.get_image(mask_file, 3)).save_image()
+            evaluator.load(
+                results,
+                extractor.get_meta(),
+                mask_true_path=mask_file,
+                scale=scale
+            ).save_image()
             # Evaluate prediction against ground-truth
-            # (skip if only global/aggregated metrics requested)
-            if not args.global_metrics:
+            # (skip if only global/aggregated requested)
+            if not aggregate_metrics:
                 print("\nStarting evaluation ... ")
-                evaluator.metrics.evaluate()
-                evaluator.save_metrics()
+                evaluator.evaluate().save_metrics()
         else:
-            evaluator.load(results, extractor.meta).save_image()
+            evaluator.load(results, extractor.get_meta()).save_image()
 
         # save unnormalized models outputs (i.e. raw logits) to file (if requested)
-        if args.save_raw_output:
-            model.evaluator.save_logits()
+        if save_logits:
+            evaluator.save_logits()
             print("Model output data saved to \n\t{}.".format(model.evaluator.output_path))
 
         # Reset evaluator
-        model.evaluator.reset()
+        evaluator.reset()
 
     # Compute global metrics
-    if args.global_metrics:
-        evaluator.metrics.evaluate(aggregate=True)
+    if aggregate_metrics:
+        evaluator.evaluate(aggregate=True)
         evaluator.save_metrics()
-

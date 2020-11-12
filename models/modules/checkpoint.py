@@ -14,12 +14,13 @@ File: model.py
 import os
 import torch
 import utils.tools as utils
+from config import defaults
 
 
 class Checkpoint:
     """ Tracks model for training/validation/testing """
 
-    def __init__(self, model_id, save_dir):
+    def __init__(self, model_id, save_dir=None):
 
         # Prepare checkpoint tracking indicies
         self.iter = 0
@@ -27,12 +28,12 @@ class Checkpoint:
         self.model = None
         self.optim = None
 
-        # save checkpoint in save folder
-        save_dir = os.path.join(save_dir, model_id)
-        self.checkpoint_file = os.path.join(utils.mk_path(save_dir), 'checkpoint.pth')
-
-        # save best model file in evaluation folder
-        self.model_file = os.path.join(utils.mk_path(save_dir), 'model.pth')
+        # initialize checkpoint and output model files
+        if not save_dir:
+            save_dir = defaults.save_dir
+        self.model_dir = utils.mk_path(os.path.join(save_dir, model_id))
+        self.checkpoint_file = os.path.join(self.model_dir, 'checkpoint.pth')
+        self.model_file = os.path.join(self.model_dir, model_id + '.pth')
 
     def load(self):
         """ load checkpoint file """
@@ -52,12 +53,12 @@ class Checkpoint:
             "iter": model.iter,
             "model": model.net.state_dict(),
             "optim": model.optim.state_dict(),
-            "meta": model.results
+            "meta": model.params
         }, self.checkpoint_file)
         # Save best model state
         if is_best:
             torch.save({
                 "model": model.net.state_dict(),
                 "optim": model.optim.state_dict(),
-                "meta": model.results
+                "meta": model.params
             }, self.model_file)

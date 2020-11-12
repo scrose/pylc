@@ -11,7 +11,7 @@ University of Victoria
 Module: Application
 File: pylc.py
 """
-from utils.argparser import get_parser
+from utils.argparse import get_parser
 
 
 def main():

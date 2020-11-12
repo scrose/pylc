@@ -16,6 +16,7 @@ import torch
 from utils.dataset import MLPDataset
 from models.model import Model
 from tqdm import tqdm
+from config import defaults
 
 
 def trainer(args):
@@ -30,7 +31,7 @@ def trainer(args):
     """
 
     # load training dataset, loader
-    tr_dset = MLPDataset(args.db, partition=(0, 1 - args.partition))
+    tr_dset = MLPDataset(args.db, partition=(0, 1 - defaults.partition))
     tr_loader, tr_batches = tr_dset.loader(
         batch_size=args.batch_size,
         n_workers=args.n_workers,
@@ -38,7 +39,7 @@ def trainer(args):
     )
 
     # load validation dataset, loader
-    va_dset = MLPDataset(args.db, partition=(1 - args.partition, 1.))
+    va_dset = MLPDataset(args.db, partition=(1 - defaults.partition, 1.))
     va_loader, va_batches = va_dset.loader(
         batch_size=args.batch_size,
         n_workers=args.n_workers,

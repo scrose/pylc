@@ -10,7 +10,7 @@ import math
 import torch
 import torch.nn as nn
 from models.sync_batchnorm.batchnorm import SynchronizedBatchNorm2d
-from config import cf
+from config import defaults
 
 
 class Bottleneck(nn.Module):
@@ -147,7 +147,7 @@ class ResNet(nn.Module):
                 m.bias.data.zero_()
 
     def _load_pretrained_model(self):
-        resnet_path = cf.pretrained
+        resnet_path = defaults.pretrained
         pretrain_dict = torch.load(resnet_path)
         model_dict = {}
         state_dict = self.state_dict()
