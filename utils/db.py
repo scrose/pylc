@@ -14,8 +14,12 @@ File: db.py
 
 import os
 import math
+import time
+
 import h5py
 import numpy as np
+
+from utils.tools import confirm_write_file
 
 
 class DB(object):
@@ -31,6 +35,7 @@ class DB(object):
     """
 
     def __init__(self, clip=1., buffer_size=1000):
+        self.id = '_db_' + str(int(time.time()))
         self.path = None
         self.data = None
         self.size = None
@@ -142,8 +147,9 @@ class DB(object):
                 self.input_shape = f['img'].shape
                 self.target_shape = f['mask'].shape
                 f.close()
-        except:
+        except Exception as e:
             print('Error loading database file: {}.'.format(self.path))
+            print(e)
 
         # partition database for dataset
         if partition:
@@ -176,25 +182,30 @@ class DB(object):
         """
         return h5py.File(self.path, mode='r', libver='latest', swmr=True)
 
-    def save(self, db_path):
+    def save(self, file_path):
         """
         Saves data buffer to HDF5 database file.
 
         Parameters
         ------
-        db_path: str
+        file_path: str
             Database file path.
         """
+
+        # file path is directory: use default file name
+        if os.path.isdir(file_path):
+            file_path = os.path.join(file_path, self.id + '.h5')
+            print('Default file name created for database file:\n\t{}.'.format(file_path))
 
         assert len(self.data['img']) == len(self.data['mask']), \
             'Image(s) missing paired mask(s). Database not saved.'
 
         n_samples = len(self.data['img'])
         print('\nSaving buffer to database ... ')
-        if not os.path.exists(db_path) or input(
-                "\tData file {} exists. Overwrite? (\'Y\' for yes): ".format(db_path)) == 'Y':
-            print('\nCopying {} samples to:\n\t{}  '.format(n_samples, db_path))
-            with h5py.File(db_path, 'w') as f:
+
+        if confirm_write_file(file_path):
+            print('\nCopying {} samples to:\n\t{}  '.format(n_samples, file_path))
+            with h5py.File(file_path, 'w') as f:
                 # create image dataset partition
                 f.create_dataset(
                     "img",
@@ -211,12 +222,8 @@ class DB(object):
                     chunks=True,
                     data=self.data['mask']
                 )
-                # include metadata with masks as new attributes to database
-                for key, attr in self.data['meta'].items():
-                    # omit extraction metadata
-                    if key == 'extract':
-                        continue
-                    f.attrs[key] = attr
+                # include JSON metadata with masks as new attribute to database
+                f.attrs['meta'] = self.data['meta']
 
                 f.close()
         else:

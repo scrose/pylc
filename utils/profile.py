@@ -62,12 +62,10 @@ class Profiler(object):
         args.weights:
             Dataset inverse weights.
     """
-    def __init__(self, args):
+    def __init__(self, args=None):
 
         # initialize metadata
         self.md = Parameters(args)
-        # initialize sample rates array
-        self.rates = []
 
     def profile(self, dset):
         """
@@ -120,13 +118,13 @@ class Profiler(object):
         px_dist = np.concatenate(px_dist)
 
         # Calculate dataset pixel distribution / dataset total pixel count
-        self.md.dset_px_dist = np.sum(px_dist, axis=0)
-        self.md.dset_px_count = np.sum(self.md.dset_px_dist)
-        probs = self.md.dset_px_dist / self.md.dset_px_count
+        dset_px_dist = np.sum(px_dist, axis=0)
+        dset_px_count = np.sum(dset_px_dist)
+        probs = dset_px_dist / dset_px_count
 
         # Calculate class weight balancing
         weights = 1 / (np.log(1.02 + probs))
-        self.md.weights = weights / np.max(weights)
+        weights = weights / np.max(weights)
 
         # initialize balanced distributions [n]
         balanced_px_prob = np.empty(self.md.n_classes)
@@ -137,14 +135,17 @@ class Profiler(object):
         self.md.jsd = jsd(probs, balanced_px_prob)
 
         # store metadata values
-        self.md.px_mean = px_mean
-        self.md.px_std = px_std
-        self.md.px_dist = px_dist
+        self.md.px_mean = px_mean.tolist()
+        self.md.px_std = px_std.tolist()
+        self.md.px_dist = px_dist.tolist()
         self.md.tile_px_count = self.md.tile_size * self.md.tile_size
-        self.md.probs = probs
+        self.md.probs = probs.tolist()
+        self.md.weights = weights.tolist()
+        self.md.dset_px_count = int(dset_px_count)
+        self.md.dset_px_dist = dset_px_dist.tolist()
 
         # print profile metadata to console
-        self.print_metadata()
+        self.print_meta()
 
         return self
 
@@ -158,7 +159,7 @@ class Profiler(object):
             Updated metadata.
         """
         for key in meta:
-            setattr(self, key, meta[key])
+            setattr(self.md, key, meta[key])
 
         return self
 
@@ -166,15 +167,15 @@ class Profiler(object):
         """
         Returns current metadata.
         """
-        metadata = vars(self)
+        metadata = vars(self.md)
         return metadata
 
-    def print_metadata(self):
+    def print_meta(self):
         """
           Prints profile metadata to console
         """
         hline = '\n' + '-' * 50
-        readout = '\n{} ({})'.format('Profile Metadata', self.md.mode)
+        readout = '\n{}'.format('Profile Metadata')
         readout += hline
         readout += '\n{:30s}{}'.format('ID', self.md.id)
         readout += '\n{:30s}{} ({})'.format('Channels', self.md.ch, 'Grayscale' if self.md.ch == 1 else 'Colour')
@@ -182,12 +183,18 @@ class Profiler(object):
         readout += '\n{:30s}{}'.format('Samples', self.md.n_samples)
         readout += '\n{:30s}{}x{}'.format('Tile size (WxH)', self.md.tile_size, self.md.tile_size)
 
-        # metrics
+        # RGB/Grayscale mean
         px_mean = 'R{:3s} G{:3s} B{:3s}'.format(
             str(self.md.px_mean[0]), str(self.md.px_mean[1]), str(self.md.px_mean[2])) \
             if self.md.ch == 3 else str(self.md.px_mean[0])
         readout += '\n{:30s}{}'.format('Pixel mean', px_mean)
-        readout += '\n{:30s}{}'.format('Pixel std-dev', self.md.px_std)
+
+        # RGB/Grayscale std-dev
+        px_std = 'R{:3s} G{:3s} B{:3s}'.format(
+            str(self.md.px_std[0]), str(self.md.px_std[1]), str(self.md.px_std[2])) \
+            if self.md.ch == 3 else str(self.md.px_std[0])
+
+        readout += '\n{:30s}{}'.format('Pixel std-dev', px_std)
         readout += '\n{:30s}{}'.format('M2', self.md.m2)
         readout += '\n{:30s}{}'.format('JSD', self.md.jsd)
 

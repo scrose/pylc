@@ -83,6 +83,13 @@ def get_parser():
         help='Path to masks directory or file.'
     )
     parser_extract.add_argument(
+        '-o', '--output_dir',
+        type=str,
+        metavar='DATABASE_OUTPUT_PATH',
+        default=defaults.db_dir,
+        help='Path to output directory.'
+    )
+    parser_extract.add_argument(
         '--batch_size',
         type=int,
         default=defaults.batch_size,

@@ -54,12 +54,14 @@ class MultiLoss(torch.nn.Module):
         self.ce = 0.
         self.dsc = 0.
         self.fl = 0.
+        
+        self.device = torch.device(defaults.device)
 
         # initialize cross entropy loss weights
         if isinstance(weights, np.ndarray):
-            self.weights = torch.tensor(weights).float().to(defaults.device)
+            self.weights = torch.tensor(weights).float().to(self.device)
         else:
-            self.weights = torch.ones(self.n_classes).to(defaults.device)
+            self.weights = torch.ones(self.n_classes).to(self.device)
 
         # initialize cross-entropy loss function with class weights
         if self.weighted:
@@ -134,7 +136,7 @@ class MultiLoss(torch.nn.Module):
         """
 
         y_true_1hot = torch.nn.functional.one_hot(target, num_classes=self.n_classes).permute(0, 3, 1, 2)
-        probs = torch.nn.functional.softmax(pred, dim=1).to(defaults.device)
+        probs = torch.nn.functional.softmax(pred, dim=1).to(self.device)
 
         # compute mean of y_true U y_pred / (y_pred + y_true)
         intersection = torch.sum(probs * y_true_1hot, dim=(0, 2, 3))
@@ -196,8 +198,7 @@ class MultiLoss(torch.nn.Module):
         """
         Print the loaded class weights for training.
         """
-        hline = '-' * 40
-        print('Losses Weights')
+        hline = '_' * 40
         print('{:30s}{:<10s}'.format('Loss', 'Weight'))
         print(hline)
         print('{:30s}{:<10f}'.format('Cross-entropy', self.ce_weight))
@@ -207,7 +208,7 @@ class MultiLoss(torch.nn.Module):
             print('\tCE losses not weighted by class.')
         print('{:30s}{:<10f}'.format('Dice Coefficient', self.dsc_weight))
         print('{:30s}{:<10f}'.format('Focal Loss', self.fl_weight))
-        print('Schema')
+        print()
         print('{:8s}{:22s}{:<10s}'.format('Class', 'Label', 'Weight'))
         print(hline)
         for i, w in enumerate(self.weights):

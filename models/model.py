@@ -42,6 +42,7 @@ class Model:
         # initialize model parameters
         self.id = None
         self.params = Parameters(args)
+        self.device = torch.device(self.params.device)
 
         # build network
         self.net = None
@@ -100,7 +101,7 @@ class Model:
             # load model data
             model_data = None
             try:
-                model_data = torch.load(self.model_path, map_location=self.params.device)
+                model_data = torch.load(self.model_path, map_location=self.device)
             except Exception as inst:
                 print(inst)
                 print('An error occurred loading model:\n\t{}.'.format(
@@ -109,13 +110,20 @@ class Model:
 
             # get build metadata
             # self.meta = model_data["meta"]
-            md = np.load('/Users/boutrous/Workspace/MLP/mountain-legacy-project/data/metadata/historic_augment.npy',
+            md = np.load('/Users/boutrous/Workspace/MLP/mountain-legacy-project/data/metadata/historic/historic_merged.npy',
                          allow_pickle=True).tolist()
             self.params.update(md)
 
             # build model from metadata parameters
             self.build()
             self.net.load_state_dict(model_data["model"])
+
+            # create model identifier if none exists
+            # format: <architecture>_<channel_label>_<schema_id>
+            if not self.id:
+                self.id = 'pylc_' + self.params.arch + '_ch' + \
+                    str(self.params.ch) + '_' + \
+                    self.params.schema_name
 
             torch.save({
                 "model": self.net.state_dict(),
@@ -143,9 +151,9 @@ class Model:
         # format: <architecture>_<channel_label>_<schema_id>
         if not self.id:
             self.id = \
-                self.params.arch + '_' + \
-                self.params.ch_label + '_' + \
-                os.path.basename(self.params.schema)
+                self.params.arch + '_ch' + \
+                str(self.params.ch) + '_' + \
+                self.params.schema_name
 
         # initialize checkpoint
         self.checkpoint = Checkpoint(
@@ -163,7 +171,7 @@ class Model:
                 normalizer=self.normalizers[self.params.norm_type],
                 dropout=self.params.dropout
             )
-            self.net = self.net.to(self.params.device)
+            self.net = self.net.to(self.device)
             self.crop_target = self.params.crop_target
 
         # Alternate Residual UNet
@@ -176,7 +184,7 @@ class Model:
                 batch_norm=True,
                 dropout=self.params.dropout
             )
-            self.net = self.net.to(self.params.device)
+            self.net = self.net.to(self.device)
             self.crop_target = self.params.crop_target
 
         # DeeplabV3+
@@ -189,7 +197,7 @@ class Model:
                 in_channels=self.params.ch,
                 pretrained=self.params.pretrained
             )
-            self.net = self.net.to(self.params.device)
+            self.net = self.net.to(self.device)
 
         # Unknown model requested
         else:
@@ -323,8 +331,8 @@ class Model:
 
         # normalize input [NCWH]
         x = self.normalize_image(x)
-        x = x.to(self.params.device)
-        y = y.to(self.params.device)
+        x = x.to(self.device)
+        y = y.to(self.device)
 
         # crop target mask to fit output size (e.g. UNet model)
         if self.params.arch == 'unet':
@@ -367,8 +375,8 @@ class Model:
 
         # normalize
         x = self.normalize_image(x)
-        x = x.to(self.params.device)
-        y = y.to(self.params.device)
+        x = x.to(self.device)
+        y = y.to(self.device)
 
         # crop target mask to fit output size (UNet)
         if self.params.arch == 'unet':
@@ -394,7 +402,7 @@ class Model:
 
         # normalize
         x = self.normalize_image(x, default=self.params.normalize_default)
-        x = x.to(self.params.device)
+        x = x.to(self.device)
 
         # stack single-channel input tensors (Deeplab)
         if self.params.ch == 1 and self.params.arch == 'deeplab':
@@ -451,7 +459,7 @@ class Model:
         """
         Prints model configuration settings to screen.
         """
-        hline = '-' * 40
+        hline = '_' * 40
         print("\nModel Configuration")
         print(hline)
         print('{:30s} {}'.format('ID', self.params.id))
@@ -469,11 +477,11 @@ class Model:
                                    '*' if self.params.normalize_default else ''))
         print('{:30s} {}'.format('Batch size', self.params.batch_size))
         print('{:30s} {}'.format('Activation function', self.params.activ_type))
-        print('{:30s} {}'.format('Optimizer', self.optim))
-        print('{:30s} {}'.format('Scheduler', self.sched))
+        print('{:30s} {}'.format('Optimizer', self.params.optim_type))
+        print('{:30s} {}'.format('Scheduler', self.params.sched_type))
         print('{:30s} {}'.format('Learning rate (default)', self.params.lr))
         print('{:30s} {}'.format('Resume checkpoint', self.params.resume_checkpoint))
-        print(hline)
+        print()
         # use default pixel normalization (if requested)
         if self.params.normalize_default:
             print('* Normalized default settings')

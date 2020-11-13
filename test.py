@@ -68,11 +68,12 @@ def tester(args):
             stride=defaults.tile_size // 2,
             scale=scale
         ).get_data()
+
         # get data loader
         img_loader, n_batches = img_tiles.loader(batch_size=1)
 
-        if not input("\nContinue with segmentation? (Enter \'y\' for Yes): ") == 'y':
-            print('Segmentation stopped.')
+        if not input("\nContinue with segmentation? (Enter \'Y\' or \'y\' for Yes): ") in ['Y', 'y']:
+            print('Stopped.')
             exit(0)
 
         # apply model to input tiles
@@ -85,6 +86,7 @@ def tester(args):
                 model.iter += 1
 
         # load results into evaluator
+        results = utils.reconstruct(results, extractor.get_meta())
         # - save full-sized predicted mask image to file
         if mask_file:
             evaluator.load(
@@ -94,7 +96,7 @@ def tester(args):
                 scale=scale
             ).save_image()
             # Evaluate prediction against ground-truth
-            # (skip if only global/aggregated requested)
+            # - skip if only global/aggregated requested
             if not aggregate_metrics:
                 print("\nStarting evaluation ... ")
                 evaluator.evaluate().save_metrics()

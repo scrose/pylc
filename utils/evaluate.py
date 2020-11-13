@@ -20,7 +20,6 @@ import cv2
 import utils.tools as utils
 from config import defaults, Parameters
 from utils.metrics import Metrics
-from utils.tools import colourize
 
 
 class Evaluator:
@@ -58,7 +57,7 @@ class Evaluator:
         self.logits_dir = utils.mk_path(os.path.join(args.output_dir, 'logits'))
         self.metrics_dir = utils.mk_path(os.path.join(args.output_dir, 'metrics'))
 
-    def load(self, mask_pred_logits, meta, mask_true_path=None, scale=None):
+    def load(self, mask_pred, meta, mask_true_path=None, scale=None):
         """
         Initialize predicted/ground truth image masks for
         evaluation metrics.
@@ -78,12 +77,12 @@ class Evaluator:
         self.fid = self.md.extract['fid']
 
         # reconstruct unnormalized model outputs into mask data array
-        self.logits = mask_pred_logits
-        self.mask_pred = self.reconstruct()
+        self.mask_pred = mask_pred
 
         if mask_true_path:
             # load ground-truth data
-            mask_true, w, h, w_scaled, h_scaled = utils.get_image(mask_true_path, 3, scale=scale, interpolate=cv2.INTER_NEAREST)
+            mask_true, w, h, w_scaled, h_scaled = utils.get_image(
+                mask_true_path, 3, scale=scale, interpolate=cv2.INTER_NEAREST)
 
             # check dimensions of ground truth mask and predicted mask
             if not (w_scaled == self.md.extract['w_scaled'] and h_scaled == self.md.extract['h_scaled']):
@@ -134,21 +133,14 @@ class Evaluator:
     def validate(self):
         """
         Validates mask data for computations.
-        - Ensures all classes represented in ground truth mask
+        - Ensures all classes are represented in ground truth mask.
         """
-        target_idx = np.unique(self.y_true)
-        input_idx = np.unique(self.y_pred)
-        label_idx = np.unique(np.concatenate((target_idx, input_idx)))
 
-        # load category labels
-        self.labels = []
-        for idx in label_idx:
-            self.labels += [self.params.class_codes[idx]]
+        self.labels = defaults.class_codes
 
-        # Ensure true mask has all of the categories
         for idx in range(len(self.params.class_codes)):
-            if idx not in target_idx:
-                self.y_true[idx] = idx
+            self.y_true[idx] = idx
+            self.y_pred[idx] = idx
 
         if self.aggregate:
             assert self.y_true_aggregate and self.y_pred_aggregate, \
@@ -157,125 +149,9 @@ class Evaluator:
             print("\nReporting aggregate metrics ... ")
             # Concatenate aggregated data
             self.y_true = np.concatenate((self.y_true_aggregate))
-            self.y_true = np.concatenate((self.y_pred_aggregate))
+            self.y_pred = np.concatenate((self.y_pred_aggregate))
 
         return self
-
-    def reconstruct(self):
-        """
-        Reconstruct tiles into full-sized segmentation mask.
-        Uses metadata generated from image tiling (adjust_to_tile)
-
-          Returns
-          ------
-          mask_reconstructed: np.array
-             Reconstructed image data.
-         """
-
-        # get tiles from tensor outputs
-        tiles = np.concatenate((self.logits), axis=0)
-
-        # load metadata
-        w = self.md.extract['w_fitted']
-        h = self.md.extract['h_fitted']
-        w_full = self.md.extract['w_scaled']
-        h_full = self.md.extract['h_scaled']
-        offset = self.md.extract['offset']
-        tile_size = self.md.tile_size
-        stride = self.md.stride
-        palette = self.md.palette_rgb
-        n_classes = self.md.n_classes
-
-        if stride < tile_size:
-            n_strides_in_row = w // stride - 1
-            n_strides_in_col = h // stride - 1
-        else:
-            n_strides_in_row = w // stride
-            n_strides_in_col = h // stride
-
-        # Calculate overlap
-        olap_size = tile_size - stride
-
-        # initialize full image numpy array
-        mask_fullsized = np.empty((n_classes, h + offset, w), dtype=np.float32)
-
-        # Create empty rows
-        r_olap_prev = None
-        r_olap_merged = None
-
-        # row index (set to offset height)
-        row_idx = offset
-
-        for i in range(n_strides_in_col):
-            # Get initial tile in row
-            t_current = tiles[i * n_strides_in_row]
-            r_current = np.empty((n_classes, tile_size, w), dtype=np.float32)
-            col_idx = 0
-            # Step 1: Collate column tiles in row
-            for j in range(n_strides_in_row):
-                t_current_width = t_current.shape[2]
-                if j < n_strides_in_row - 1:
-                    # Get adjacent tile
-                    t_next = tiles[i * n_strides_in_row + j + 1]
-                    # Extract right overlap of current tile
-                    olap_current = t_current[:, :, t_current_width - olap_size:t_current_width]
-                    # Extract left overlap of next (adjacent) tile
-                    olap_next = t_next[:, :, 0:olap_size]
-                    # Average the overlapping segment logits
-                    olap_current = torch.nn.functional.softmax(torch.tensor(olap_current), dim=0)
-                    olap_next = torch.nn.functional.softmax(torch.tensor(olap_next), dim=0)
-                    olap_merged = (olap_current + olap_next) / 2
-                    # Insert averaged overlap into current tile
-                    np.copyto(t_current[:, :, t_current_width - olap_size:t_current_width], olap_merged)
-                    # Insert updated current tile into row
-                    np.copyto(r_current[:, :, col_idx:col_idx + t_current_width], t_current)
-                    col_idx += t_current_width
-                    # Crop next tile and copy to current tile
-                    t_current = t_next[:, :, olap_size:t_next.shape[2]]
-
-                else:
-                    np.copyto(r_current[:, :, col_idx:col_idx + t_current_width], t_current)
-
-            # Step 2: Collate row slices into full mask
-            r_current_height = r_current.shape[1]
-            # Extract overlaps at top and bottom of current row
-            r_olap_top = r_current[:, 0:olap_size, :]
-            r_olap_bottom = r_current[:, r_current_height - olap_size:r_current_height, :]
-
-            # Average the overlapping segment logits
-            if i > 0:
-                # Average the overlapping segment logits
-                r_olap_top = torch.nn.functional.softmax(torch.tensor(r_olap_top), dim=0)
-                r_olap_prev = torch.nn.functional.softmax(torch.tensor(r_olap_prev), dim=0)
-                r_olap_merged = (r_olap_top + r_olap_prev) / 2
-
-            # Top row: crop by bottom overlap (to be averaged)
-            if i == 0:
-                # Crop current row by bottom overlap size
-                r_current = r_current[:, 0:r_current_height - olap_size, :]
-            # Otherwise: Merge top overlap with previous
-            else:
-                # Replace top overlap with averaged overlap in current row
-                np.copyto(r_current[:, 0:olap_size, :], r_olap_merged)
-
-            # Crop middle rows by bottom overlap
-            if 0 < i < n_strides_in_col - 1:
-                r_current = r_current[:, 0:r_current_height - olap_size, :]
-
-            # Copy current row to full mask
-            np.copyto(mask_fullsized[:, row_idx:row_idx + r_current.shape[1], :], r_current)
-            row_idx += r_current.shape[1]
-            r_olap_prev = r_olap_bottom
-
-        # colourize to palette
-        mask_fullsized = np.expand_dims(mask_fullsized, axis=0)
-        _mask_pred = colourize(np.argmax(mask_fullsized, axis=1), n_classes, palette=palette)
-
-        # resize mask to full size
-        mask_reconstructed = cv2.resize(
-            _mask_pred[0].astype('float32'), (w_full, h_full), interpolation=cv2.INTER_NEAREST)
-
-        return mask_reconstructed
 
     def reset(self):
         """

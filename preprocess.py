@@ -28,15 +28,13 @@ def extract(args):
     """
     img_path = args.img
     mask_path = args.mask
-    output_path = args.output
 
     # extract subimages and metadata from image/mask pairs
+    print('\nLoading images ...')
     extractor = Extractor(args)
-    profiler = Profiler(args)
-    tile_dset = extractor.load(img_path, mask_path).extract().coshuffle().get_data()
-    tile_dset = profiler.profile(tile_dset).get_data()
-    # save to file
-    tile_dset.save(output_path)
+    tile_dset = extractor.load(img_path, mask_path).extract().coshuffle().profile().get_data()
+    # save database to file
+    tile_dset.save()
     print('Extraction done.')
 
 
@@ -83,7 +81,7 @@ def profile(args):
         User-defined options.
     """
     profiler = Profiler(args)
-    profiler.print_metadata().get_meta()
+    profiler.print_meta().get_meta()
 
 
 def merge(args):

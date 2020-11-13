@@ -110,5 +110,5 @@ class MLPDataset(torch.utils.data.IterableDataset):
         Save data in buffer to database file.
          """
         if not output_path:
-            output_path = self.db.path if self.db.path else defaults.output
+            output_path = self.db.path if self.db.path else defaults.output_dir
         self.db.save(output_path)

@@ -11,7 +11,7 @@ University of Victoria
 Module: Extractor
 File: extract.py
 """
-
+import json
 import os
 import torch
 import numpy as np
@@ -19,6 +19,7 @@ import cv2
 from config import Parameters
 from utils.dataset import MLPDataset
 import utils.tools as utils
+from utils.profile import Profiler
 
 
 class Extractor(object):
@@ -48,7 +49,8 @@ class Extractor(object):
         # extraction parameters
         self.fit = False
 
-        # initialize profiler
+        # initialize profiler, metadata
+        self.profiler = Profiler(args)
         self.md = Parameters(args)
 
     def load(self, img_path, mask_path=None):
@@ -219,6 +221,14 @@ class Extractor(object):
 
         return self
 
+    def profile(self):
+        """
+        Compute profile metadata for current dataset.
+         """
+        dset = self.get_data()
+        self.md = self.profiler.profile(dset).md
+        return self
+
     def coshuffle(self):
         """
         Coshuffle dataset
@@ -277,9 +287,13 @@ class Extractor(object):
 
         # generate default database path
         db_file = '_db_' + self.md.ch_label + '_' + self.md.id + '.h5'
+
+        # store metadata as JSON string
+        meta = json.dumps(vars(self.md))
+
         return MLPDataset(
             os.path.join(self.md.output_dir, db_file),
-            {'img': self.imgs, 'mask': self.masks, 'meta': vars(self.md)}
+            {'img': self.imgs, 'mask': self.masks, 'meta': meta}
         )
 
     def print_settings(self):

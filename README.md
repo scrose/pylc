@@ -122,12 +122,14 @@ This package offers configurable preprocessing utilities to prepare raw input da
 
 Extraction is a preprocessing step to create usable data to train segmentation network models. Tile extraction is used to partition raw high-resolution source images and masks into smaller square image tiles that can be used in memory. Images are by default scaled by factors of 0.2, 0.5 and 1.0 before tiling to improve scale invariance. Image data is saved to HDF5 binary data format for fast loading. Mask data is also profiled for analysis and data augmentation. See parameters for dimensions and stride. Extracted tiles can be augmented using data augmentation processing.
 
-To create an extraction database from the image/mask dataset:
+To create an extraction database from raw images and masks, provide separacte images and masks directory paths. Each image file in the directory must have a corresponding mask file that shares the same file name and use allowed image formats (see above). 
+
+Use the following command to extract subimages and save as a database:
 
 ```
-python pylc.py extract --ch [number of channels] --img [path/to/image(s)] --mask [path/to/mask(s)] --output [path/to/output/directory] --id [(Optional) unique ID ] 
+python pylc.py extract --ch [number of channels] --img [path/to/image(s)] --mask [path/to/mask(s)] --output_dir [(Optional) path/to/output/directory] --id [(Optional) unique ID ] 
 ```
-Database files are saved to `data/db`. Metadata is automatically generated during extraction and saved as a Numpy binary file to directory `data/metadata`. Both the database and metadata files share the same filename. You can specify an optional unique identifier; the default identifier is a Unix timestamp.
+If `output_dir` is not specified, the output database file is saved to `data/db`. You can also specify an optional unique identifier to label the files; the default identifier uses a Unix timestamp.
 
 #### Profiling
 

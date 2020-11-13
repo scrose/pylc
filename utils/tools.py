@@ -153,6 +153,124 @@ def adjust_to_tile(img, tile_size, stride, ch, interpolate=cv2.INTER_AREA):
     return img_cropped, img_cropped.shape[1], img_cropped.shape[0], h_crop
 
 
+def reconstruct(logits, meta):
+    print(meta)
+    """
+    Reconstruct tiles into full-sized segmentation mask.
+    Uses metadata generated from image tiling (adjust_to_tile)
+
+      Returns
+      ------
+      mask_reconstructed: np.array
+         Reconstructed image data.
+     """
+
+    # get tiles from tensor outputs
+    tiles = np.concatenate((logits), axis=0)
+
+    # load metadata
+    w = meta.extract['w_fitted']
+    h = meta.extract['h_fitted']
+    w_full = meta.extract['w_scaled']
+    h_full = meta.extract['h_scaled']
+    offset = meta.extract['offset']
+    tile_size = meta.tile_size
+    stride = meta.stride
+    palette = meta.palette_rgb
+    n_classes = meta.n_classes
+
+    if stride < tile_size:
+        n_strides_in_row = w // stride - 1
+        n_strides_in_col = h // stride - 1
+    else:
+        n_strides_in_row = w // stride
+        n_strides_in_col = h // stride
+
+    # Calculate overlap
+    olap_size = tile_size - stride
+
+    # initialize full image numpy array
+    mask_fullsized = np.empty((n_classes, h + offset, w), dtype=np.float32)
+
+    # Create empty rows
+    r_olap_prev = None
+    r_olap_merged = None
+
+    # row index (set to offset height)
+    row_idx = offset
+
+    for i in range(n_strides_in_col):
+        # Get initial tile in row
+        t_current = tiles[i * n_strides_in_row]
+        r_current = np.empty((n_classes, tile_size, w), dtype=np.float32)
+        col_idx = 0
+        # Step 1: Collate column tiles in row
+        for j in range(n_strides_in_row):
+            t_current_width = t_current.shape[2]
+            if j < n_strides_in_row - 1:
+                # Get adjacent tile
+                t_next = tiles[i * n_strides_in_row + j + 1]
+                # Extract right overlap of current tile
+                olap_current = t_current[:, :, t_current_width - olap_size:t_current_width]
+                # Extract left overlap of next (adjacent) tile
+                olap_next = t_next[:, :, 0:olap_size]
+                # Average the overlapping segment logits
+                olap_current = torch.nn.functional.softmax(torch.tensor(olap_current), dim=0)
+                olap_next = torch.nn.functional.softmax(torch.tensor(olap_next), dim=0)
+                olap_merged = (olap_current + olap_next) / 2
+                # Insert averaged overlap into current tile
+                np.copyto(t_current[:, :, t_current_width - olap_size:t_current_width], olap_merged)
+                # Insert updated current tile into row
+                np.copyto(r_current[:, :, col_idx:col_idx + t_current_width], t_current)
+                col_idx += t_current_width
+                # Crop next tile and copy to current tile
+                t_current = t_next[:, :, olap_size:t_next.shape[2]]
+
+            else:
+                np.copyto(r_current[:, :, col_idx:col_idx + t_current_width], t_current)
+
+        # Step 2: Collate row slices into full mask
+        r_current_height = r_current.shape[1]
+        # Extract overlaps at top and bottom of current row
+        r_olap_top = r_current[:, 0:olap_size, :]
+        r_olap_bottom = r_current[:, r_current_height - olap_size:r_current_height, :]
+
+        # Average the overlapping segment logits
+        if i > 0:
+            # Average the overlapping segment logits
+            r_olap_top = torch.nn.functional.softmax(torch.tensor(r_olap_top), dim=0)
+            r_olap_prev = torch.nn.functional.softmax(torch.tensor(r_olap_prev), dim=0)
+            r_olap_merged = (r_olap_top + r_olap_prev) / 2
+
+        # Top row: crop by bottom overlap (to be averaged)
+        if i == 0:
+            # Crop current row by bottom overlap size
+            r_current = r_current[:, 0:r_current_height - olap_size, :]
+        # Otherwise: Merge top overlap with previous
+        else:
+            # Replace top overlap with averaged overlap in current row
+            np.copyto(r_current[:, 0:olap_size, :], r_olap_merged)
+
+        # Crop middle rows by bottom overlap
+        if 0 < i < n_strides_in_col - 1:
+            r_current = r_current[:, 0:r_current_height - olap_size, :]
+
+        # Copy current row to full mask
+        np.copyto(mask_fullsized[:, row_idx:row_idx + r_current.shape[1], :], r_current)
+        row_idx += r_current.shape[1]
+        r_olap_prev = r_olap_bottom
+
+    # colourize to palette
+    mask_fullsized = np.expand_dims(mask_fullsized, axis=0)
+    _mask_pred = colourize(np.argmax(mask_fullsized, axis=1), n_classes, palette=palette)
+
+    # resize mask to full size
+    mask_reconstructed = cv2.resize(
+        _mask_pred[0].astype('float32'), (w_full, h_full), interpolation=cv2.INTER_NEAREST)
+
+    return mask_reconstructed
+
+
 def colourize(img, n_classes, palette=None):
     """
         Colourize one-hot encoded image by palette
@@ -488,16 +606,28 @@ def collate(img_dir, mask_dir=None):
     mask_files = load_files(mask_dir, ['.png'])
 
     for i, img_path in enumerate(img_files):
-        # Validate mask-to-image count
-        assert i < len(mask_files), 'Image {} does not have a mask.'.format(img_path)
+        # validate mask-to-image count
+        if i > len(mask_files):
+            print('Image {} does not have a mask.'.format(img_path))
+            exit(1)
+
         mask_path = mask_files[i]
         img_fname = os.path.splitext(os.path.basename(img_path))[0]
         mask_fname = os.path.splitext(os.path.basename(mask_path))[0]
-        assert img_fname == mask_fname, 'Image {} does not match mask {}.'.format(img_fname, mask_fname)
+
+        # check if file names match
+        if img_fname != mask_fname:
+            print('Image file {} does not match mask file {}. Please update file names.'.format(img_fname, mask_fname))
+            exit(1)
+
         # append to file list
         files += [{'img': img_path, 'mask': mask_path}]
-        # Validate image-to-mask count
-        assert i < len(mask_files), 'Mask {} does not have an image.'.format(mask_files[i])
+
+        # validate image-to-mask count
+        if i == len(img_files) - 1 and i < len(mask_files) - 1:
+            print('Mask {} does not have a corresponding image.'.format(mask_files[i + 1]))
+            exit(1)
+
     return files
 
 
@@ -539,5 +669,5 @@ def confirm_write_file(file_path):
      """
     return True if \
         not os.path.exists(file_path) or \
-        input("\tFile {} exists. Overwrite? (Type \'y\' for yes): ".format(file_path)) == 'y' \
+        input("\tFile {} exists.\n\tOverwrite?  (Enter \'Y\' or \'y\' for yes): ".format(file_path)) in ['Y', 'y'] \
         else False

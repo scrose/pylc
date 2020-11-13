@@ -66,7 +66,7 @@ class Augmentor(object):
         """
 
         # Show previous profile metadata
-        self.profiler.print_metadata()
+        self.profiler.print_meta()
 
         # Load metadata
         px_dist = self.profiler.px_dist
@@ -87,15 +87,15 @@ class Augmentor(object):
         # Initialize Augmentation Parameters
         print("\nAugmentation parameters")
         print("\tSample maximum: {}".format(defaults.aug_n_samples_max))
-        print("\tMinumum sample rate: {}".format(defaults.min_sample_rate))
+        print("\tMinumum sample rate: {}".format(defaults.aug_oversample_rate_range))
         print("\tMaximum samples rate: {}".format(defaults.max_sample_rate))
-        print("\tRate coefficient range: {:3f}-{:3f}".format(defaults.sample_rate_coef[0], defaults.sample_rate_coef[-1]))
-        print("\tThreshold range: {:3f}-{:3f}".format(defaults.sample_threshold[0], defaults.sample_threshold[-1]))
+        print("\tRate coefficient range: {:3f}-{:3f}".format(defaults.aug_rate_coef_range[0], defaults.aug_rate_coef_range[-1]))
+        print("\tThreshold range: {:3f}-{:3f}".format(defaults.aug_threshold_range[0], defaults.aug_threshold_range[-1]))
 
         # rate coefficient (default range of 1 - 21)
-        rate_coefs = defaults.sample_rate_coef
+        rate_coefs = defaults.aug_rate_coef_range
         # threshold for oversampling (default range of 0 - 3)
-        thresholds = defaults.sample_threshold
+        thresholds = defaults.aug_threshold_range
         # upper limit on number of augmentation samples
         aug_n_samples_max = defaults.aug_n_samples_max
         # Jensen-Shannon divergence coefficients

@@ -91,11 +91,10 @@ class Parameters:
         self.ch_label = 'grayscale' if self.ch == 1 else 'colour'
 
         # Device settings
-        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
         self.n_workers = 6
 
         # Application run modes
-        self.mode = None
         self.TRAIN = 'train'
         self.TEST = 'test'
         self.EXTRACT = 'extract'
@@ -106,6 +105,7 @@ class Parameters:
 
         # Default schema file (LCC.A)
         self.schema = args.schema if args and hasattr(args, 'schema') else './schemas/schema_a.json'
+        self.schema_name = str(os.path.splitext(os.path.basename(self.schema))[0])
 
         # Get schema palettes, labels, categories
         schema = self.get_schema(self.schema)
@@ -114,12 +114,16 @@ class Parameters:
         self.palette_hex = schema.palette_hex
         self.palette_rgb = schema.palette_rgb
         self.n_classes = schema.n_classes
+        # create palette indexed by hex values
+        self.class_labels_hex = {
+            schema.palette_hex[i]: schema.class_labels[i] for i in range(len(self.palette_hex))
+        }
 
         # default paths
         self.root = './data/'
         self.img = './data/raw/images/'
         self.mask = './data/raw/masks/'
-        self.db = './data/db/'
+        self.db_dir = './data/db/'
         self.output_dir = './data/output'
         self.save_dir = './data/save'
 
@@ -133,11 +137,13 @@ class Parameters:
         self.tile_px_count = self.tile_size * self.tile_size
 
         # Data Augmentation Parameters
+        self.rates = []
         self.aug_n_samples_max = 4000
-        self.min_sample_rate = 0
-        self.max_sample_rate = 4
-        self.sample_rate_coef = np.arange(1, 21, 1)
-        self.sample_threshold = np.arange(0, 3., 0.05)
+        self.aug_oversample_rate_range = (0, 4)
+        self.aug_rate_coef = 0.
+        self.aug_rate_coef_range = (1, 21)
+        self.aug_threshold = 0.
+        self.aug_threshold_range = (0, 3.)
 
         # Affine coefficient (elastic deformation)
         self.alpha = 0.19
@@ -250,6 +256,9 @@ class Parameters:
         for key in params:
             if hasattr(self, key):
                 setattr(self, key, params[key])
+
+        # update colour label
+        self.ch_label = 'grayscale' if self.ch == 1 else 'colour'
 
     def get_schema(self, schema_path):
         """
