@@ -108,28 +108,29 @@ class Model:
                     model_path))
                 exit()
 
-            # get build metadata
-            # self.meta = model_data["meta"]
-            md = np.load('/Users/boutrous/Workspace/MLP/mountain-legacy-project/data/metadata/historic/historic_merged.npy',
-                         allow_pickle=True).tolist()
-            self.params.update(md)
+            # # get build metadata
+            # # self.meta = model_data["meta"]
+            # md = np.load('/Users/boutrous/Workspace/MLP/mountain-legacy-project/data/metadata/historic/historic_merged.npy',
+            #              allow_pickle=True).tolist()
+            self.params.update(model_data["meta"])
+            print(vars(self.params))
 
             # build model from metadata parameters
             self.build()
             self.net.load_state_dict(model_data["model"])
 
-            # create model identifier if none exists
-            # format: <architecture>_<channel_label>_<schema_id>
-            if not self.id:
-                self.id = 'pylc_' + self.params.arch + '_ch' + \
-                    str(self.params.ch) + '_' + \
-                    self.params.schema_name
-
-            torch.save({
-                "model": self.net.state_dict(),
-                "optim": self.optim.state_dict(),
-                "meta": vars(self.params)
-            }, os.path.join(defaults.save_dir, self.id + '.pth'))
+            # # create model identifier if none exists
+            # # format: <architecture>_<channel_label>_<schema_id>
+            # if not self.id:
+            #     self.id = 'pylc_' + self.params.arch + '_ch' + \
+            #         str(self.params.ch) + '_' + \
+            #         self.params.schema_name
+            #
+            # torch.save({
+            #     "model": self.net.state_dict(),
+            #     "optim": self.optim.state_dict(),
+            #     "meta": vars(self.params)
+            # }, os.path.join(defaults.save_dir, self.id + '.pth'))
 
         else:
             print('Model file does not exist:\n\t{}'.format(self.model_path))

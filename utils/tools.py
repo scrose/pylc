@@ -154,7 +154,6 @@ def adjust_to_tile(img, tile_size, stride, ch, interpolate=cv2.INTER_AREA):
 
 
 def reconstruct(logits, meta):
-    print(meta)
     """
     Reconstruct tiles into full-sized segmentation mask.
     Uses metadata generated from image tiling (adjust_to_tile)
@@ -669,5 +668,5 @@ def confirm_write_file(file_path):
      """
     return True if \
         not os.path.exists(file_path) or \
-        input("\tFile {} exists.\n\tOverwrite?  (Enter \'Y\' or \'y\' for yes): ".format(file_path)) in ['Y', 'y'] \
+        input("\nFile {} exists.\n\tOverwrite?  (Enter \'Y\' or \'y\' for yes): ".format(file_path)) in ['Y', 'y'] \
         else False

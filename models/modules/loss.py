@@ -33,7 +33,7 @@ class MultiLoss(torch.nn.Module):
         Class weights.
     """
 
-    def __init__(self, loss_weights, schema, weights=None):
+    def __init__(self, loss_weights, schema):
 
         super(MultiLoss, self).__init__()
 
@@ -44,7 +44,7 @@ class MultiLoss(torch.nn.Module):
 
         # loss weights
         self.weighted = loss_weights['weighted']
-        self.weights = loss_weights['weights']
+        self.weights = np.array(loss_weights['weights'])
         self.dsc_weight = loss_weights['dice']
         self.ce_weight = loss_weights['ce']
         self.fl_weight = loss_weights['focal']
@@ -58,8 +58,8 @@ class MultiLoss(torch.nn.Module):
         self.device = torch.device(defaults.device)
 
         # initialize cross entropy loss weights
-        if isinstance(weights, np.ndarray):
-            self.weights = torch.tensor(weights).float().to(self.device)
+        if self.weights is not None:
+            self.weights = torch.tensor(self.weights).float().to(self.device)
         else:
             self.weights = torch.ones(self.n_classes).to(self.device)
 
