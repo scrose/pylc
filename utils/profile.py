@@ -13,13 +13,27 @@ File: profile.py
 """
 import torch
 from tqdm import tqdm
-from config import Parameters
 from utils.metrics import m2, jsd
 import numpy as np
 
 
-class Profiler(object):
+def get_profile(dset):
     """
+    Computes dataset statistical profile
+      - probability class distribution for database at db_path
+      - sample metrics and statistics
+      - image mean / standard deviation
+
+    Parameters
+    ------
+    dset: MLPDataset
+        Image/mask dataset.
+
+    Returns
+    ------
+    self
+        For chaining.
+
     Metadata class for analyzing and generating metadata
     for database.
 
@@ -62,165 +76,130 @@ class Profiler(object):
         args.weights:
             Dataset inverse weights.
     """
-    def __init__(self, args=None):
 
-        # initialize metadata
-        self.md = Parameters(args)
+    # update local metadata with dataset metadata
+    meta = dset.get_meta()
 
-    def profile(self, dset):
-        """
-        Computes dataset statistical profile
-          - probability class distribution for database at db_path
-          - sample metrics and statistics
-          - image mean / standard deviation
+    # get data loader
+    loader, n_batches = dset.loader(
+        batch_size=1,
+        n_workers=0,
+        drop_last=False
+    )
+    meta.n_samples = dset.size
 
-        Parameters
-        ------
-        dset: MLPDataset
-            Image/mask dataset.
+    # initialize global stats
+    px_dist = []
+    px_mean = torch.zeros(meta.ch)
+    px_std = torch.zeros(meta.ch)
 
-        Returns
-        ------
-        self
-            For chaining.
-        """
+    # load images and masks
+    for i, (img, mask) in tqdm(enumerate(loader), total=n_batches, desc="Profiling: ", unit=' batches'):
 
-        # get data loader
-        loader, n_batches = dset.loader(
-            batch_size=1,
-            n_workers=0,
-            drop_last=False
-        )
-        self.md.n_samples = dset.size
-
-        # initialize global stats
-        px_dist = []
-        px_mean = torch.zeros(self.md.ch)
-        px_std = torch.zeros(self.md.ch)
-
-        # load images and masks
-        for i, (img, mask) in tqdm(enumerate(loader), total=n_batches, desc="Profiling: ", unit=' batches'):
-
-            # Compute dataset pixel global mean / standard deviation
+        # Compute dataset pixel global mean / standard deviation
+        if meta.ch == 3:
             px_mean += torch.mean(img, (0, 2, 3))
             px_std += torch.std(img, (0, 2, 3))
+        else:
+            px_mean += torch.mean(img)
+            px_std += torch.std(img)
 
-            # convert mask to one-hot encoding
-            mask_1hot = torch.nn.functional.one_hot(mask, num_classes=self.md.n_classes).permute(0, 3, 1, 2)
-            px_dist_sample = [np.sum(mask_1hot.numpy(), axis=(2, 3))]
-            px_dist += px_dist_sample
+        # convert mask to one-hot encoding
+        mask_1hot = torch.nn.functional.one_hot(mask, num_classes=meta.n_classes).permute(0, 3, 1, 2)
+        px_dist_sample = [np.sum(mask_1hot.numpy(), axis=(2, 3))]
+        px_dist += px_dist_sample
 
-        # Divide by dataset size
-        px_mean /= self.md.n_samples
-        px_std /= self.md.n_samples
+    # Divide by dataset size
+    px_mean /= meta.n_samples
+    px_std /= meta.n_samples
 
-        # Calculate sample pixel distribution / sample pixel count
-        px_dist = np.concatenate(px_dist)
+    # Calculate sample pixel distribution / sample pixel count
+    px_dist = np.concatenate(px_dist)
 
-        # Calculate dataset pixel distribution / dataset total pixel count
-        dset_px_dist = np.sum(px_dist, axis=0)
-        dset_px_count = np.sum(dset_px_dist)
-        probs = dset_px_dist / dset_px_count
+    # Calculate dataset pixel distribution / dataset total pixel count
+    dset_px_dist = np.sum(px_dist, axis=0)
+    dset_px_count = np.sum(dset_px_dist)
+    probs = dset_px_dist / dset_px_count
 
-        # Calculate class weight balancing
-        weights = 1 / (np.log(1.02 + probs))
-        weights = weights / np.max(weights)
+    assert dset_px_count / meta.tile_px_count == meta.n_samples, \
+        "Pixel distribution does not match tile count."
 
-        # initialize balanced distributions [n]
-        balanced_px_prob = np.empty(self.md.n_classes)
-        balanced_px_prob.fill(1 / self.md.n_classes)
+    # Calculate class weight balancing
+    weights = 1 / (np.log(1.02 + probs))
+    weights = weights / np.max(weights)
 
-        # Calculate JSD and M2 metrics
-        self.md.m2 = m2(probs, self.md.n_classes)
-        self.md.jsd = jsd(probs, balanced_px_prob)
+    # initialize balanced distributions [n]
+    balanced_px_prob = np.empty(meta.n_classes)
+    balanced_px_prob.fill(1 / meta.n_classes)
 
-        # store metadata values
-        self.md.px_mean = px_mean.tolist()
-        self.md.px_std = px_std.tolist()
-        self.md.px_dist = px_dist.tolist()
-        self.md.tile_px_count = self.md.tile_size * self.md.tile_size
-        self.md.probs = probs.tolist()
-        self.md.weights = weights.tolist()
-        self.md.dset_px_count = int(dset_px_count)
-        self.md.dset_px_dist = dset_px_dist.tolist()
+    # Calculate JSD and M2 metrics
+    meta.m2 = m2(probs, meta.n_classes)
+    meta.jsd = jsd(probs, balanced_px_prob)
 
-        # print profile metadata to console
-        self.print_meta()
+    # store metadata values
+    meta.px_mean = px_mean.tolist()
+    meta.px_std = px_std.tolist()
+    meta.px_dist = px_dist.tolist()
+    meta.tile_px_count = meta.tile_size * meta.tile_size
+    meta.probs = probs.tolist()
+    meta.weights = weights.tolist()
+    meta.dset_px_count = int(dset_px_count)
+    meta.dset_px_dist = dset_px_dist.tolist()
 
-        return self
+    return meta
 
-    def update(self, meta):
-        """
-        Updates metadata with new values.
 
-        Parameters
-        ----------
-        meta: dict
-            Updated metadata.
-        """
-        for key in meta:
-            setattr(self.md, key, meta[key])
+def print_meta(meta):
+    """
+      Prints profile metadata to console
+    """
+    hline = '\n' + '_' * 70
+    readout = '\n{}'.format('Profile Metadata')
+    readout += hline
+    readout += '\n {:30s}{}'.format('ID', meta.id)
+    readout += '\n {:30s}{} ({})'.format('Channels', meta.ch, 'Grayscale' if meta.ch == 1 else 'Colour')
+    readout += '\n {:30s}{}'.format('Classes', meta.n_classes)
+    readout += '\n {:30s}{}'.format('Samples', meta.n_samples)
+    readout += '\n {:30s}{}px x {}px'.format('Tile size (WxH)', meta.tile_size, meta.tile_size)
 
-        return self
+    # RGB/Grayscale mean
+    px_mean = 'R{:3s} G{:3s} B{:3s}'.format(
+        str(meta.px_mean[0]), str(meta.px_mean[1]), str(meta.px_mean[2])) \
+        if meta.ch == 3 else str(meta.px_mean[0])
+    readout += '\n{:30s}{}'.format('Pixel mean', px_mean)
 
-    def get_meta(self):
-        """
-        Returns current metadata.
-        """
-        metadata = vars(self.md)
-        return metadata
+    # RGB/Grayscale std-dev
+    px_std = 'R{:3s} G{:3s} B{:3s}'.format(
+        str(meta.px_std[0]), str(meta.px_std[1]), str(meta.px_std[2])) \
+        if meta.ch == 3 else str(meta.px_std[0])
 
-    def print_meta(self):
-        """
-          Prints profile metadata to console
-        """
-        hline = '\n' + '-' * 50
-        readout = '\n{}'.format('Profile Metadata')
-        readout += hline
-        readout += '\n{:30s}{}'.format('ID', self.md.id)
-        readout += '\n{:30s}{} ({})'.format('Channels', self.md.ch, 'Grayscale' if self.md.ch == 1 else 'Colour')
-        readout += '\n{:30s}{}'.format('Classes', self.md.n_classes)
-        readout += '\n{:30s}{}'.format('Samples', self.md.n_samples)
-        readout += '\n{:30s}{}x{}'.format('Tile size (WxH)', self.md.tile_size, self.md.tile_size)
+    readout += '\n {:30s}{}'.format('Pixel std-dev', px_std)
+    readout += '\n {:30s}{}'.format('M2', meta.m2)
+    readout += '\n {:30s}{}'.format('JSD', meta.jsd)
 
-        # RGB/Grayscale mean
-        px_mean = 'R{:3s} G{:3s} B{:3s}'.format(
-            str(self.md.px_mean[0]), str(self.md.px_mean[1]), str(self.md.px_mean[2])) \
-            if self.md.ch == 3 else str(self.md.px_mean[0])
-        readout += '\n{:30s}{}'.format('Pixel mean', px_mean)
+    # palette
+    readout += '\n\n{} ({})'.format('Palette', meta.schema)
+    readout += hline
+    readout += '\n {:8s}{:25s}{:20s}{:15s}'.format('Code', 'Name', 'RGB', 'Hex')
+    readout += hline
+    for i, rgb_colour in enumerate(meta.palette_rgb):
+        rgb = 'R{:3s} G{:3s} B{:3s}'.format(
+            str(rgb_colour[0]), str(rgb_colour[1]), str(rgb_colour[2]))
+        readout += '\n {:8s}{:25s}{:20s}{:15s}'.format(
+            meta.class_codes[i], meta.class_labels[i], rgb, meta.palette_hex[i])
+    readout += hline
 
-        # RGB/Grayscale std-dev
-        px_std = 'R{:3s} G{:3s} B{:3s}'.format(
-            str(self.md.px_std[0]), str(self.md.px_std[1]), str(self.md.px_std[2])) \
-            if self.md.ch == 3 else str(self.md.px_std[0])
+    # class weights
+    readout += '\n\n{:30s}'.format('Distribution')
+    readout += hline
+    readout += '\n {:25s}{:10s}{:10s}'.format('Class', 'Probs', 'Weights')
+    readout += hline
+    for i, w in enumerate(meta.weights):
+        readout += '\n {:25s}{:10f}  {:10f}'.format(
+            meta.class_labels[i], round(meta.probs[i], 4), round(w, 4))
+    readout += hline
+    readout += '\n{:25s}{:,}'.format('Tile pixel count', int(meta.tile_px_count))
+    readout += '\n{:25s}{:,}'.format('Dataset pixel count', int(meta.dset_px_count))
+    readout += hline + '\n'
 
-        readout += '\n{:30s}{}'.format('Pixel std-dev', px_std)
-        readout += '\n{:30s}{}'.format('M2', self.md.m2)
-        readout += '\n{:30s}{}'.format('JSD', self.md.jsd)
-
-        # palette
-        readout += '\n\n{} ({})'.format('Palette', self.md.schema)
-        readout += hline
-        readout += '\n {:8s}{:25s}{:20s}{:15s}'.format('Code', 'Name', 'RGB', 'Hex')
-        readout += hline
-        for i, rgb_colour in enumerate(self.md.palette_rgb):
-            rgb = 'R{:3s} G{:3s} B{:3s}'.format(
-                str(rgb_colour[0]), str(rgb_colour[1]), str(rgb_colour[2]))
-            readout += '\n {:8s}{:25s}{:20s}{:15s}'.format(
-                self.md.class_codes[i], self.md.class_labels[i], rgb, self.md.palette_hex[i])
-        readout += hline
-
-        # class weights
-        readout += '\n\n{:30s}'.format('Distribution')
-        readout += hline
-        readout += '\n {:25s}{:10s}{:10s}'.format('Class', 'Probs', 'Weights')
-        readout += hline
-        for i, w in enumerate(self.md.weights):
-            readout += '\n {:25s}{:3f}  {:3f}'.format(
-                self.md.class_labels[i], round(self.md.probs[i], 4), round(w, 4))
-        readout += hline
-
-        readout += '\n{:25s}{:,}'.format('Tile pixel count', int(self.md.tile_px_count))
-        readout += '\n{:25s}{:,}'.format('Dataset pixel count', int(self.md.dset_px_count))
-
-        print(readout)
+    print(readout)

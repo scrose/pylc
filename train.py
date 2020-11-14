@@ -13,7 +13,7 @@ File: train.py
 """
 
 import torch
-from utils.dataset import MLPDataset
+from db.dataset import MLPDataset
 from models.model import Model
 from tqdm import tqdm
 from config import defaults

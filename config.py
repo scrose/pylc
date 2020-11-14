@@ -121,11 +121,13 @@ class Parameters:
 
         # default paths
         self.root = './data/'
-        self.img = './data/raw/images/'
-        self.mask = './data/raw/masks/'
+        self.img_dir = './data/raw/images/'
+        self.mask_dir = './data/raw/masks/'
         self.db_dir = './data/db/'
-        self.output_dir = './data/output'
-        self.save_dir = './data/save'
+        self.output_dir = './data/output/'
+        self.save_dir = './data/save/'
+        self.model_dir = './data/models/'
+        self.meta_file = './data/metadata/meta_merged_ch1_schema_a.npy'
 
         # Extraction parameters
         self.n_samples = 0
@@ -137,8 +139,7 @@ class Parameters:
         self.tile_px_count = self.tile_size * self.tile_size
 
         # Data Augmentation Parameters
-        self.rates = []
-        self.aug_n_samples_max = 4000
+        self.aug_n_samples_ratio = 0.36
         self.aug_oversample_rate_range = (0, 4)
         self.aug_rate_coef = 0.
         self.aug_rate_coef_range = (1, 21)
@@ -149,7 +150,7 @@ class Parameters:
         self.alpha = 0.19
 
         # Database parameters
-        self.buf_size = 1000
+        self.buffer_size = 1000
         self.partition = 0.2
         self.clip = 1.
         self.clip_overfit = 0.003
@@ -181,7 +182,7 @@ class Parameters:
 
         # Network parameters
         self.pretrained = './data/models/resnet101-5d3b4d8f.pth'
-        self.n_epoches = 10
+        self.n_epoches = 20
         self.batch_size = 8
         self.dropout = 0.5
         self.crop_target = False
@@ -253,12 +254,15 @@ class Parameters:
         """
         params = args if type(args) == dict else vars(args)
 
+        # update parameters by property names
         for key in params:
             if hasattr(self, key):
                 setattr(self, key, params[key])
 
         # update colour label
         self.ch_label = 'grayscale' if self.ch == 1 else 'colour'
+
+        return self
 
     def get_schema(self, schema_path):
         """

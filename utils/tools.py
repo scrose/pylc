@@ -37,6 +37,23 @@ def rgb2hex(color):
     return "#{:02x}{:02x}{:02x}".format(int(color[0]), int(color[1]), int(color[2]))
 
 
+def is_greyscale(img):
+    """
+    Checks if loaded image is grayscale. Compares channel
+    arrays for equality.
+
+    Parameters
+    ------
+    img: np.array
+        Image data array [HWC].
+    """
+    r_ch = img[:, :, 0]
+    g_ch = img[:, :, 1]
+    b_ch = img[:, :, 2]
+
+    return np.array_equal(r_ch, g_ch) and np.array_equal(r_ch, b_ch)
+
+
 def get_image(img_path, ch=3, scale=None, tile_size=None, interpolate=cv2.INTER_AREA):
     """
     Loads image data into standard Numpy array
@@ -72,12 +89,20 @@ def get_image(img_path, ch=3, scale=None, tile_size=None, interpolate=cv2.INTER_
     if not tile_size:
         tile_size = defaults.tile_size
 
-    img = None
-    if ch == 1:
-        img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
-    elif ch == 3:
+    # verify image channel number
+    img = cv2.imread(img_path, cv2.IMREAD_COLOR)
+    if is_greyscale(img) and ch == 3:
+        print('\nInput image is grayscale but process expects colour (RGB).\n\tApplication stopped.')
+        exit(1)
+    elif not is_greyscale(img) and ch == 1:
+        print('\nInput image is in colour (RGB) but process expects grayscale.\n\tApplication stopped.')
+        exit(1)
+
+    if ch == 3:
         img = cv2.imread(img_path, cv2.IMREAD_COLOR)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    else:
+        img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
 
     # get dimensions
     height, width = img.shape[:2]
@@ -408,7 +433,7 @@ def augment_transform(img, mask, random_state=None):
         Image array [CWH].
     mask: np.array
         Image array [CWH].
-    random_state: np.random
+    random_state: RandomState
         Randomized state.
 
     Returns
@@ -595,61 +620,82 @@ def collate(img_dir, mask_dir=None):
 
     files = []
 
-    # load file paths
+    # load file paths and names
     img_files = load_files(img_dir, ['.tif', '.tiff', '.jpg', '.jpeg'])
+    img_paths = {os.path.splitext(os.path.basename(f))[0]: f for f in img_files}
 
     # no masks provided
     if not mask_dir:
         return img_files
 
+    # load mask file paths and names
     mask_files = load_files(mask_dir, ['.png'])
+    mask_paths = {os.path.splitext(os.path.basename(f))[0]: f for f in mask_files}
 
-    for i, img_path in enumerate(img_files):
-        # validate mask-to-image count
-        if i > len(mask_files):
-            print('Image {} does not have a mask.'.format(img_path))
+    for img_fname in img_paths.keys():
+
+        # find mask filename
+        if img_fname in mask_paths.keys():
+            img_path = img_paths[img_fname]
+            mask_path = mask_paths[img_fname]
+            # append to file list
+            files += [{'img': img_path, 'mask': mask_path}]
+            # remove paths from lists
+            img_files.remove(img_path)
+            mask_files.remove(mask_path)
+        else:
+            print('\nMask not found for image {}.'.format(img_fname))
             exit(1)
 
-        mask_path = mask_files[i]
-        img_fname = os.path.splitext(os.path.basename(img_path))[0]
-        mask_fname = os.path.splitext(os.path.basename(mask_path))[0]
-
-        # check if file names match
-        if img_fname != mask_fname:
-            print('Image file {} does not match mask file {}. Please update file names.'.format(img_fname, mask_fname))
-            exit(1)
-
-        # append to file list
-        files += [{'img': img_path, 'mask': mask_path}]
-
-        # validate image-to-mask count
-        if i == len(img_files) - 1 and i < len(mask_files) - 1:
-            print('Mask {} does not have a corresponding image.'.format(mask_files[i + 1]))
-            exit(1)
+    # validate image-to-mask correspondence
+    if len(mask_files) > 0:
+        print('\nImage not found for mask(s):\n\t{}.'.format("\n\t".join(mask_files)))
+        exit(1)
 
     return files
 
 
-def mk_path(path):
+def get_fname(path):
     """
-    Makes directory at path if none exists.
-
-      Parameters
-      ------
-      path: str
-         Directory path.
+    Get file name from path
 
       Returns
       ------
-      str
-         Created directory path.
-     """
-
-    if not os.path.exists(path):
-        print('\nCreating path {} ... '.format(path), end='')
-        os.makedirs(path)
-        print('done.')
+      path: str
+         File path.
+    """
+    if os.path.isfile(path):
+        return os.path.splitext(os.path.basename(path))[0]
     return path
+
+
+def mk_path(path, check=True):
+    """
+    Makes directory at path if none exists.
+
+    Parameters
+    ------
+    path: str
+        Directory path.
+    check: bool
+        Confirm that new directory be created.
+
+    Returns
+    ------
+    path: str
+        Created directory path.
+    """
+
+    if os.path.exists(path):
+        return path
+    elif check or input("\nRequested directory does not exist:\n\t{}"
+                        "\n\nCreate?  (Enter \'Y\' or \'y\' for yes): ".format(path)) in ['Y', 'y']:
+        os.makedirs(path)
+        print('\nDirectory created:\n\t{}.'.format(path))
+        return path
+    else:
+        print('Application stopped.')
+        exit(0)
 
 
 def confirm_write_file(file_path):

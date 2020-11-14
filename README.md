@@ -97,7 +97,7 @@ The PyLC (Python Landscape Classifier) classification tool has three main run mo
 User configuration arguments `config.py` for . User input parameters can be listed by the following command:
 
 ```
-python test.py -h # prints usage configuration options
+python pylc.py -h # prints usage configuration options
 ```
 
 Categorization schemas (i.e. class definitions) are defined in separate JSON files. Two examples are provided: `schema_a.json` and `schema_b.json`, that correspond to DST.A and DST.B respectively.
@@ -106,94 +106,117 @@ Categorization schemas (i.e. class definitions) are defined in separate JSON fil
 
 This package offers configurable preprocessing utilities to prepare raw input data for model training. Input images must be either JPG or TIF format, and masks PNG format. The image filename must match its mask filename (e.g. img_01.tif and msk_01.png). You can download the original image/mask dataset(s) (see repository links under Datasets section) and save to a local directory for model training and testing.
 
-#### Options: 
-
-- `--mode extract | profile | augment | merge | grayscale`: Run mode for data preprocessing 
-- `--img <path>`: Path to images directory or single file. 
-- `--mask <path>`: Path to masks directory or single file. 
-- `--output <path>`: Path to output directory. 
-- `--schema <path>`: Categorization schema (JSON file, default: schema_a.json).
-- `--ch <int>`: Number of image channels. RGB: 3 (default), Grayscale: 1.. 
-- `--batch_size <int>`: Size of each data batch (default: 50). 
-- `--scale <int>`: Apply image scaling before extraction.
-- `--dbs <str>`: List of database paths to merge (path strings separated by spaces).
-
 #### 1.1 Extraction (Generate Database)
 
 Extraction is a preprocessing step to create usable data to train segmentation network models. Tile extraction is used to partition raw high-resolution source images and masks into smaller square image tiles that can be used in memory. Images are by default scaled by factors of 0.2, 0.5 and 1.0 before tiling to improve scale invariance. Image data is saved to HDF5 binary data format for fast loading. Mask data is also profiled for analysis and data augmentation. See parameters for dimensions and stride. Extracted tiles can be augmented using data augmentation processing.
 
 To create an extraction database from raw images and masks, provide separacte images and masks directory paths. Each image file in the directory must have a corresponding mask file that shares the same file name and use allowed image formats (see above). 
 
-Use the following command to extract subimages and save as a database:
+#### Options: 
+
+- `--img <path>`: (Required) Path to images directory. 
+- `--mask <path>`: (Required) Path to masks directory. 
+- `--output <path>`: (Optional) Path to database directory. If not specified, the generated database file is saved to `data/db/`.
+- `--schema <path>`: (Default: `./schemas/schema_a.json`) Path to JSON categorization schema file.
+- `--ch <int>`: (Required) Number of image channels. RGB: 3 (default), Grayscale: 1.
+- `--scale <int>`: Apply image scaling before extraction.
 
 ```
-python pylc.py extract --ch [number of channels] --img [path/to/image(s)] --mask [path/to/mask(s)] --output_dir [(Optional) path/to/output/directory] --id [(Optional) unique ID ] 
+python pylc.py extract --ch [number of channels] --img [path/to/image(s)] --mask [path/to/mask(s)] 
 ```
-If `output_dir` is not specified, the output database file is saved to `data/db`. You can also specify an optional unique identifier to label the files; the default identifier uses a Unix timestamp.
+
 
 #### Profiling
 
-Extraction automatically computes the pixel class distribution in the mask dataset, along with other metrics. This metadata is saved to `data/metadata` and used to calculate sample rates for data augmentation to balance the pixel semantic class distribution. A data profile can also be created by running the following:
+Extraction automatically computes the pixel class distribution in the mask dataset, along with other metrics. This metadata is saved as JSON in the database file as an attribute, and used to calculate sample rates for data augmentation to balance the pixel semantic class distribution. 
+
+#### Options: 
+
+- `--db <path>`: (Required) Path to source database file. 
+
 ```
-python MLP.py profile --db [path/to/database.h5]
+python pylc.py profile --db [path/to/database.h5]
 ```
-Profile metadata is saved as Numpy binary files in directory `data/metadata` and by default uses the same filename as the corresponding database but with the `.npy` extension. Metadata files are required for 
 
 #### Data Augmentation
 
-Data augmentation can improve the balance of pixel class distribution in a database by extending the dataset with altered copies of samples with less-represented semantic classes. This package uses a novel thresholding algorithm applied to the class distribution of each tile to compute a sampling rate for that tile.
+Data augmentation can improve the balance of pixel class distribution in a database by extending the dataset with altered copies of samples composed of less-represented semantic classes. This package uses a novel self-optimizing thresholding algorithm applied to the class distribution of each tile to compute a sampling rate for that tile. The saved augmented database is saved in the defined database directory (default: `./data/db/`).
 
-When a database is augmented, the app looks for a corresponding metadata file (containing pre-generated sample rates) in `data/metadata`. Metadata files by default use the same filename as the database. If none is found, a new profile metadata file is generated.
+#### Options: 
+
+- `--db <path>`: (Required) Path to source database file. 
+- `--output <path>`: (Optional) Path to output directory. If not specified, the generated database file is saved to `data/db/`.
 
 ```
-python MLP.py augment --db [path/to/database.h5]
+python pylc.py augment --db [path/to/database.h5]
 ```
 
 #### Database Merging 
 Multiple databases can be combined and shuffled.
 
+#### Options: 
+
+- `--dbs <str>`: (Required) List of database paths to merge (path strings separated by spaces).
+- `--output <path>`: (Optional) Path to output directory. 
+
 ```
-python preprocess.py --merge --dbs [paths to databases] --output [path/to/output/directory/] 
+python pylc.py merge --dbs [paths to databases] --output [path/to/output/directory/] 
 ```
 
-For example, using historic database files `db_1.h5` and `db_2.h5`
+For example, the following command, using historic database files `db_1.h5` and `db_2.h5`, generates a merged database in as `data/db/_merged_db_1_db_2.h5`
 
 ```
-python preprocess.py --merge --dbs data/db/db_1.h5, data/db/db_2.h5 --output data/db/merged/ --id merged_dbs_1_and_2
+python pylc.py --merge --dbs data/db/db_1.h5, data/db/db_2.h5
 ```
 
 ### Training
 
-Training or retraining a model requires an extraction or augmented database generated using the preprocessing steps above. Model training is CUDA-enabled.
+Training or retraining a model requires an extraction or augmented database generated using the preprocessing steps above. Model training is CUDA-enabled. Note that other training hyperparamters can be set in the `config.py` configuration file.
 
 #### Options: 
 
-- `--id <str>`: Unique identifier to label output files (default: Unix timestamp).
-- `--img <path>`: Path to images directory or single file. 
-- `--mask <path>`: Path to masks (i.e. ground truth segmentations) directory or single file. 
-- `--batch_size <int>`: Size of each data batch (default: 50). 
-- `--use_pretrained <bool>`: Use pretrained model to initialize network parameters (default: True; path is defined in `config.py`.).
+- `--db <path>`: (Required) Path to training database file. 
+- `--save_dir <str>`: (default: `data/save`) Path to directory for saved model outputs.
+- `--batch_size <int>`: (Default: 8) Size of each data batch (default: 8). 
+- `--use_pretrained <bool>`: (Default: True) Use pretrained model to initialize network parameters.
+- `--arch [deeplab|unet]`: (Default: 'deeplab') Network architecture.
+- `--backbone [resnet|xception]`: (Default: 'resnet') Network model encoder (Deeplab).
+- `--weighted <bool>`: (Default: 'True') Weight applied to classes in loss computations.
+- `--ce_weight <float>`: (Default: 0.5) Weight applied to cross-entropy losses for back-propagation.
+- `--dice_weight <float>`: (Default: 0.5) Weight applied to Dice losses for back-propagation.
+- `--focal_weight <flost>`: (Default: 0.5) Weight applied to Focal losses for back-propagation.
+- `--optim [adam, sgd]`: (Default: 'adm) Network model optimizer.
+- `--sched [step_lr, cyclic_lr, anneal]`: (Default: 'step_lr') Network model optimizer.
+- `--normalize`: (Default: 'batch') Network layer normalizer.
+- `--activation [relu, lrelu, selu, synbatch]`: (Default: 'relu') Network activation function.
+- `--up_mode ['upconv', 'upsample']`: (Default: 'upsample') Interpolation for upsampling (Optional: use for U-Net).
+- `--lr <float>`: (Default: 0.0001) Initial learning rate.
+- `--batch_size <int>`: (Default: 8) Size of each training batch.
+- `--epochs <int>`: (Default: 20) Number of epochs to train.
+- `--pretrained <bool>`: (Default: True) Use pre-trained network weights (model path defined in `config.py`).
+- `--n_workers <int>`: (Default: 6) Number of workers for worker pool.
+- `--report`: Report interval (number of iterations).
+- `--resume <bool>`: (Default: True) Resume training from existing checkpoint.
+- `--clip <float>`: (Default: 1.0) Fraction of dataset to use in training.
 
 ```
-python train.py  --db [path/to/database.h5] --id [unique identifier]
+python pylc.py train  --db [path/to/database.h5]
 ```
 
 ### Testing
 Segmentation maps can be generated for input images. Evaluation metrics can also be computed if ground truth masks are provided.
 
 #### Options: 
-- `--id <str>`: Unique identifier to label output files (default: Unix timestamp).
 - `--model <path>`: (Required) Path to pretrained model.
 - `--img <path>`: (Required) Path to images directory or single file. 
-- `--mask <path>`: Path to masks directory or single file. This option triggers an evaluation of model outputs using various metrics: F1, mIoU, Matthew's Correlation Coefficient, and generates a confusion matrix. 
-- `--output <path>`: Path to output directory. 
-- `--save_raw_output <bool>`: Save unnormalized model output(s) to file (default: False).
-- `--normalize_default <bool>`: Use preset image normalization coefficients instead of database metadata (default: False -- see default values in parameter settings).
-- `--scale <float>`: Scale the input image(s) by given factor (default: None).
-- `--global_metrics <bool>`: Report aggregate metrics for batched evaluations (default: False).
+- `--mask <path>`: (Optional) Path to masks directory or single file. This option triggers an evaluation of model outputs using various metrics: F1, mIoU, Matthew's Correlation Coefficient, and generates a confusion matrix. 
+- `--save_raw_output <bool>`: (Default: False) Save unnormalized model output(s) to file (default: False).
+- `--normalize_default <bool>`: (Default: False) Use preset image normalization coefficients instead of database metadata (default: False -- see default values in parameter settings).
+- `--scale <float>`: (Default: 1.0) Scale the input image(s) by given factor (default: None).
+- `--global_metrics <bool>`: (Default: False) Report aggregate metrics for batched evaluations (default: False).
                          
 ```
-python pylc.py test --model [path/to/model] --img [path/to/images(s)] --mask [path/to/mask(s)] --output [path/to/output/directory] --id [(Optional) unique identifier]
+python pylc.py test --model [path/to/model] --img [path/to/images(s)] --mask [path/to/mask(s)]
 ```
 
 

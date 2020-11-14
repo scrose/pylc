@@ -11,49 +11,72 @@ University of Victoria
 Module: Augmentor
 File: augment.py
 """
-
 import os
 import torch
 from tqdm import tqdm
 import utils.metrics
 import numpy as np
-from utils.profile import Profiler
-from utils.dataset import MLPDataset
-from utils.db import DB
-from config import defaults
+from utils.profile import get_profile
+from db.dataset import MLPDataset
+from config import defaults, Parameters
+from utils.tools import augment_transform, coshuffle, mk_path
 
 
 class Augmentor(object):
     """
-    Augmentor class for subimage augmentation from input database.
-    Optimized rates minimize Jensen-Shannon divergence from balanced
-    distribution.
+    Augmentor class for data augmentation from input database.
+    Optimized rates minimize Jensen-Shannon divergence of dataset
+    pixel distribution from ideal balanced distribution.
 
     Parameters
     ------
-    db_path: str
-        Path to database file.
+    args: object
+        User-defined configuration settings.
     """
 
-    def __init__(self, db_path):
+    def __init__(self, args):
 
-        # augmented data properties
-        self.output_path = None
-        self.output_meta = None
-        self.output_dset = None
-        self.output_path = None
-        self.output_db_size = 0
+        if not os.path.exists(args.db) and os.path.isfile(args.db):
+            print("Database file {} not found.".format(args.db))
+            exit(1)
 
-        assert os.path.exists(db_path), "Database file {} not found.".format(db_path)
-
-        # load dataset
-        self.input_path = db_path
-        self.input_dset = MLPDataset(db_path)
-        self.profiler = Profiler(self.input_dset.get_meta())
-        self.input_loader = self.input_dset.loader(
+        # load source (input) dataset
+        self.input_path = args.db
+        self.input_dset = MLPDataset(self.input_path)
+        self.input_meta = self.input_dset.get_meta()
+        self.input_loader, self.input_size = self.input_dset.loader(
             batch_size=1,
             n_workers=0,
-            drop_last=True
+            drop_last=False
+        )
+
+        # initialize target (output) dataset
+        self.output_meta = self.input_meta
+
+        # initialize output directory
+        if hasattr(args, 'output'):
+            self.output_meta.output_dir = mk_path(args.output)
+
+        self.output_imgs = None
+        self.output_masks = None
+        self.output_db_size = 0
+
+        # optimized parameters
+        self.optim_meta = None
+        self.rates = []
+
+    def get_data(self):
+        """
+        Returns extracted data as MLP Dataset.
+
+          Returns
+          ------
+          MLPDataset
+             Extracted image/mask tiles with metadata.
+         """
+
+        return MLPDataset(
+            input_data={'img': self.output_imgs, 'mask': self.output_masks, 'meta': self.output_meta}
         )
 
     def optimize(self):
@@ -64,46 +87,41 @@ class Augmentor(object):
             Rose 2020
           - Default parameter ranges are defined in params (cf.py)
         """
+        # for numerical stability
+        eps = 1e-8
 
-        # Show previous profile metadata
-        self.profiler.print_meta()
-
-        # Load metadata
-        px_dist = self.profiler.px_dist
-        px_count = self.profiler.tile_px_count
-        dset_probs = self.profiler.probs
+        # Load current dset metadata
+        px_dist = np.array(self.input_meta.px_dist, dtype='long')
+        px_count = self.input_meta.tile_px_count
+        dset_probs = np.array(self.input_meta.probs, dtype='float32') + eps
 
         # Optimized profile data
         profile_data = []
 
         # Initialize oversample filter and class prior probabilities
-        oversample_filter = np.clip(1 / self.profiler.n_classes - dset_probs, a_min=0, a_max=1.)
+        oversample_filter = np.clip(1 / self.input_meta.n_classes - dset_probs, a_min=0, a_max=1.)
         probs = px_dist / px_count
         probs_weighted = np.multiply(np.multiply(probs, 1 / dset_probs), oversample_filter)
 
         # Calculate scores for oversampling
         scores = np.sqrt(np.sum(probs_weighted, axis=1))
 
-        # Initialize Augmentation Parameters
-        print("\nAugmentation parameters")
-        print("\tSample maximum: {}".format(defaults.aug_n_samples_max))
-        print("\tMinumum sample rate: {}".format(defaults.aug_oversample_rate_range))
-        print("\tMaximum samples rate: {}".format(defaults.max_sample_rate))
-        print("\tRate coefficient range: {:3f}-{:3f}".format(defaults.aug_rate_coef_range[0], defaults.aug_rate_coef_range[-1]))
-        print("\tThreshold range: {:3f}-{:3f}".format(defaults.aug_threshold_range[0], defaults.aug_threshold_range[-1]))
-
-        # rate coefficient (default range of 1 - 21)
-        rate_coefs = defaults.aug_rate_coef_range
-        # threshold for oversampling (default range of 0 - 3)
-        thresholds = defaults.aug_threshold_range
-        # upper limit on number of augmentation samples
-        aug_n_samples_max = defaults.aug_n_samples_max
+        # rate coefficient
+        rate_coefs = np.arange(
+            min(defaults.aug_rate_coef_range), max(defaults.aug_rate_coef_range), 1.
+        )
+        # threshold for oversampling
+        thresholds = np.arange(
+            min(defaults.aug_threshold_range), max(defaults.aug_threshold_range), 0.05
+        )
         # Jensen-Shannon divergence coefficients
         jsd = []
+        # M2 multinomial variance
+        m2 = []
 
         # initialize balanced model distribution
-        balanced_px_prob = np.empty(self.profiler.n_classes)
-        balanced_px_prob.fill(1 / self.profiler.n_classes)
+        balanced_px_prob = np.empty(self.input_meta.n_classes)
+        balanced_px_prob.fill(1 / self.input_meta.n_classes)
 
         # Grid search for sample rates
         for i, rate_coef, in enumerate(rate_coefs):
@@ -117,15 +135,21 @@ class Augmentor(object):
                 rates = np.multiply(over_sample, rate_coef * scores).astype(int)
 
                 # clip rates to max value
-                rates = np.clip(rates, 0, defaults.max_sample_rate)
+                rates = np.clip(
+                    rates,
+                    defaults.aug_oversample_rate_range[0],
+                    defaults.aug_oversample_rate_range[1]
+                )
 
                 # limit to max number of augmented images
-                if np.sum(rates) < aug_n_samples_max:
+                if np.sum(rates) < int(defaults.aug_n_samples_ratio * self.input_size):
                     aug_px_dist = np.multiply(np.expand_dims(rates, axis=1), px_dist)
                     full_px_dist = px_dist + aug_px_dist
                     full_px_probs = np.sum(full_px_dist, axis=0) / np.sum(full_px_dist)
+                    m2_sample = utils.metrics.m2(full_px_probs, self.input_meta.n_classes)
                     jsd_sample = utils.metrics.jsd(full_px_probs, balanced_px_prob)
                     jsd += [jsd_sample]
+                    m2 += [m2_sample]
                     profile_data += [{
                         'probs': full_px_probs,
                         'threshold': threshold,
@@ -133,21 +157,21 @@ class Augmentor(object):
                         'rates': rates,
                         'n_samples': int(np.sum(full_px_dist) / px_count),
                         'aug_n_samples': np.sum(rates),
-                        'rate_max': defaults.max_sample_rate,
-                        'jsd': jsd_sample
+                        'n_samples_max': defaults.aug_n_samples_ratio,
+                        'jsd': jsd_sample,
+                        'm2': m2_sample
                     }]
 
         # Get parameters that minimize Jensen-Shannon Divergence metric
         assert len(jsd) > 0, 'No augmentation optimization found.'
 
-        # Store optimal augmentation parameters (minimize JSD)
-        self.metadata = profile_data[int(np.argmin(np.asarray(jsd)))]
-        self.profiler.rates = self.metadata['rates']
+        # Get and store optimal augmentation parameters (minimize JSD)
+        self.optim_meta = profile_data[int(np.argmin(np.asarray(jsd)))]
+        self.rates = self.optim_meta['rates']
 
         return self
 
     def oversample(self):
-
         """
         Oversamples image tiles using computed sample rates.
 
@@ -157,27 +181,28 @@ class Augmentor(object):
             For chaining.
         """
 
-        assert self.profiler.get_extract_meta(), "Metadata is not loaded."
-        assert self.input_loader and self.dset_size and self.db_size, "Database is not loaded."
+        assert self.input_loader is not None and self.input_dset.size > 0, "Loaded input dataset is empty."
 
         # initialize main image arrays
-        e_size = defaults.tile_size
-        imgs = np.empty((self.dsize * 2, defaults.ch, e_size, e_size), dtype=np.uint8)
-        masks = np.empty((self.dsize * 2, e_size, e_size), dtype=np.uint8)
+        e_size = self.input_meta.tile_size
+        imgs = np.empty((self.input_dset.size * 2, defaults.ch, e_size, e_size), dtype=np.uint8)
+        masks = np.empty((self.input_dset.size * 2, e_size, e_size), dtype=np.uint8)
         idx = 0
 
         # iterate data loader
-        for i, data in tqdm(enumerate(self.input_loader), total=self.dsize // defaults.batch_size, unit=' batches'):
+        for i, data in tqdm(enumerate(self.input_loader),
+                            total=self.input_size, desc="Oversampling: ", unit=' Samples'):
             img, mask = data
 
             # copy originals to dataset
             np.copyto(imgs[idx:idx + 1, ...], img.numpy().astype(np.uint8))
             np.copyto(masks[idx:idx + 1, ...], mask.numpy().astype(np.uint8))
             idx += 1
+
             # append augmented data
             for j in range(self.rates[i]):
                 random_state = np.random.RandomState(j)
-                inp_data, tgt_data = utils.augment_transform(img.numpy(), mask.numpy(), random_state)
+                inp_data, tgt_data = augment_transform(img.numpy(), mask.numpy(), random_state)
                 inp_data = torch.as_tensor(inp_data, dtype=torch.uint8).unsqueeze(0)
                 tgt_data = torch.as_tensor(tgt_data, dtype=torch.uint8).unsqueeze(0)
                 np.copyto(imgs[idx:idx + 1, ...], inp_data.numpy().astype(np.uint8))
@@ -189,51 +214,39 @@ class Augmentor(object):
         masks = masks[:idx]
 
         # Shuffle data
-        print('\nShuffling ... ', end='')
-        idx_arr = np.arange(len(imgs))
-        np.random.shuffle(idx_arr)
-        imgs = imgs[idx_arr]
-        masks = masks[idx_arr]
-        print('done.')
+        imgs, masks = coshuffle(imgs, masks)
 
-        self.aug_data = {'imgs': imgs, 'mask': masks}
-        self.aug_size = len(imgs)
+        # store augmented data in buffers
+        self.output_imgs = imgs
+        self.output_masks = masks
+
+        # profile augmented data
+        self.output_meta = get_profile(self.get_data())
+
+        # add prefix for input file ID
+        self.output_meta.id = '_aug' + self.input_meta.id
 
         return self
 
-    def merge_dbs(self, dbs):
+    def merge_dbs(self, db_paths):
         """
-        Loads source database.
+        Combines multiple databases.
 
         Parameters
         ------
-        dbs: list
+        db_paths: list
             Databases to merge with current one.
 
         """
-        return self
-
-        # # set batch size to single
-        # cf.batch_size = 1
-        # patch_size = cf.tile_size
-        # idx = 0
-        # n_classes = cf.schema(cf).n_classes
-        #
-        # # number of databases to merge
-        # n_dbs = len(cf.dbs)
-        # dset_merged_size = 0
-        #
-        # # initialize merged database
-        # db_base = DB(cf)
-        # db_path_merged = os.path.join(cf.output, cf.id + '.h5')
-        # dloaders = []
-        #
+        dsets = []
+        for db_path in db_paths:
+            dsets += [MLPDataset(db_path)]
+            # print('{:30s}{:10s}{:10s}'.format(db))
         # print("Merging {} databases: {}".format(n_dbs, cf.dbs))
         # print('\tClasses: {}'.format(n_classes))
         # print('\tChannels: {}'.format(cf.ch))
-        #
         # # Load databases into loader list
-        # for db_path in cf.dbs:
+        # for db_path in db_paths:
         #     dl, dset_size, db_size = load_data(cf, cf.MERGE, db_path)
         #     dloaders += [{'name': os.path.basename(db_path), 'dloader': dl, 'dset_size': dset_size}]
         #     dset_merged_size += dset_size
@@ -263,6 +276,8 @@ class Augmentor(object):
         #
         # # save merged database file
         # db_base.save(data, path=db_path_merged)
+
+        return self
 
     def grayscale(self):
         """
@@ -318,34 +333,33 @@ class Augmentor(object):
 
         return self
 
-    def save(self):
-        """
-        save augmented data to database.
-        """
-        db = DB()
-        db_path = os.path.join(defaults.output, defaults.id + '_augmented.h5')
-        if os.path.exists(db_path) and input(
-                "\tData file {} exists. Overwrite? (Type \'Y\' for yes): ".format(db_path)) != 'Y':
-            print('Skipping')
-            return
-
-        db.save(self.get_data(), db_path)
-
-        return self
-
     def print_settings(self):
         """
-        Prints augmentation settings to console
+        Prints augmentation settings to console.
          """
-        ch_label = 'Grayscale' if defaults.ch == 1 else 'Colour'
-        print('\nExtraction Config\n--------------------')
-        print('{:30s} {}'.format('Image(s) path', defaults.img))
-        print('{:30s} {}'.format('Masks(s) path', defaults.mask))
-        print('{:30s} {}'.format('Number of files', self.n_files))
-        print('{:30s} {} ({})'.format('Channels', defaults.ch, ch_label))
-        print('{:30s} {}px'.format('Stride', defaults.stride))
-        print('{:30s} {}px x {}px'.format('Tile size (WxH)', defaults.tile_size, defaults.tile_size))
-        print('{:30s} {}'.format('Maximum tiles/image', defaults.tiles_per_image))
-        print('--------------------')
+        hline = '\n' + '_' * 70
+        readout = '\n\nAugmentation Results'
+        readout += hline
+        readout += '\n {:30s}{:20s}{:20s}'.format(' ', 'Augmented', 'Input')
+        readout += hline
+        readout += '\n {:30s}{:20s}{:20s}'.format(
+            'Total Samples', str(self.output_meta.n_samples), str(self.input_meta.n_samples))
+        readout += '\n {:30s}{:10s}'.format('Total Generated', str(len(self.output_imgs) - self.input_size))
+        readout += '\n {:30s}{:20s}{:20s}'.format(
+            'M2',
+            str(round(self.output_meta.m2, 4)),
+            str(round(self.input_meta.m2, 4)))
+        readout += '\n {:30s}{:20s}{:20s}'.format(
+            'JSD',
+            str(round(self.output_meta.jsd, 4)),
+            str(round(self.input_meta.jsd, 4)))
+        readout += hline
+        readout += '\n {:30s}{:20s}{:20s}'.format(
+            'Threshold [Range]', str(self.optim_meta['threshold']), str(defaults.aug_threshold_range))
+        readout += '\n {:30s}{:20s}{:20s}'.format(
+            'Rate Coefficient [Range]', str(self.optim_meta['rate_coef']), str(defaults.aug_rate_coef_range))
+        readout += '\n {:30s}{:20s}'.format('Max Rate', str(defaults.aug_oversample_rate_range[1]))
+        readout += hline + '\n'
+        print(readout)
 
         return self

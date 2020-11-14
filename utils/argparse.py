@@ -38,25 +38,11 @@ def get_parser():
 
     # general configuration settings
     parser.add_argument(
-        '--id', type=str,
-        metavar='UNIQUE_ID',
-        default='_id' + str(int(time.time())),
-        help='Unique identifier for output files. (default is Unix timestamp)'
-    )
-    parser.add_argument(
         '--schema',
         type=str,
         metavar='SCHEMA_PATH',
         default=defaults.schema,
         help='Categorization schema (JSON file, default: schema_a.json).'
-    )
-    parser.add_argument(
-        '--ch',
-        type=int,
-        metavar='N_CHANNELS',
-        default=defaults.ch,
-        choices=defaults.ch_options,
-        help='Number of channels for image: 3 for colour image (default); 1 for grayscale images.'
     )
 
     # extraction options
@@ -72,22 +58,32 @@ def get_parser():
         '-i', '--img',
         type=str,
         metavar='IMAGE_PATH',
-        default=defaults.img,
+        default=defaults.img_dir,
+        required=True,
         help='Path to images directory or file.'
     )
     parser_extract.add_argument(
         '-m', '--mask',
         type=str,
         metavar='MASKS_PATH',
-        default=defaults.mask,
+        default=defaults.mask_dir,
         help='Path to masks directory or file.'
     )
     parser_extract.add_argument(
-        '-o', '--output_dir',
+        '-o', '--output',
         type=str,
         metavar='DATABASE_OUTPUT_PATH',
         default=defaults.db_dir,
         help='Path to output directory.'
+    )
+    parser_extract.add_argument(
+        '--ch',
+        type=int,
+        metavar='N_CHANNELS',
+        default=defaults.ch,
+        choices=defaults.ch_options,
+        required=True,
+        help='Number of channels for image: 3 for colour image (default); 1 for grayscale images.'
     )
     parser_extract.add_argument(
         '--batch_size',
@@ -98,7 +94,7 @@ def get_parser():
 
     # augment options
     parser_augment = subparsers.add_parser(
-        'merge',
+        'augment',
         help='Data augmentation for database.',
         parents=[parser]
     )
@@ -110,6 +106,7 @@ def get_parser():
         type=str,
         metavar='DATABASE_PATH',
         default=None,
+        required=True,
         help='Path to database file or directory.'
     )
 
@@ -236,7 +233,7 @@ def get_parser():
         help='Interpolation for upsampling (Optional: use for U-Net).'
     )
     parser_train.add_argument(
-        '--save_dir',
+        '--save',
         type=str,
         metavar='FILE_SAVE_PATH',
         default=defaults.save_dir,
@@ -307,18 +304,18 @@ def get_parser():
         '-i', '--img',
         type=str,
         metavar='IMAGE_PATH',
-        default=defaults.img,
+        default=defaults.img_dir,
         help='Path to images directory or file.'
     )
     parser_test.add_argument(
         '-m', '--mask',
         type=str,
         metavar='MASKS_PATH',
-        default=defaults.mask,
+        default=defaults.mask_dir,
         help='Path to masks directory or file.'
     )
     parser_test.add_argument(
-        '-o', '--output_dir',
+        '-o', '--output',
         type=str,
         metavar='FILE_OUTPUT_PATH',
         default=defaults.output_dir,

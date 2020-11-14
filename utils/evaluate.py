@@ -52,10 +52,10 @@ class Evaluator:
 
         # Make output and mask directories for results
         self.model_path = None
-        self.output_dir = args.output_dir if hasattr(args, 'output_dir') else defaults.output_dir
-        self.masks_dir = utils.mk_path(os.path.join(args.output_dir, 'masks'))
-        self.logits_dir = utils.mk_path(os.path.join(args.output_dir, 'logits'))
-        self.metrics_dir = utils.mk_path(os.path.join(args.output_dir, 'metrics'))
+        self.output_dir = args.output if hasattr(args, 'output') else defaults.output_dir
+        self.masks_dir = utils.mk_path(os.path.join(self.output_dir, 'masks'))
+        self.logits_dir = utils.mk_path(os.path.join(self.output_dir, 'logits'))
+        self.metrics_dir = utils.mk_path(os.path.join(self.output_dir, 'metrics'))
 
     def load(self, mask_pred, meta, mask_true_path=None, scale=None):
         """

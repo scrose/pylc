@@ -22,6 +22,7 @@ from models.modules.loss import MultiLoss, RunningLoss
 from models.modules.checkpoint import Checkpoint
 from numpy import random
 from config import Parameters, defaults
+from utils.tools import confirm_write_file
 
 
 class Model:
@@ -40,7 +41,6 @@ class Model:
         super(Model, self).__init__()
 
         # initialize model parameters
-        self.id = None
         self.params = Parameters(args)
         self.device = torch.device(self.params.device)
 
@@ -102,59 +102,38 @@ class Model:
             model_data = None
             try:
                 model_data = torch.load(self.model_path, map_location=self.device)
-            except Exception as inst:
-                print(inst)
+            except Exception as err:
                 print('An error occurred loading model:\n\t{}.'.format(
                     model_path))
+                print(err)
                 exit()
 
-            # # get build metadata
-            # # self.meta = model_data["meta"]
-            # md = np.load('/Users/boutrous/Workspace/MLP/mountain-legacy-project/data/metadata/historic/historic_merged.npy',
-            #              allow_pickle=True).tolist()
-            self.params.update(model_data["meta"])
-            print(vars(self.params))
+            # get build metadata
+            if 'meta' not in model_data:
+                print('\nModel does not have metadata attached. Looking for external file ...')
+                model_path = self.update_meta(model_data)
+                self.load(model_path)
+            else:
+                self.params.update(model_data["meta"])
+                self.build()
 
-            # build model from metadata parameters
-            self.build()
+            # load model state
             self.net.load_state_dict(model_data["model"])
-
-            # # create model identifier if none exists
-            # # format: <architecture>_<channel_label>_<schema_id>
-            # if not self.id:
-            #     self.id = 'pylc_' + self.params.arch + '_ch' + \
-            #         str(self.params.ch) + '_' + \
-            #         self.params.schema_name
-            #
-            # torch.save({
-            #     "model": self.net.state_dict(),
-            #     "optim": self.optim.state_dict(),
-            #     "meta": vars(self.params)
-            # }, os.path.join(defaults.save_dir, self.id + '.pth'))
-
         else:
             print('Model file does not exist:\n\t{}'.format(self.model_path))
             exit()
 
         return self
 
-    def build(self, meta=None):
+    def build(self):
         """
         Builds neural network model from configuration settings.
-
-        Parameters
-        ------
-        meta: dict
-            Database metadata.
         """
 
         # create model identifier if none exists
         # format: <architecture>_<channel_label>_<schema_id>
-        if not self.id:
-            self.id = \
-                self.params.arch + '_ch' + \
-                str(self.params.ch) + '_' + \
-                self.params.schema_name
+        if not self.params.id:
+            self.gen_id()
 
         # initialize checkpoint
         self.checkpoint = Checkpoint(
@@ -218,12 +197,6 @@ class Model:
         if torch.utils.data.get_worker_info():
             print('\tPooled data loading: {} workers enabled.'.format(
                 torch.utils.data.get_worker_info().num_workers))
-
-        # initialize model metadata
-        if meta:
-            self.params.weight = meta.get('weights')
-            self.params.px_mean = meta.get('px_mean')
-            self.params.px_std = meta.get('px_std')
 
         # initialize network loss calculators, etc.
         self.crit = MultiLoss(
@@ -425,8 +398,13 @@ class Model:
         self.loss.save()
 
     def get_lr(self):
+        """Get current learning rate."""
         for param_group in self.optim.param_groups:
             return param_group['lr']
+
+    def get_meta(self):
+        """Get model metadata."""
+        return self.params
 
     def normalize_image(self, img, default=False):
         """
@@ -500,3 +478,68 @@ class Model:
         except ImportError as e:
             print('Summary not available.')
             pass  # module doesn't exist
+
+    def gen_id(self):
+        """
+        Generate model identifier from metadata and assign to id.
+        """
+        # format: pylc_<architecture>_ch<channels>_<schema_id>
+        self.params.id = 'pylc_' + self.params.arch + '_ch' + \
+                         str(self.params.ch) + '_' + \
+                         self.params.schema_name
+
+    def update_meta(self, model_data, meta_path = None):
+        """
+        Inserts model metadata into file from external Numpy file
+
+        Parameters
+        ----------
+        model_data: np.array
+            Input model data.
+        meta_path: str
+            Path to metadata file.
+
+        Returns
+        -------
+        model_path: np.array
+            New model path.
+        """
+        # get metadata file data
+        meta_path = input("\nModel does not have metadata. "
+                          "Enter a metadata file path ('default' for default path): ")
+        md = None
+        if meta_path == 'default':
+            md = np.load(defaults.meta_file, allow_pickle=True).tolist()
+        elif os.path.exists(meta_path):
+            md = np.load(meta_path, allow_pickle=True).tolist()
+        else:
+            print('Metadata file not found. Application stopped.')
+            exit(0)
+
+        # update model metadata
+        self.params.ch = 1 if md.get('capture') == 'historic' else 3
+        self.params.weights = md.get('weights')
+        self.params.px_mean = md.get('px_mean')
+        self.params.px_std = md.get('px_std')
+        self.params.m2 = md.get('m2')
+        self.params.jsd = md.get('jsd')
+        self.params.dset_px_dist = md.get('dset_px_dist')
+        self.params.dset_px_dist = md.get('probs')
+
+        # build model from metadata parameters
+        self.build()
+
+        # create model identifier if none exists
+        # format: pylc_<architecture>_ch<channels>_<schema_id>
+        self.gen_id()
+
+        # save updated model
+        model_path = os.path.join(defaults.save_dir, self.params.id + '.pth')
+        if confirm_write_file(model_path):
+            torch.save({
+                "model": self.net.state_dict(),
+                "optim": self.optim.state_dict(),
+                "meta": vars(self.params)
+            }, model_path)
+
+        return model_path

@@ -37,10 +37,8 @@ def tester(args):
     aggregate_metrics = args.aggregate_metrics
     save_logits = args.save_logits
 
-    # Load models model for testing or evaluation
-    # Model file path is defined in user settings.
+    # Load model for testing/evaluation
     model = Model(args).load(model_path)
-    # print model configuration
     model.print_settings()
     # self.net = torch.nn.DataParallel(self.net)
     model.net.eval()

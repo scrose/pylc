@@ -11,10 +11,10 @@ University of Victoria
 Module: Data preprocessor
 File: preprocess.py
 """
-
+from db.dataset import MLPDataset
 from utils.extract import Extractor
 from utils.augment import Augmentor
-from utils.profile import Profiler
+from utils.profile import print_meta
 
 
 def extract(args):
@@ -26,15 +26,16 @@ def extract(args):
     args: dict
         User-defined options.
     """
-    img_path = args.img
-    mask_path = args.mask
 
     # extract subimages and metadata from image/mask pairs
-    print('\nLoading images ...')
+    print('\nLoading images/masks from:\n\t{}\n\t{}'.format(args.img, args.mask))
+
     extractor = Extractor(args)
-    tile_dset = extractor.load(img_path, mask_path).extract().coshuffle().profile().get_data()
+    tile_dset = extractor.load(args.img, args.mask).extract().coshuffle().profile().get_data()
+
     # save database to file
     tile_dset.save()
+
     print('Extraction done.')
 
 
@@ -48,26 +49,25 @@ def augment(args):
     args: dict
         User-defined options.
     """
-    db_path = args.db
 
-    # Load db into augmentor
-    augmentor = Augmentor(db_path)
-    print('\nCalculating sample rates  ... ', end='')
+    print('\nStarting augmentation on database:\n\t{}'.format(args.db))
+
+    # Load db into augmentor, show database metadata
+    augmentor = Augmentor(args)
+    print_meta(augmentor.input_meta)
+
+    # optimize oversample parameters
     augmentor.optimize()
-    print('done.')
 
-    print('\nResults:')
-    print('\tThreshold: {}\n \tRate Coefficient: {}\n\tAugmentation Samples: {}\n\tJSD: {}\n\n'.format(
-        augmentor.metadata.get('threshold'), augmentor.metadata.get('rate_coef'),
-        augmentor.metadata.get('aug_n_samples'), augmentor.metadata.get('jsd')))
-
-    # Oversample minority classes (using pre-calculated sample rates)
-    print('\nStarting data oversampling ... ')
+    # oversample dataset by optimized parameters
     augmentor.oversample()
-    print('\nAugmented dataset size: {}'.format(augmentor.aug_size))
 
-    # save augmented database + metadata
-    augmentor.save()
+    # print profile metadata to console
+    aug_dset = augmentor.print_settings().get_data()
+    print_meta(augmentor.output_meta)
+
+    # save augmented database to file
+    aug_dset.save()
 
 
 def profile(args):
@@ -80,8 +80,11 @@ def profile(args):
     args: dict
         User-defined options.
     """
-    profiler = Profiler(args)
-    profiler.print_meta().get_meta()
+    print_meta(
+        profile(
+            MLPDataset(args.db)
+        )
+    )
 
 
 def merge(args):
@@ -93,10 +96,11 @@ def merge(args):
     args: dict
         User-defined options.
     """
-    db_path = args.db
-    db_paths = args.dbs
-    augmentor = Augmentor(db_path)
-    augmentor.merge_dbs(db_paths)
+
+    print('Merging databases')
+
+    dset = Augmentor(args).merge_dbs(args.dbs).get_data()
+    dset.save()
 
 
 def grayscale(args):

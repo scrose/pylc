@@ -7,6 +7,11 @@ eval/
 jobs/
 
 
+# Data files #
+###################
+.h5
+.pth
+.npy
 
 # Compiled source #
 ###################

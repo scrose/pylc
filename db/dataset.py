@@ -11,13 +11,15 @@ University of Victoria
 Module: Data wrapper
 File: dataset.py
 """
+import os
+import time
 
 import torch
 from torch.utils import data
-
 from config import defaults
-from utils.buffer import Buffer
-from utils.db import DB
+from db.buffer import Buffer
+from db.database import DB
+from utils.tools import get_fname
 
 
 class MLPDataset(torch.utils.data.IterableDataset):
@@ -36,12 +38,12 @@ class MLPDataset(torch.utils.data.IterableDataset):
         Training:Validation ratio.
     """
 
-    def __init__(self, db_path, input_data=None, partition=None, shuffle=False):
+    def __init__(self, db_path=None, input_data=None, partition=None, shuffle=False):
 
         super(MLPDataset).__init__()
 
         # initialize database
-        self.db = DB().load(
+        self.db = DB(
             path=db_path,
             data=input_data,
             partition=partition,
@@ -60,6 +62,7 @@ class MLPDataset(torch.utils.data.IterableDataset):
         return self
 
     def __next__(self):
+        # get next payload from buffer
         item = next(self.buffer, None)
         if item:
             return item
@@ -101,14 +104,25 @@ class MLPDataset(torch.utils.data.IterableDataset):
 
     def get_meta(self):
         """
-        Return metadata from database.
+        Return metadata from database (convert from JSON str).
          """
-        return self.db.get_attr()
+        return self.db.get_meta()
 
-    def save(self, output_path=None):
+    def save(self):
         """
         Save data in buffer to database file.
-         """
-        if not output_path:
-            output_path = self.db.path if self.db.path else defaults.output_dir
-        self.db.save(output_path)
+
+        Parameters
+        ----------
+        save_dir: str
+            Database path.
+        """
+
+        # get unique fname for data file
+        fname = self.get_meta().id + '.h5'
+        save_dir = self.get_meta().output_dir
+
+        save_dir = save_dir \
+            if save_dir is not defaults.output_dir and os.path.isdir(save_dir) \
+            else defaults.db_dir
+        self.db.save(os.path.join(save_dir, fname))

@@ -11,15 +11,15 @@ University of Victoria
 Module: Extractor
 File: extract.py
 """
-import json
 import os
+import time
 import torch
 import numpy as np
 import cv2
 from config import Parameters
-from utils.dataset import MLPDataset
+from db.dataset import MLPDataset
 import utils.tools as utils
-from utils.profile import Profiler
+from utils.profile import get_profile
 
 
 class Extractor(object):
@@ -49,9 +49,15 @@ class Extractor(object):
         # extraction parameters
         self.fit = False
 
-        # initialize profiler, metadata
-        self.profiler = Profiler(args)
+        # initialize local metadata
         self.md = Parameters(args)
+
+        # initialize output directory
+        if hasattr(args, 'output'):
+            self.md.output_dir = utils.mk_path(args.output)
+
+        # generate unique ID
+        self.md.id = '_db_pylc_' + self.md.ch_label + '_' + str(int(time.time()))
 
     def load(self, img_path, mask_path=None):
         """
@@ -226,7 +232,7 @@ class Extractor(object):
         Compute profile metadata for current dataset.
          """
         dset = self.get_data()
-        self.md = self.profiler.profile(dset).md
+        self.md = get_profile(dset)
         return self
 
     def coshuffle(self):
@@ -285,15 +291,8 @@ class Extractor(object):
              Extracted image/mask tiles with metadata.
          """
 
-        # generate default database path
-        db_file = '_db_' + self.md.ch_label + '_' + self.md.id + '.h5'
-
-        # store metadata as JSON string
-        meta = json.dumps(vars(self.md))
-
         return MLPDataset(
-            os.path.join(self.md.output_dir, db_file),
-            {'img': self.imgs, 'mask': self.masks, 'meta': meta}
+            input_data={'img': self.imgs, 'mask': self.masks, 'meta': self.md}
         )
 
     def print_settings(self):
@@ -303,6 +302,7 @@ class Extractor(object):
         hline = '-' * 40
         print('\nExtraction Configuration')
         print(hline)
+        print('{:30s} {}'.format('ID', self.md.id))
         print('{:30s} {}'.format('Image(s) path', self.img_path))
         print('{:30s} {}'.format('Masks(s) path', self.mask_path))
         print('{:30s} {}'.format('Output path', self.md.output_dir))
@@ -338,11 +338,14 @@ class Extractor(object):
 
         print()
         print('{:30s} {}'.format('{} File'.format(img_type), os.path.basename(img_path)))
-        print(' -{:28s} {}px x {}px'.format('W x H Original', w_full, h_full))
+        print('- {:28s} {}px x {}px'.format(
+            'W x H Original', w_full, h_full))
         if (type(w_scaled) == int or type(h_scaled) == int) and (w_scaled != w_full or h_scaled != h_full):
-            print(' -{:28s} {}px x {}px'.format('W x H Scaled ({})'.format(round(w_scaled/w_full, 2)), w_scaled, h_scaled))
+            print('- {:28s} {}px x {}px'.format(
+                'W x H Scaled ({})'.format(round(w_scaled/w_full, 2)), w_scaled, h_scaled))
         if (type(w_fitted) == int or type(h_fitted) == int) and (w_fitted != w_scaled or h_fitted != h_scaled):
-            print(' -{:28s} {}px x {}px'.format('W x H Fitted for Tiling', w_fitted, h_fitted))
+            print('- {:28s} {}px x {}px'.format(
+                'W x H Fitted for Tiling', w_fitted, h_fitted))
         if offset:
-            print(' -{:28s} {}px'.format('Crop (offset)', offset))
-        print(' -{:28s} {}'.format('Number of Tiles', n))
+            print('- {:28s} {}px'.format('Crop (offset)', offset))
+        print('- {:28s} {}'.format('Number of Tiles', n))

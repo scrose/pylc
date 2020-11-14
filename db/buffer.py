@@ -14,7 +14,7 @@ File: buffer.py
 
 import numpy as np
 import torch
-from utils.db import DB
+from db.database import DB
 from utils.tools import coshuffle
 
 
@@ -37,14 +37,15 @@ class Buffer(object):
         self.shuffle = shuffle
         self.db = db
         self.db_iter = iter(self.db)
-        self.size = self.db.buf_size
+        self.size = self.db.buffer_size
         self.current = 0
-        self.input_shape = self.db.input_shape[1:]
-        self.target_shape = self.db.target_shape[1:]
+
+        # initialize images/masks buffers
+        self.img_shape = self.db.img_shape[1:]
+        self.mask_shape = self.db.mask_shape[1:]
+        self.imgs = None
+        self.masks = None
         self.alloc(self.size)
-        # sample array buffer
-        self.input = None
-        self.target = None
 
     def __iter__(self):
         return self
@@ -58,10 +59,10 @@ class Buffer(object):
             if not buffering:
                 raise StopIteration
         # load image/mask data to output vars
-        input_data = torch.tensor(self.input[self.current]).float()
-        target_data = torch.tensor(self.target[self.current]).long()
+        img_data = torch.tensor(self.imgs[self.current]).float()
+        mask_data = torch.tensor(self.masks[self.current]).long()
         self.current += 1
-        return input_data, target_data
+        return img_data, mask_data
 
     def load(self):
         """
@@ -75,22 +76,22 @@ class Buffer(object):
                 self.alloc(db_sl_size)
                 self.size = db_sl_size
             # load from database buffer (if available)
-            if self.db.data:
-                self.input = self.db.data['img'][db_sl]
-                self.target = self.db.data['mask'][db_sl]
+            if self.db.data is not None:
+                self.imgs = self.db.data['img'][db_sl]
+                self.masks = self.db.data['mask'][db_sl]
             # load data from database
             else:
                 f = self.db.open()
-                f['img'].read_direct(self.input, db_sl)
-                f['mask'].read_direct(self.target, db_sl)
+                f['img'].read_direct(self.imgs, db_sl)
+                f['mask'].read_direct(self.masks, db_sl)
                 f.close()
             # shuffle data (if requested)
             if self.shuffle:
-                self.input, self.target = coshuffle(self.input, self.target)
+                self.imgs, self.masks = coshuffle(self.imgs, self.masks)
             return True
         return False
 
     def alloc(self, size):
         # allocate buffer memory
-        self.input = np.empty((size,) + (self.input_shape), dtype=np.uint8)
-        self.target = np.empty((size,) + (self.target_shape), dtype=np.uint8)
+        self.imgs = np.empty((size,) + (self.img_shape), dtype=np.uint8)
+        self.masks = np.empty((size,) + (self.mask_shape), dtype=np.uint8)
