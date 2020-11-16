@@ -1,6 +1,6 @@
 """
 (c) 2020 Spencer Rose, MIT Licence
-MLP Landscape Classification Tool (MLP-LCT)
+Python Landscape Classification Tool (PyLC)
  Reference: An evaluation of deep learning semantic segmentation
  for land cover classification of oblique ground-based photography,
  MSc. Thesis 2020.
@@ -11,6 +11,7 @@ University of Victoria
 Module: Data preprocessor
 File: preprocess.py
 """
+from config import Parameters
 from db.dataset import MLPDataset
 from utils.extract import Extractor
 from utils.augment import Augmentor
@@ -30,7 +31,10 @@ def extract(args):
     # extract subimages and metadata from image/mask pairs
     print('\nLoading images/masks from:\n\t{}\n\t{}'.format(args.img, args.mask))
 
-    extractor = Extractor(args)
+    # load parameters
+    params = Parameters(args)
+
+    extractor = Extractor(params)
     tile_dset = extractor.load(args.img, args.mask).extract().coshuffle().profile().get_data()
 
     # save database to file
@@ -53,7 +57,7 @@ def augment(args):
     print('\nStarting augmentation on database:\n\t{}'.format(args.db))
 
     # Load db into augmentor, show database metadata
-    augmentor = Augmentor(args)
+    augmentor = Augmentor().load(args.db)
     print_meta(augmentor.input_meta)
 
     # optimize oversample parameters

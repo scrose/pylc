@@ -9,7 +9,12 @@
 
 ## Overview
 
-The PyLC (Python Landscape Classifier) is a Pytorch-based trainable segmentation network and land cover classification tool for oblique landscape photography. PyLC was developed for the land cover classification of high-resolution greyscale and colour oblique mountain photographs. The training dataset is sampled from the [Mountain Legacy Project](http://mountainlegacy.ca/) repeat photography collection hosted at the [University of Victoria](https://uvic.ca/) .
+The PyLC (Python Landscape Classifier) is a Pytorch-based trainable segmentation network and land cover classification tool for oblique landscape photography. PyLC was developed for the land cover classification of high-resolution greyscale and colour oblique mountain photographs. The training dataset is sampled from the [Mountain Legacy Project](http://mountainlegacy.ca/) repeat photography collection hosted at the [University of Victoria](https://uvic.ca/).
+
+The Deeplab implementation was adapted from [Jianfeng Zhang, Vision & Machine Learning Lab, National University of Singapore, Deeplab V3+ in PyTorch](https://github.com/jfzhang95/pytorch-deeplab-xception). The U-Net implementation was adapted from [Xiao Cheng](https://github.com/xiaochengcike/pytorch-unet-1).
+
+PyTorch implementation of Deeplab: This is a PyTorch(0.4.1) implementation of DeepLab-V3-Plus.
+It can use Modified Aligned Xception and ResNet as backbone.
 
 ### Mountain Legacy Project (MLP)
 
@@ -112,11 +117,12 @@ Extraction is a preprocessing step to create usable data to train segmentation n
 
 To create an extraction database from raw images and masks, provide separacte images and masks directory paths. Each image file in the directory must have a corresponding mask file that shares the same file name and use allowed image formats (see above). 
 
+Note that the generated database file is saved to `data/db/` in the project root.
+
 #### Options: 
 
 - `--img <path>`: (Required) Path to images directory. 
 - `--mask <path>`: (Required) Path to masks directory. 
-- `--output <path>`: (Optional) Path to database directory. If not specified, the generated database file is saved to `data/db/`.
 - `--schema <path>`: (Default: `./schemas/schema_a.json`) Path to JSON categorization schema file.
 - `--ch <int>`: (Required) Number of image channels. RGB: 3 (default), Grayscale: 1.
 - `--scale <int>`: Apply image scaling before extraction.
@@ -140,43 +146,44 @@ python pylc.py profile --db [path/to/database.h5]
 
 #### Data Augmentation
 
-Data augmentation can improve the balance of pixel class distribution in a database by extending the dataset with altered copies of samples composed of less-represented semantic classes. This package uses a novel self-optimizing thresholding algorithm applied to the class distribution of each tile to compute a sampling rate for that tile. The saved augmented database is saved in the defined database directory (default: `./data/db/`).
+Data augmentation can improve the balance of pixel class distribution in a database by extending the dataset with altered copies of samples composed of less-represented semantic classes. This package uses a novel self-optimizing thresholding algorithm applied to the class distribution of each tile to compute a sampling rate for that tile. 
+
+Note that the generated augmented database is saved to `data/db/` in the project root.
 
 #### Options: 
 
 - `--db <path>`: (Required) Path to source database file. 
-- `--output <path>`: (Optional) Path to output directory. If not specified, the generated database file is saved to `data/db/`.
 
 ```
 python pylc.py augment --db [path/to/database.h5]
 ```
 
 #### Database Merging 
-Multiple databases can be combined and shuffled.
+Multiple databases can be combined and shuffled. Note that the generated merged database is saved to `data/db/` in the project root.
+
 
 #### Options: 
 
 - `--dbs <str>`: (Required) List of database paths to merge (path strings separated by spaces).
-- `--output <path>`: (Optional) Path to output directory. 
 
 ```
-python pylc.py merge --dbs [paths to databases] --output [path/to/output/directory/] 
+python pylc.py merge --dbs [paths to databases] 
 ```
 
 For example, the following command, using historic database files `db_1.h5` and `db_2.h5`, generates a merged database in as `data/db/_merged_db_1_db_2.h5`
 
 ```
-python pylc.py --merge --dbs data/db/db_1.h5, data/db/db_2.h5
+python pylc.py merge --dbs data/db/db_1.h5, data/db/db_2.h5
 ```
 
 ### Training
 
-Training or retraining a model requires an extraction or augmented database generated using the preprocessing steps above. Model training is CUDA-enabled. Note that other training hyperparamters can be set in the `config.py` configuration file.
+Training or retraining a model requires an extraction or augmented database generated using the preprocessing steps above. Model training is CUDA-enabled. Note that other training hyperparamters can be set in the `config.py` configuration file. Note that files generated for best models and checkpoints (`.pth`), as well as loss logs (`.npy`), are saved to `./data/save/` in a folder labeled by the model ID.
+
 
 #### Options: 
 
 - `--db <path>`: (Required) Path to training database file. 
-- `--save_dir <str>`: (default: `data/save`) Path to directory for saved model outputs.
 - `--batch_size <int>`: (Default: 8) Size of each data batch (default: 8). 
 - `--use_pretrained <bool>`: (Default: True) Use pretrained model to initialize network parameters.
 - `--arch [deeplab|unet]`: (Default: 'deeplab') Network architecture.
@@ -204,16 +211,15 @@ python pylc.py train  --db [path/to/database.h5]
 ```
 
 ### Testing
-Segmentation maps can be generated for input images. Evaluation metrics can also be computed if ground truth masks are provided.
+Segmentation maps can be generated for input images. Evaluation metrics can also be computed if ground truth masks are provided. Note that image pixel normalization coefficients are stored in model metadata.
 
 #### Options: 
 - `--model <path>`: (Required) Path to pretrained model.
 - `--img <path>`: (Required) Path to images directory or single file. 
 - `--mask <path>`: (Optional) Path to masks directory or single file. This option triggers an evaluation of model outputs using various metrics: F1, mIoU, Matthew's Correlation Coefficient, and generates a confusion matrix. 
-- `--save_raw_output <bool>`: (Default: False) Save unnormalized model output(s) to file (default: False).
-- `--normalize_default <bool>`: (Default: False) Use preset image normalization coefficients instead of database metadata (default: False -- see default values in parameter settings).
-- `--scale <float>`: (Default: 1.0) Scale the input image(s) by given factor (default: None).
-- `--global_metrics <bool>`: (Default: False) Report aggregate metrics for batched evaluations (default: False).
+- `--scale <float>`: (Default: 1.0) Scale the input image(s) by given factor.
+- `--save_logits <bool>`: (Default: False) Save unnormalized model output(s) to file (default: False).
+- `--aggregate_metrics <bool>`: (Default: False) Report aggregate metrics for batched evaluations (default: False).
                          
 ```
 python pylc.py test --model [path/to/model] --img [path/to/images(s)] --mask [path/to/mask(s)]

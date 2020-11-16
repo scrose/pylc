@@ -1,6 +1,6 @@
 """
 (c) 2020 Spencer Rose, MIT Licence
-MLP Landscape Classification Tool (MLP-LCT)
+Python Landscape Classification Tool (PyLC)
  Reference: An evaluation of deep learning semantic segmentation
  for land cover classification of oblique ground-based photography,
  MSc. Thesis 2020.
@@ -164,18 +164,19 @@ def print_meta(meta):
 
     # RGB/Grayscale mean
     px_mean = 'R{:3s} G{:3s} B{:3s}'.format(
-        str(meta.px_mean[0]), str(meta.px_mean[1]), str(meta.px_mean[2])) \
-        if meta.ch == 3 else str(meta.px_mean[0])
-    readout += '\n{:30s}{}'.format('Pixel mean', px_mean)
+        str(round(meta.px_mean[0], 3)), str(round(meta.px_mean[1], 3)), str(round(meta.px_mean[2], 3))) \
+        if meta.ch == 3 else str(round(meta.px_mean[0], 3)
+    )
+    readout += '\n {:30s}{}'.format('Pixel mean', px_mean)
 
     # RGB/Grayscale std-dev
     px_std = 'R{:3s} G{:3s} B{:3s}'.format(
-        str(meta.px_std[0]), str(meta.px_std[1]), str(meta.px_std[2])) \
-        if meta.ch == 3 else str(meta.px_std[0])
-
+        str(round(meta.px_std[0], 3)), str(round(meta.px_std[1], 3)), str(round(meta.px_std[2], 3))) \
+        if meta.ch == 3 else str(round(meta.px_std[0], 3))
     readout += '\n {:30s}{}'.format('Pixel std-dev', px_std)
-    readout += '\n {:30s}{}'.format('M2', meta.m2)
-    readout += '\n {:30s}{}'.format('JSD', meta.jsd)
+
+    readout += '\n {:30s}{}'.format('M2', str(round(meta.m2, 3)))
+    readout += '\n {:30s}{}'.format('JSD', str(round(meta.jsd, 3)))
 
     # palette
     readout += '\n\n{} ({})'.format('Palette', meta.schema)
@@ -192,7 +193,7 @@ def print_meta(meta):
     # class weights
     readout += '\n\n{:30s}'.format('Distribution')
     readout += hline
-    readout += '\n {:25s}{:10s}{:10s}'.format('Class', 'Probs', 'Weights')
+    readout += '\n {:30s}{:10s}{:10s}'.format('Class', 'Probs', 'Weights')
     readout += hline
     for i, w in enumerate(meta.weights):
         readout += '\n {:25s}{:10f}  {:10f}'.format(

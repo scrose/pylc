@@ -1,6 +1,6 @@
 """
 (c) 2020 Spencer Rose, MIT Licence
-MLP Landscape Classification Tool (MLP-LCT)
+Python Landscape Classification Tool (PyLC)
 An evaluation of deep learning semantic segmentation for
 land cover classification of oblique ground-based photography
 MSc. Thesis 2020.
@@ -11,11 +11,10 @@ University of Victoria
 Module: Model Test
 File: test.py
 """
-
 import torch
 from tqdm import tqdm
 import utils.tools as utils
-from config import defaults
+from config import defaults, Parameters
 from utils.extract import Extractor
 from utils.evaluate import Evaluator
 from models.model import Model
@@ -30,25 +29,23 @@ def tester(args):
     args: dict
         User-defined options.
     """
-    img_path = args.img
-    mask_path = args.mask
+    # trained model path
     model_path = args.model
-    scale = args.scale
-    aggregate_metrics = args.aggregate_metrics
-    save_logits = args.save_logits
+
+    # load parameters
+    params = Parameters(args)
 
     # Load model for testing/evaluation
-    model = Model(args).load(model_path)
+    model = Model().testing().load(model_path)
     model.print_settings()
-    # self.net = torch.nn.DataParallel(self.net)
     model.net.eval()
 
     # get test file(s) - returns list of filenames
-    files = utils.collate(img_path, mask_path)
+    files = utils.collate(args.img, args.mask)
 
     # initialize extractor, evaluator
-    extractor = Extractor(args)
-    evaluator = Evaluator(args)
+    extractor = Extractor(model.meta)
+    evaluator = Evaluator(model.meta)
 
     for f_idx, fpair in enumerate(files):
 
@@ -64,52 +61,55 @@ def tester(args):
         img_tiles = extractor.load(img_file).extract(
             fit=True,
             stride=defaults.tile_size // 2,
-            scale=scale
+            scale=params.scale
         ).get_data()
 
         # get data loader
-        img_loader, n_batches = img_tiles.loader(batch_size=1)
+        img_loader, n_batches = img_tiles.loader(
+            batch_size=8,
+            drop_last=False
+        )
 
-        if not input("\nContinue with segmentation? (Enter \'Y\' or \'y\' for Yes): ") in ['Y', 'y']:
-            print('Stopped.')
-            exit(0)
+        # if not input("\nContinue with segmentation? (Enter \'Y\' or \'y\' for Yes): ") in ['Y', 'y']:
+        #     print('Stopped.')
+        #     exit(0)
 
         # apply model to input tiles
         with torch.no_grad():
             # get model outputs
-            results = []
+            model_outputs = []
             for i, (tile, _) in tqdm(enumerate(img_loader), total=n_batches, desc="Segmentation: ", unit=' batches'):
-                result = model.test(tile)
-                results.extend(result)
+                logits = model.test(tile)
+                model_outputs += logits
                 model.iter += 1
 
         # load results into evaluator
-        results = utils.reconstruct(results, extractor.get_meta())
+        results = utils.reconstruct(model_outputs, extractor.get_meta())
         # - save full-sized predicted mask image to file
         if mask_file:
             evaluator.load(
                 results,
                 extractor.get_meta(),
                 mask_true_path=mask_file,
-                scale=scale
+                scale=params.scale
             ).save_image()
+
             # Evaluate prediction against ground-truth
             # - skip if only global/aggregated requested
-            if not aggregate_metrics:
+            if not params.aggregate_metrics:
                 print("\nStarting evaluation ... ")
                 evaluator.evaluate().save_metrics()
         else:
             evaluator.load(results, extractor.get_meta()).save_image()
 
         # save unnormalized models outputs (i.e. raw logits) to file (if requested)
-        if save_logits:
-            evaluator.save_logits()
-            print("Model output data saved to \n\t{}.".format(model.evaluator.output_path))
+        if args.save_logits:
+            evaluator.save_logits(model_outputs)
 
         # Reset evaluator
         evaluator.reset()
 
     # Compute global metrics
-    if aggregate_metrics:
+    if args.aggregate_metrics:
         evaluator.evaluate(aggregate=True)
         evaluator.save_metrics()

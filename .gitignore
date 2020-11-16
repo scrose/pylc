@@ -42,3 +42,5 @@ __pycache__/
 *.iml
 .DS_STORE
 .remote-sync.json
+.ipynb_checkpoints/
+

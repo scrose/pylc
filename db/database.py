@@ -1,6 +1,6 @@
 """
 (c) 2020 Spencer Rose, MIT Licence
-MLP Landscape Classification Tool (MLP-LCT)
+Python Landscape Classification Tool (PyLC)
  Reference: An evaluation of deep learning semantic segmentation
  for land cover classification of oblique ground-based photography,
  MSc. Thesis 2020.
@@ -147,7 +147,7 @@ class DB(object):
 
     def get_data(self, dset_key):
         """
-        Get dataset from database by key.
+        Get entire dataset from database by key. (Use for testing only)
 
         Parameters
         ------
@@ -161,7 +161,7 @@ class DB(object):
         """
         if self.path:
             f = self.open()
-            data = f[dset_key]
+            data = f[dset_key][()]
             f.close()
             return data
         else:
@@ -214,6 +214,6 @@ class DB(object):
                 # - store metadata as JSON string
                 f.attrs['meta'] = json.dumps(vars(self.data['meta']))
                 f.close()
-                print('file saved.')
+                print('File saved.')
         else:
             print('Database was not saved.')

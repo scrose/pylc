@@ -1,6 +1,6 @@
 """
 (c) 2020 Spencer Rose, MIT Licence
-MLP Landscape Classification Tool (MLP-LCT)
+Python Landscape Classification Tool (PyLC)
 An evaluation of deep learning semantic segmentation for
 land cover classification of oblique ground-based photography
 MSc. Thesis 2020.
@@ -56,7 +56,7 @@ def load_files(path, exts):
 # load data from database
 def load_db(db_path, offset=0):
     # Load database dataset
-    assert os.path.exists(db_path)==True, 'Database path {} does not exist'.format(db_path)
+    assert os.path.exists(db_path)==True, 'Database path does not exist.'
     print("Loading dataset from {} ... ".format(db_path), end='')
     # Load hdf5 file
     fdata = h5py.File(db_path, mode='r')
@@ -197,7 +197,7 @@ def add_root(path):
 # Retrieves dataset metrics and statistics from file
 # Input: path to metadata file
 # Output: sample rates, other metrics/analytics
-def load_data(path):
+def load_metadata(path):
     # Load metadata
     metadata = np.load(add_root(path), allow_pickle=True)
     px_dist = metadata.item().get('px_dist')
@@ -219,186 +219,6 @@ def load_data(path):
 def save_data(path, metadata):
     np.save(add_root(path), metadata)
     print('Data saved to: {}'.format(path))
-
-
-# ===========================
-# Image Processing: Utilities
-# ===========================
-
-
-# Read image and reverse channel order
-# Loads image as 8 bit (regardless of original depth)
-def get_image(image_path, img_ch=3):
-    assert img_ch == 3 or img_ch == 1, 'Invalid input channel number.'
-    image = None
-    if img_ch == 1:
-        image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
-    elif img_ch == 3:
-        image = cv2.imread(image_path, cv2.IMREAD_COLOR)
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    return image
-
-
-# Replace class index values with palette colours
-# Input format: NWH (class encoded)
-def colourize(img_data, palette=None):
-    
-    if palette is None:
-        palette = defaults.palette_rgb
-
-    n = img_data.shape[0]
-    w = img_data.shape[1]
-    h = img_data.shape[2]
-
-    # make 3-channel (RGB) image
-    img_data = np.moveaxis(np.stack((img_data,)*3, axis=1), 1, -1).reshape(n*w*h, 3)
-
-    # map categories to palette colours
-    for i, colour in enumerate(palette):
-        bool = img_data == np.array([i,i,i])
-        bool = np.all(bool, axis=1)
-        img_data[bool] = palette[i]
-    return img_data.reshape(n, w, h, 3)
-
-
-# -----------------------------------
-# Merge segmentation classes
-# -----------------------------------
-def merge_classes(data_tensor, merged_classes):
-    data = data_tensor.numpy()
-
-    # merge classes
-    for i, cat_grp in enumerate(merged_classes):
-        data[np.isin(data, cat_grp)] = i
-
-    return torch.tensor(data)
-
-
-# Convert RBG mask array to class-index encoded values
-# input form: NCWH with RGB-value encoding, where C = RGB (3)
-# Palette paramters in form [CC'], where C = number of classes, C' = 3 (RGB)
-# output form: NCWH with one-hot encoded classes, where C = number of classes
-def class_encode(input_data, palette=defaults.palette_rgb):
-    assert input_data.shape[1] == 3, "Input data must be 3 channel (RGB)"
-    input_data = input_data.to(torch.float32).mean(dim=1)
-    palette = torch.from_numpy(palette).to(torch.float32).mean(dim=1)
-    # map mask colours to segmentation classes
-    for idx, c in enumerate(palette):
-        bool = input_data == c
-        input_data[bool] = idx
-    return input_data.to(torch.uint8)
-
-
-# -----------------------------------
-# Apply affine distortion to image
-# Input image [NWHC] / Mask [NWHC]
-# Output image [NWHC] / Mask [NWHC]
-# -----------------------------------
-def augment_transform(img, mask, alpha_affine, random_state=None):
-    """Elastic deformation of images as described in [Simard2003]_ (with modifications).
-    .. [Simard2003] Simard, Steinkraus and Platt, "Best Practices for
-         Convolutional Neural Networks applied to Visual Document Analysis", in
-         Proc. of the International Conference on Document Analysis and
-         Recognition, 2003.
-
-     Based on https://gist.github.com/erniejunior/601cdf56d2b424757de5
-    """
-
-    if random_state is None:
-        random_state = np.random.RandomState(None)
-
-    dim = img.shape[2]
-    n_ch = img.shape[1]
-    img = np.squeeze(np.moveaxis(img, 1, -1), axis=0)
-    mask = np.squeeze(mask, axis=0)
-
-    # apply random vertical flip
-    if bool(random.getrandbits(1)):
-        img = np.flip(img, axis=1)
-        mask = np.flip(mask, axis=1)
-
-    # # Random affine deformation
-    # center_square = np.float32(dsize) // 2
-    # square_size = min(dsize) // 3
-    #     pts1 = np.float32(
-    #         [center_square + square_size, [center_square[0] + square_size, center_square[1]
-    #                                        - square_size], center_square - square_size])
-    #     pts2 = pts1 + random_state.uniform(-alpha_affine, alpha_affine, size=pts1.shape).astype(np.float32)
-    #     M = cv2.getAffineTransform(pts1, pts2)
-    #     image = cv2.warpAffine(image, M, dsize, flags=cv2.INTER_NEAREST, borderMode=cv2.BORDER_REFLECT)
-    #     mask = cv2.warpAffine(mask, M, dsize, flags=cv2.INTER_NEAREST, borderMode=cv2.BORDER_REFLECT)
-
-    # Apply random perspective shift
-    pts1 = np.float32([[56, 65], [368, 52], [28, 387], [389, 390]])
-    pts2 = pts1 + random_state.uniform(-alpha_affine, alpha_affine, size=pts1.shape).astype(np.float32)
-    m_trans = cv2.getPerspectiveTransform(pts1, pts2)
-    img = cv2.warpPerspective(img, m_trans, (dim, dim), flags=cv2.INTER_NEAREST, borderMode=cv2.BORDER_REFLECT)
-    mask = cv2.warpPerspective(mask, m_trans, (dim, dim), flags=cv2.INTER_NEAREST, borderMode=cv2.BORDER_REFLECT)
-
-    if n_ch == 3:
-        img = np.moveaxis(img, -1, 0)
-
-    return img, mask
-
-
-# Parameter Grid Search: Data augmentation
-def grid_search(px_dist, px_count, dset_px_dist, dset_px_count, dset_probs, n_classes, rate_max):
-    profile_data = []
-    eps = 1e-8
-
-    # Initialize oversample filter and class prior probabilities
-    oversample_filter = np.clip(1/n_classes - dset_probs, a_min=0, a_max=1.)
-    probs = px_dist/px_count
-    probs_weighted = np.multiply(np.multiply(probs, 1/dset_probs), oversample_filter)
-    scores = np.sqrt(np.sum(probs_weighted, axis=1))
-
-    # Initialize augmentation parameters
-    # rate coefficient ranges from 1 - 21
-    rate_coefs = np.arange(1, 21, 1)
-    # threshold between 
-    thresholds = np.arange(0, 3., 0.05)
-    aug_n_samples_max = 4000
-    #delta_px = []
-    jsd = []
-
-    # initialize balanced model distribution
-    balanced_px_prob = np.empty(n_classes)
-    balanced_px_prob.fill(1/n_classes)
-
-    # Grid search
-    for i, rate_coef, in enumerate(rate_coefs):
-        for j, threshold in enumerate(thresholds):
-            assert rate_coef >= 1, 'Rate coefficient must be >= one.'
-            oversample = scores > threshold
-            rates = np.multiply(oversample, rate_coef * scores).astype(int)
-            # clip rates to max value 
-            rates = np.clip(rates, 0, rate_max)
-            # limit to max number of augmented images
-            if np.sum(rates) < aug_n_samples_max:
-                aug_px_dist = np.multiply(np.expand_dims(rates, axis=1), px_dist)
-                full_px_dist = px_dist + aug_px_dist
-                full_px_probs = np.sum(full_px_dist, axis=0)/np.sum(full_px_dist)
-                #delta_px += [np.sum(np.multiply(full_px_probs, oversample_filter))]
-                jsd_sample = JSD(full_px_probs, balanced_px_prob)
-                jsd += [jsd_sample]
-                profile_data += [{
-                    'probs': full_px_probs,
-                    'threshold' : threshold,
-                    'rate_coef': rate_coef,
-                    'rates': rates,
-                    'n_samples': int(np.sum(full_px_dist)/px_count),
-                    'aug_n_samples': np.sum(rates),
-                    'rate_max': rate_max,
-                    'jsd':jsd_sample
-                }]
-
-    # Get parameters that minimize Jensen-Shannon Divergence metric
-    if len(jsd) == 0:
-        print('No augmentation optimization found')
-        return
-    optim_idx = np.argmin(np.asarray(jsd))
-    return profile_data[optim_idx]
-
 
 
 # Print colour-coded categories
@@ -451,6 +271,23 @@ def plot_legend(palette, title, categories=None):
     plt.show()
 
 
+# Plot 4xN grid of images
+def plot_imgs(imgs):
+    k = 0
+    n = len(imgs)
+    n_rows = max(n//4, 2)
+    n_cols = 4
+    fig, axes = plt.subplots(n_rows, n_cols, sharex='col', sharey='row', figsize=(n_cols*10, n_rows*10), dpi=100)
+    plt.rcParams.update({'font.size': 10})
+
+    # Plot sample subimages
+    for i in range(n_rows):
+        for j in range(n_cols):
+            if k < n:
+                axes[i,j].imshow(imgs[k], alpha=1.0)
+                k += 1
+    plt.show()
+    
 
 # Plot image/mask samples
 def plot_samples(img_data, mask_data, n_rows=20, n_cols=5, offset=0, title=None, palette=None, categories=None):
@@ -718,20 +555,6 @@ def plot_eval(grid_data, mode, title, fname, save_path=None):
 
 
 
-# =======================================
-# Miscellaneous
-# =======================================
-
-def JSD(p, q):
-    M = 0.5*(p + q)
-    return 0.5*np.sum(np.multiply(p, np.log(p/M))) + 0.5*np.sum(np.multiply(q, np.log(q/M)))
-
-# Calculate class weight balancing
-def eval_weights(probs):
-    weights = 1 / (np.log(1.02 + (probs)))
-    return weights/np.max(weights)
-
-
 # Load test image/mask samples
 # Load test image data subimages [NCWH]
 def load_test_samples(img_path, mask_path, n_ch=1, n_classes=11, palette=None):
@@ -792,91 +615,91 @@ def plot_sample_comparison(imgs, masks_true, masks_pred, exps, n_rows=40, offset
 
 
 
-# ===========================================================
-# Mask Reconstruction
-# ===========================================================
+# # ===========================================================
+# # Mask Reconstruction
+# # ===========================================================
 
-# Combines prediction mask tiles into full-sized mask
-def reconstruct(tiles, full_width, full_height, n_classes, stride, offset=0):
+# # Combines prediction mask tiles into full-sized mask
+# def reconstruct(tiles, full_width, full_height, n_classes, stride, offset=0):
 
-    # Calculate reconstruction dimensions
-    patch_size = tiles.shape[2]
-    n_tiles = tiles.shape[0]
-    n_strides_in_row = ( full_width ) // stride - 1
-    n_strides_in_col = ( full_height ) // stride - 1
+#     # Calculate reconstruction dimensions
+#     patch_size = tiles.shape[2]
+#     n_tiles = tiles.shape[0]
+#     n_strides_in_row = ( full_width ) // stride - 1
+#     n_strides_in_col = ( full_height ) // stride - 1
 
-    # Calculate overlap
-    olap_size = patch_size - stride
+#     # Calculate overlap
+#     olap_size = patch_size - stride
 
-    # initialize full image numpy array
-    full_mask = np.zeros((n_classes, full_height + offset, full_width), dtype=np.float32)
+#     # initialize full image numpy array
+#     full_mask = np.zeros((n_classes, full_height + offset, full_width), dtype=np.float32)
 
-    # Create empty rows
-    r_olap_prev = None
-    r_olap_merged = None
+#     # Create empty rows
+#     r_olap_prev = None
+#     r_olap_merged = None
 
-    # row index (set to offset height)
-    row_idx = offset
+#     # row index (set to offset height)
+#     row_idx = offset
 
-    for i in range(n_strides_in_col):
-        # Get initial tile in row
-        t_current = tiles[i*n_strides_in_row]
-        r_current = np.zeros((n_classes, patch_size, full_width), dtype=np.float32)
-        col_idx = 0
-        # Step 1: Collate column tiles in row
-        for j in range(n_strides_in_row):
-            t_current_width = t_current.shape[2]
-            if j < n_strides_in_row - 1:
-                # Get adjacent tile
-                t_next = tiles[i*n_strides_in_row + j + 1]
-                # Extract right overlap of current tile
-                olap_current = t_current[:, :, t_current_width - olap_size:t_current_width]
-                # Extract left overlap of next (adjacent) tile
-                olap_next = t_next[:, :, 0:olap_size]
-                # Average the overlapping segment logits
-                olap_current = torch.nn.functional.softmax(torch.tensor(olap_current), dim=0)
-                olap_next = torch.nn.functional.softmax(torch.tensor(olap_next), dim=0)
-                olap_merged = ( olap_current + olap_next ) / 2
-                # Insert averaged overlap into current tile
-                t_current[:, :, t_current_width - olap_size:t_current_width] = olap_merged
-                # Insert updated current tile into row
-                np.copyto(r_current[:, :, col_idx:col_idx + t_current_width], t_current)
-                col_idx += t_current_width
-                # Crop next tile and copy to current tile
-                t_current = t_next[:, :, olap_size:t_next.shape[2]]
+#     for i in range(n_strides_in_col):
+#         # Get initial tile in row
+#         t_current = tiles[i*n_strides_in_row]
+#         r_current = np.zeros((n_classes, patch_size, full_width), dtype=np.float32)
+#         col_idx = 0
+#         # Step 1: Collate column tiles in row
+#         for j in range(n_strides_in_row):
+#             t_current_width = t_current.shape[2]
+#             if j < n_strides_in_row - 1:
+#                 # Get adjacent tile
+#                 t_next = tiles[i*n_strides_in_row + j + 1]
+#                 # Extract right overlap of current tile
+#                 olap_current = t_current[:, :, t_current_width - olap_size:t_current_width]
+#                 # Extract left overlap of next (adjacent) tile
+#                 olap_next = t_next[:, :, 0:olap_size]
+#                 # Average the overlapping segment logits
+#                 olap_current = torch.nn.functional.softmax(torch.tensor(olap_current), dim=0)
+#                 olap_next = torch.nn.functional.softmax(torch.tensor(olap_next), dim=0)
+#                 olap_merged = ( olap_current + olap_next ) / 2
+#                 # Insert averaged overlap into current tile
+#                 t_current[:, :, t_current_width - olap_size:t_current_width] = olap_merged
+#                 # Insert updated current tile into row
+#                 np.copyto(r_current[:, :, col_idx:col_idx + t_current_width], t_current)
+#                 col_idx += t_current_width
+#                 # Crop next tile and copy to current tile
+#                 t_current = t_next[:, :, olap_size:t_next.shape[2]]
 
-            else:
-                np.copyto(r_current[:, :, col_idx:col_idx + t_current_width], t_current)
+#             else:
+#                 np.copyto(r_current[:, :, col_idx:col_idx + t_current_width], t_current)
 
-        # Step 2: Collate row slices into full mask
-        r_current_height = r_current.shape[1]
-        # Extract overlaps at top and bottom of current row
-        r_olap_top = r_current[:, 0:olap_size, :]
-        r_olap_bottom = r_current[:, r_current_height - olap_size:r_current_height, :]
+#         # Step 2: Collate row slices into full mask
+#         r_current_height = r_current.shape[1]
+#         # Extract overlaps at top and bottom of current row
+#         r_olap_top = r_current[:, 0:olap_size, :]
+#         r_olap_bottom = r_current[:, r_current_height - olap_size:r_current_height, :]
 
-        # Average the overlapping segment logits
-        if i > 0:
-            # Average the overlapping segment logits
-            r_olap_top = torch.nn.functional.softmax(torch.tensor(r_olap_top), dim=0)
-            r_olap_prev = torch.nn.functional.softmax(torch.tensor(r_olap_prev), dim=0)
-            r_olap_merged = ( r_olap_top + r_olap_prev ) / 2
+#         # Average the overlapping segment logits
+#         if i > 0:
+#             # Average the overlapping segment logits
+#             r_olap_top = torch.nn.functional.softmax(torch.tensor(r_olap_top), dim=0)
+#             r_olap_prev = torch.nn.functional.softmax(torch.tensor(r_olap_prev), dim=0)
+#             r_olap_merged = ( r_olap_top + r_olap_prev ) / 2
 
-        # Top row: crop by bottom overlap (to be averaged)
-        if i == 0:
-            # Crop current row by bottom overlap size
-            r_current = r_current[:, 0:r_current_height - olap_size, :]
-        # Otherwise: Merge top overlap with previous
-        else:
-            # Replace top overlap with averaged overlap in current row
-            np.copyto(r_current[:, 0:olap_size, :], r_olap_merged)
+#         # Top row: crop by bottom overlap (to be averaged)
+#         if i == 0:
+#             # Crop current row by bottom overlap size
+#             r_current = r_current[:, 0:r_current_height - olap_size, :]
+#         # Otherwise: Merge top overlap with previous
+#         else:
+#             # Replace top overlap with averaged overlap in current row
+#             np.copyto(r_current[:, 0:olap_size, :], r_olap_merged)
 
-        # Crop middle rows by bottom overlap
-        if i > 0 and i < n_strides_in_col - 1:
-            r_current = r_current[:, 0:r_current_height - olap_size, :]
+#         # Crop middle rows by bottom overlap
+#         if i > 0 and i < n_strides_in_col - 1:
+#             r_current = r_current[:, 0:r_current_height - olap_size, :]
 
-        # Copy current row to full mask
-        np.copyto(full_mask[:, row_idx:row_idx + r_current.shape[1], :], r_current)
-        row_idx += r_current.shape[1]
-        r_olap_prev = r_olap_bottom
+#         # Copy current row to full mask
+#         np.copyto(full_mask[:, row_idx:row_idx + r_current.shape[1], :], r_current)
+#         row_idx += r_current.shape[1]
+#         r_olap_prev = r_olap_bottom
 
-    return full_mask
+#     return full_mask

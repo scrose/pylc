@@ -124,10 +124,11 @@ class Parameters:
         self.img_dir = './data/raw/images/'
         self.mask_dir = './data/raw/masks/'
         self.db_dir = './data/db/'
-        self.output_dir = './data/output/'
+        self.output_dir = './data/outputs/'
         self.save_dir = './data/save/'
         self.model_dir = './data/models/'
-        self.meta_file = './data/metadata/meta_merged_ch1_schema_a.npy'
+        self.meta_grayscale_path = './data/metadata/meta_ch1_schema_a.npy'
+        self.meta_colour_path = './data/metadata/meta_ch3_schema_a.npy'
 
         # Extraction parameters
         self.n_samples = 0
@@ -257,7 +258,12 @@ class Parameters:
         # update parameters by property names
         for key in params:
             if hasattr(self, key):
-                setattr(self, key, params[key])
+                # reduce Numpy Arrays, PyTorch Tensors to lists for JSON serialization
+                if isinstance(params[key], np.ndarray) or isinstance(params[key], torch.Tensor):
+                    value = params[key].tolist()
+                else:
+                    value = params[key]
+                setattr(self, key, value)
 
         # update colour label
         self.ch_label = 'grayscale' if self.ch == 1 else 'colour'

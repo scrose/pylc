@@ -1,6 +1,6 @@
 """
 (c) 2020 Spencer Rose, MIT Licence
-MLP Landscape Classification Tool (MLP-LCT)
+Python Landscape Classification Tool (PyLC)
  Reference: An evaluation of deep learning semantic segmentation
  for land cover classification of oblique ground-based photography,
  MSc. Thesis 2020.
@@ -40,6 +40,8 @@ class Checkpoint:
         if os.path.exists(self.checkpoint_file):
             print('Checkpoint found at {}! Resuming.'.format(self.checkpoint_file))
             return torch.load(self.checkpoint_file)
+        else:
+            print('Checkpoint does not exist.')
 
     def reset(self):
         """ delete checkpoint file """
@@ -53,12 +55,12 @@ class Checkpoint:
             "iter": model.iter,
             "model": model.net.state_dict(),
             "optim": model.optim.state_dict(),
-            "meta": model.params
+            "meta": model.meta
         }, self.checkpoint_file)
         # Save best model state
         if is_best:
             torch.save({
                 "model": model.net.state_dict(),
                 "optim": model.optim.state_dict(),
-                "meta": model.params
+                "meta": model.meta
             }, self.model_file)

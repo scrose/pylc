@@ -1,6 +1,6 @@
 """
 (c) 2020 Spencer Rose, MIT Licence
-MLP Landscape Classification Tool (MLP-LCT)
+Python Landscape Classification Tool (PyLC)
  Reference: An evaluation of deep learning semantic segmentation
  for land cover classification of oblique ground-based photography,
  MSc. Thesis 2020.
@@ -12,14 +12,11 @@ Module: Data wrapper
 File: dataset.py
 """
 import os
-import time
-
 import torch
 from torch.utils import data
 from config import defaults
 from db.buffer import Buffer
 from db.database import DB
-from utils.tools import get_fname
 
 
 class MLPDataset(torch.utils.data.IterableDataset):
@@ -107,6 +104,22 @@ class MLPDataset(torch.utils.data.IterableDataset):
         Return metadata from database (convert from JSON str).
          """
         return self.db.get_meta()
+
+    def get_data(self, dset_key):
+        """
+        Convenience method to get data from database by key.
+
+        Parameters
+        ------
+        dset_key: str
+            Dataset key.
+
+        Returns
+        -------
+        data: np.array
+            Dataset array.
+        """
+        return self.db.get_data(dset_key)
 
     def save(self):
         """

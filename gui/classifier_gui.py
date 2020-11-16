@@ -1,6 +1,6 @@
 """
 (c) 2020 Spencer Rose, MIT Licence
-MLP Landscape Classification Tool (MLP-LCT)
+Python Landscape Classification Tool (PyLC)
  Reference: An evaluation of deep learning semantic segmentation
  for land cover classification of oblique ground-based photography,
  MSc. Thesis 2020.
@@ -8,7 +8,7 @@ MLP Landscape Classification Tool (MLP-LCT)
 Spencer Rose <spencerrose@uvic.ca>, June 2020
 University of Victoria
 
-Module: MLP-LCT GUI
+Module: PyLC GUI
 File: classifier_gui.py
 """
 import tkinter as tk
@@ -35,7 +35,7 @@ class ClassifierGUI:
         self.close_button.pack()
 
     def init(self):
-        self.master.title("MLP-LCT")
+        self.master.title("PyLC")
         geometry_string = "{}x{}".format(600, 800)
         self.master.geometry(geometry_string)
         self.master.resizable(True, False)  # Not resizable

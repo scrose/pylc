@@ -1,6 +1,6 @@
 """
 (c) 2020 Spencer Rose, MIT Licence
-MLP Landscape Classification Tool (MLP-LCT)
+Python Landscape Classification Tool (PyLC)
  Reference: An evaluation of deep learning semantic segmentation
  for land cover classification of oblique ground-based photography,
  MSc. Thesis 2020.
@@ -66,15 +66,8 @@ def get_parser():
         '-m', '--mask',
         type=str,
         metavar='MASKS_PATH',
-        default=defaults.mask_dir,
+        default=None,
         help='Path to masks directory or file.'
-    )
-    parser_extract.add_argument(
-        '-o', '--output',
-        type=str,
-        metavar='DATABASE_OUTPUT_PATH',
-        default=defaults.db_dir,
-        help='Path to output directory.'
     )
     parser_extract.add_argument(
         '--ch',
@@ -233,13 +226,6 @@ def get_parser():
         help='Interpolation for upsampling (Optional: use for U-Net).'
     )
     parser_train.add_argument(
-        '--save',
-        type=str,
-        metavar='FILE_SAVE_PATH',
-        default=defaults.save_dir,
-        help='Path to directory for saved model outputs.'
-    )
-    parser_train.add_argument(
         '--lr',
         type=float,
         default=defaults.lr,
@@ -259,6 +245,8 @@ def get_parser():
     )
     parser_train.add_argument(
         '--pretrained',
+        action='store_const',
+        const=True,
         help='Use pre-trained network weights (e.g. ResNet).'
     )
     parser_train.add_argument(
@@ -275,6 +263,8 @@ def get_parser():
     )
     parser_train.add_argument(
         '--resume',
+        action='store_const',
+        const=True,
         help='Resume training from existing checkpoint.'
     )
     parser_train.add_argument(
@@ -311,15 +301,8 @@ def get_parser():
         '-m', '--mask',
         type=str,
         metavar='MASKS_PATH',
-        default=defaults.mask_dir,
+        default=None,
         help='Path to masks directory or file.'
-    )
-    parser_test.add_argument(
-        '-o', '--output',
-        type=str,
-        metavar='FILE_OUTPUT_PATH',
-        default=defaults.output_dir,
-        help='Path to output directory.'
     )
     parser_test.add_argument(
         '--scale',
@@ -329,14 +312,14 @@ def get_parser():
     )
     parser_test.add_argument(
         '--save_logits',
+        action='store_const',
+        const=True,
         help='Save model output logits to file.'
     )
     parser_test.add_argument(
-        '--normalize_default',
-        help='Default input normalization (see parameter settings).'
-    )
-    parser_test.add_argument(
         '--aggregate_metrics',
+        action='store_const',
+        const=True,
         help='Report only aggregated metrics for model.'
     )
 

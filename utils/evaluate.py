@@ -1,6 +1,6 @@
 """
 (c) 2020 Spencer Rose, MIT Licence
-MLP Landscape Classification Tool (MLP-LCT)
+Python Landscape Classification Tool (PyLC)
  Reference: An evaluation of deep learning semantic segmentation
  for land cover classification of oblique ground-based photography,
  MSc. Thesis 2020.
@@ -25,12 +25,17 @@ from utils.metrics import Metrics
 class Evaluator:
     """
     Handles model test/evaluation functionality.
+
+    Parameters
+    ------
+    params: Parameters
+        Updated parameters.
     """
 
-    def __init__(self, args):
+    def __init__(self, params=None):
 
-        # initialize metrics
-        self.params = Parameters(args)
+        # initialize parameters, metrics
+        self.meta = Parameters(params) if params is not None else defaults
         self.metrics = Metrics()
 
         # Model results
@@ -38,7 +43,6 @@ class Evaluator:
         self.logits = None
         self.mask_pred = None
         self.results = []
-        self.md = {}
 
         # data buffers
         self.y_true = None
@@ -52,7 +56,7 @@ class Evaluator:
 
         # Make output and mask directories for results
         self.model_path = None
-        self.output_dir = args.output if hasattr(args, 'output') else defaults.output_dir
+        self.output_dir = os.path.join(defaults.output_dir, self.meta.id)
         self.masks_dir = utils.mk_path(os.path.join(self.output_dir, 'masks'))
         self.logits_dir = utils.mk_path(os.path.join(self.output_dir, 'logits'))
         self.metrics_dir = utils.mk_path(os.path.join(self.output_dir, 'metrics'))
@@ -73,8 +77,9 @@ class Evaluator:
         """
 
         # store metadata
-        self.md = meta
-        self.fid = self.md.extract['fid']
+        self.meta = meta
+        # file identifier (include current scale)
+        self.fid = self.meta.extract['fid']
 
         # reconstruct unnormalized model outputs into mask data array
         self.mask_pred = mask_pred
@@ -85,9 +90,9 @@ class Evaluator:
                 mask_true_path, 3, scale=scale, interpolate=cv2.INTER_NEAREST)
 
             # check dimensions of ground truth mask and predicted mask
-            if not (w_scaled == self.md.extract['w_scaled'] and h_scaled == self.md.extract['h_scaled']):
+            if not (w_scaled == self.meta.extract['w_scaled'] and h_scaled == self.meta.extract['h_scaled']):
                 print("Ground truth mask dims ({}px X {}px) do not match predicted mask dims ({}px X {}px).".format(
-                    w_scaled, h_scaled, self.md.extract['w_scaled'], self.md.extract['h_scaled']
+                    w_scaled, h_scaled, self.meta.extract['w_scaled'], self.meta.extract['h_scaled']
                 ))
                 exit(1)
 
@@ -95,8 +100,8 @@ class Evaluator:
             self.y_pred = torch.as_tensor(self.mask_pred, dtype=torch.uint8).permute(2, 0, 1).unsqueeze(0)
 
             # Class encode input predicted data
-            self.y_pred = utils.class_encode(self.y_pred, self.md.palette_rgb)
-            self.y_true = utils.class_encode(self.y_true, self.md.palette_rgb)
+            self.y_pred = utils.class_encode(self.y_pred, self.meta.palette_rgb)
+            self.y_true = utils.class_encode(self.y_true, self.meta.palette_rgb)
 
             # Verify same size of target == input
             assert self.y_pred.shape == self.y_true.shape, "Input dimensions {} not same as target {}.".format(
@@ -109,6 +114,14 @@ class Evaluator:
             self.y_true_aggregate += [self.y_true]
             self.y_pred_aggregate += [self.y_pred]
 
+        return self
+
+    def update(self, meta):
+        """
+        Update local metadata
+
+        """
+        self.meta = meta
         return self
 
     def evaluate(self, aggregate=False):
@@ -138,18 +151,23 @@ class Evaluator:
 
         self.labels = defaults.class_codes
 
-        for idx in range(len(self.params.class_codes)):
-            self.y_true[idx] = idx
-            self.y_pred[idx] = idx
-
+        # aggregated metrics
         if self.aggregate:
+            self.fid = 'aggregate_metrics'
             assert self.y_true_aggregate and self.y_pred_aggregate, \
                 "Aggregate evaluation failed. Data buffer is empty."
 
             print("\nReporting aggregate metrics ... ")
+            print("\t - Total generated masks: {}".format(len(self.y_pred_aggregate)))
+            print()
             # Concatenate aggregated data
             self.y_true = np.concatenate((self.y_true_aggregate))
             self.y_pred = np.concatenate((self.y_pred_aggregate))
+
+        # ensure class coverage
+        for idx in range(len(self.labels)):
+            self.y_true[idx] = idx
+            self.y_pred[idx] = idx
 
         return self
 
@@ -160,16 +178,18 @@ class Evaluator:
         self.logits = None
         self.mask_pred = None
         self.results = []
-        self.md = {}
+        self.meta = {}
         self.y_true = None
         self.y_pred = None
-        self.y_true_aggregate = []
-        self.y_pred_aggregate = []
 
-    def save_logits(self):
+    def save_logits(self, logits):
         """
         Save unnormalized model outputs (logits) to file.
 
+        Parameters
+        ----------
+        logits: list
+            Unnormalized model outputs.
         Returns
         -------
         logits_file: str
@@ -178,7 +198,8 @@ class Evaluator:
         # save unnormalized model outputs
         logits_file = os.path.join(self.logits_dir, self.fid + '_output.pth')
         if utils.confirm_write_file(logits_file):
-            torch.save({"results": self.results, "meta": self.md}, logits_file)
+            torch.save({"results": logits, "meta": self.meta}, logits_file)
+            print("Model output data saved to \n\t{}.".format(logits_file))
             return logits_file
         return
 
@@ -225,7 +246,7 @@ class Evaluator:
         tex_file = os.path.join(self.metrics_dir, self.fid + '_metrics.tex')
         if utils.confirm_write_file(tex_file):
             with open(tex_file, 'w') as fp:
-                fp.write(tex.convert_md_to_tex(self.md))
+                fp.write(tex.convert_md_to_tex(self.meta))
                 return tex_file
         return
 

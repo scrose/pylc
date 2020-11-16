@@ -1,6 +1,6 @@
 """
 (c) 2020 Spencer Rose, MIT Licence
-MLP Landscape Classification Tool (MLP-LCT)
+Python Landscape Classification Tool (PyLC)
  Reference: An evaluation of deep learning semantic segmentation
  for land cover classification of oblique ground-based photography,
  MSc. Thesis 2020.
@@ -12,6 +12,8 @@ Module: Utilities
 File: tools.py
 """
 import os
+from math import ceil
+
 import numpy as np
 import torch
 import cv2
@@ -155,12 +157,14 @@ def adjust_to_tile(img, tile_size, stride, ch, interpolate=cv2.INTER_AREA):
     # Get full-sized dimensions
     w = img.shape[1]
     h = img.shape[0]
+    aspect = w / h
 
     assert tile_size % stride == 0 and stride <= tile_size, "Tile size must be multiple of stride."
 
     # Get width scaling factor for tiling
-    scale_w = (int(w / tile_size) * tile_size) / w
-    dim = (int(w * scale_w), int(h * scale_w))
+    w_scaled = (w // tile_size) * tile_size
+    h_scaled = (ceil(w_scaled / aspect) // tile_size) * tile_size
+    dim = (w_scaled, h_scaled)
 
     # resize image to fit tiled dimensions
     img_resized = cv2.resize(img, dim, interpolation=interpolate)
@@ -203,12 +207,8 @@ def reconstruct(logits, meta):
     palette = meta.palette_rgb
     n_classes = meta.n_classes
 
-    if stride < tile_size:
-        n_strides_in_row = w // stride - 1
-        n_strides_in_col = h // stride - 1
-    else:
-        n_strides_in_row = w // stride
-        n_strides_in_col = h // stride
+    n_strides_in_row = w // stride - 1 if stride < tile_size else w // stride
+    n_strides_in_col = h // stride - 1 if stride < tile_size else h // stride
 
     # Calculate overlap
     olap_size = tile_size - stride
@@ -261,7 +261,6 @@ def reconstruct(logits, meta):
 
         # Average the overlapping segment logits
         if i > 0:
-            # Average the overlapping segment logits
             r_olap_top = torch.nn.functional.softmax(torch.tensor(r_olap_top), dim=0)
             r_olap_prev = torch.nn.functional.softmax(torch.tensor(r_olap_prev), dim=0)
             r_olap_merged = (r_olap_top + r_olap_prev) / 2
@@ -314,6 +313,8 @@ def colourize(img, n_classes, palette=None):
         numpy array
             Colourized image array.
     """
+
+    palette = palette if palette is not None else defaults.palette_rgb
 
     n = img.shape[0]
     w = img.shape[1]
@@ -584,9 +585,8 @@ def load_files(path, exts):
       list
          List of file names.
      """
-
     if not os.path.exists(path):
-        'Image/mask file does not exist:\n\t{} .'.format(path)
+        print('Image/mask file not found:\n\t{} .'.format(path))
         exit(1)
 
     files = []

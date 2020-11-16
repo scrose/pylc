@@ -1,6 +1,6 @@
 """
 (c) 2020 Spencer Rose, MIT Licence
-MLP Landscape Classification Tool (MLP-LCT)
+Python Landscape Classification Tool (PyLC)
  Reference: An evaluation of deep learning semantic segmentation
  for land cover classification of oblique ground-based photography,
  MSc. Thesis 2020.
@@ -16,10 +16,10 @@ import time
 import torch
 import numpy as np
 import cv2
-from config import Parameters
+from config import Parameters, defaults
 from db.dataset import MLPDataset
 import utils.tools as utils
-from utils.profile import get_profile
+from utils.profile import get_profile, print_meta
 
 
 class Extractor(object):
@@ -28,11 +28,14 @@ class Extractor(object):
 
     Parameters
     ------
-    args: dict
-        Extractor arguments.
+    params: Parameters
+        Updated parameters.
     """
 
-    def __init__(self, args):
+    def __init__(self, params=None):
+
+        # initialize local metadata
+        self.meta = Parameters(params) if params is not None else defaults
 
         # initialize image/mask arrays
         self.img_path = None
@@ -49,15 +52,8 @@ class Extractor(object):
         # extraction parameters
         self.fit = False
 
-        # initialize local metadata
-        self.md = Parameters(args)
-
-        # initialize output directory
-        if hasattr(args, 'output'):
-            self.md.output_dir = utils.mk_path(args.output)
-
-        # generate unique ID
-        self.md.id = '_db_pylc_' + self.md.ch_label + '_' + str(int(time.time()))
+        # generate unique extraction ID
+        self.meta.id = '_db_pylc_' + self.meta.ch_label + '_' + str(int(time.time()))
 
     def load(self, img_path, mask_path=None):
         """
@@ -76,6 +72,7 @@ class Extractor(object):
             For chaining.
         """
 
+        self.reset()
         self.img_path = img_path
         self.mask_path = mask_path
 
@@ -88,17 +85,17 @@ class Extractor(object):
             exit(1)
 
         self.imgs = np.empty(
-            (self.n_files * self.md.tiles_per_image,
-             self.md.ch,
-             self.md.tile_size,
-             self.md.tile_size),
+            (self.n_files * self.meta.tiles_per_image,
+             self.meta.ch,
+             self.meta.tile_size,
+             self.meta.tile_size),
             dtype=np.uint8)
         self.imgs_capacity = self.imgs.shape[0]
 
         self.masks = np.empty(
-            (self.n_files * self.md.tiles_per_image,
-             self.md.tile_size,
-             self.md.tile_size),
+            (self.n_files * self.meta.tiles_per_image,
+             self.meta.tile_size,
+             self.meta.tile_size),
             dtype=np.uint8)
         self.masks_capacity = self.masks.shape[0]
 
@@ -118,9 +115,9 @@ class Extractor(object):
         """
         # parameter overrides
         if stride:
-            self.md.stride = stride
+            self.meta.stride = stride
         if scale:
-            self.md.scales = [scale]
+            self.meta.scales = [scale]
 
         # rescale image to fit tile dimensions
         self.fit = fit
@@ -129,7 +126,7 @@ class Extractor(object):
         self.print_settings()
 
         # Extract over defined scaling factors
-        for scale in self.md.scales:
+        for scale in self.meta.scales:
             print('\nExtraction --- Scaling Factor: {}'.format(scale))
             for i, fpair in enumerate(self.files):
 
@@ -144,20 +141,21 @@ class Extractor(object):
                 # load image as numpy array (scaling optional)
                 img, w_full, h_full, w_scaled, h_scaled = utils.get_image(
                     img_path,
-                    self.md.ch,
+                    self.meta.ch,
                     scale=scale,
                     interpolate=cv2.INTER_AREA
                 )
 
                 # adjust image size to fit tile size (optional)
                 img, w_fitted, h_fitted, offset = utils.adjust_to_tile(
-                    img, self.md.tile_size, self.md.stride, self.md.ch) if self.fit else (img, w_scaled, h_scaled, 0)
+                    img, self.meta.tile_size, self.meta.stride, self.meta.ch) \
+                    if self.fit else (img, w_scaled, h_scaled, 0)
 
                 # fold tensor into tiles
                 img_tiles, n_tiles = self.__split(img)
 
-                self.md.extract = {
-                    'fid': os.path.basename(img_path.replace('.', '_')),
+                self.meta.extract = {
+                    'fid': os.path.basename(img_path.replace('.', '_')) + '_scale_' + str(scale),
                     'n': n_tiles,
                     'w_full': w_full,
                     'h_full': h_full,
@@ -169,7 +167,7 @@ class Extractor(object):
                 }
 
                 # print results to console and store in metadata
-                self.print_result("Image", img_path, self.md.extract)
+                self.print_result("Image", img_path, self.meta.extract)
 
                 # copy tiles to main data arrays
                 np.copyto(self.imgs[self.img_idx:self.img_idx + n_tiles, ...], img_tiles)
@@ -189,7 +187,7 @@ class Extractor(object):
 
                     # print results to console
                     self.print_result("Mask", mask_path, {
-                        'fid': os.path.basename(img_path.replace('.', '_')),
+                        'fid': os.path.basename(mask_path.replace('.', '_')) + '_scale_' + str(scale),
                         'n': n_tiles,
                         'w_full': w_full,
                         'h_full': h_full,
@@ -201,7 +199,7 @@ class Extractor(object):
                     })
 
                     # Encode masks to class encoding [NWH format] using configured palette
-                    mask_tiles = utils.class_encode(mask_tiles, self.md.palette_rgb)
+                    mask_tiles = utils.class_encode(mask_tiles, self.meta.palette_rgb)
 
                     if n_tiles > self.masks_capacity or n_tiles > self.imgs_capacity:
                         print('Data array reached capacity. Increase the number of tiles per image.')
@@ -216,14 +214,43 @@ class Extractor(object):
         if self.mask_path:
             self.masks = self.masks[:self.mask_idx]
 
-        self.md.n_tiles = len(self.imgs)
+        self.meta.n_tiles = len(self.imgs)
 
         # print extraction totals
         print()
-        print('{:30s}{}'.format('Total image tiles generated:', self.md.n_tiles))
+        print('{:30s}{}'.format('Total image tiles generated:', self.meta.n_tiles))
         if self.mask_path:
             print('{:30s}{}'.format('Total mask tiles generated:', len(self.masks)))
         print()
+
+        return self
+
+    def reset(self):
+        """
+        Resets extractor data buffers.
+
+        Returns
+        ------
+        self
+            For chaining.
+        """
+        # initialize image/mask arrays
+        self.img_path = None
+        self.mask_path = None
+        self.files = None
+        self.n_files = 0
+        self.img_idx = 0
+        self.imgs = None
+        self.imgs_capacity = 0
+        self.mask_idx = 0
+        self.masks = None
+        self.masks_capacity = 0
+
+        # extraction parameters
+        self.fit = False
+
+        # generate unique extraction ID
+        self.meta.id = '_db_pylc_' + self.meta.ch_label + '_' + str(int(time.time()))
 
         return self
 
@@ -232,7 +259,8 @@ class Extractor(object):
         Compute profile metadata for current dataset.
          """
         dset = self.get_data()
-        self.md = get_profile(dset)
+        self.meta = get_profile(dset)
+        print_meta(self.meta)
         return self
 
     def coshuffle(self):
@@ -268,10 +296,10 @@ class Extractor(object):
         # extract image subimages [NCWH format]
         img_data = img_data.unfold(
             0,
-            self.md.tile_size,
-            self.md.stride).unfold(1, self.md.tile_size, self.md.stride)
+            self.meta.tile_size,
+            self.meta.stride).unfold(1, self.meta.tile_size, self.meta.stride)
         img_data = torch.reshape(img_data, (
-            img_data.shape[0] * img_data.shape[1], ch, self.md.tile_size, self.md.tile_size))
+            img_data.shape[0] * img_data.shape[1], ch, self.meta.tile_size, self.meta.tile_size))
 
         return img_data, img_data.shape[0]
 
@@ -279,7 +307,7 @@ class Extractor(object):
         """
         Returns metadata.
         """
-        return self.md
+        return self.meta
 
     def get_data(self):
         """
@@ -292,7 +320,7 @@ class Extractor(object):
          """
 
         return MLPDataset(
-            input_data={'img': self.imgs, 'mask': self.masks, 'meta': self.md}
+            input_data={'img': self.imgs, 'mask': self.masks, 'meta': self.meta}
         )
 
     def print_settings(self):
@@ -302,16 +330,16 @@ class Extractor(object):
         hline = '-' * 40
         print('\nExtraction Configuration')
         print(hline)
-        print('{:30s} {}'.format('ID', self.md.id))
+        print('{:30s} {}'.format('ID', self.meta.id))
         print('{:30s} {}'.format('Image(s) path', self.img_path))
         print('{:30s} {}'.format('Masks(s) path', self.mask_path))
-        print('{:30s} {}'.format('Output path', self.md.output_dir))
+        print('{:30s} {}'.format('Output path', self.meta.output_dir))
         print('{:30s} {}'.format('Number of files', self.n_files))
-        print('{:30s} {}'.format('Scaling', self.md.scales))
-        print('{:30s} {} ({})'.format('Channels', self.md.ch, 'Grayscale' if self.md.ch == 1 else 'Colour'))
-        print('{:30s} {}px'.format('Stride', self.md.stride))
-        print('{:30s} {}px x {}px'.format('Tile size (WxH)', self.md.tile_size, self.md.tile_size))
-        print('{:30s} {}'.format('Maximum tiles/image', self.md.tiles_per_image))
+        print('{:30s} {}'.format('Scaling', self.meta.scales))
+        print('{:30s} {} ({})'.format('Channels', self.meta.ch, 'Grayscale' if self.meta.ch == 1 else 'Colour'))
+        print('{:30s} {}px'.format('Stride', self.meta.stride))
+        print('{:30s} {}px x {}px'.format('Tile size (WxH)', self.meta.tile_size, self.meta.tile_size))
+        print('{:30s} {}'.format('Maximum tiles/image', self.meta.tiles_per_image))
         print(hline)
 
     def print_result(self, img_type, img_path, md):

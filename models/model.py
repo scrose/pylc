@@ -1,6 +1,6 @@
 """
 (c) 2020 Spencer Rose, MIT Licence
-MLP Landscape Classification Tool (MLP-LCT)
+Python Landscape Classification Tool (PyLC)
  Reference: An evaluation of deep learning semantic segmentation
  for land cover classification of oblique ground-based photography,
  MSc. Thesis 2020.
@@ -21,28 +21,24 @@ from models.architectures.deeplab import DeepLab
 from models.modules.loss import MultiLoss, RunningLoss
 from models.modules.checkpoint import Checkpoint
 from numpy import random
-from config import Parameters, defaults
-from utils.tools import confirm_write_file
+from config import defaults
+from utils.tools import get_fname
 
 
 class Model:
     """
     Abstract model for Pytorch network configuration.
     Uses Pytorch Model class as superclass
-
-    Parameters
-    ----------
-    args: dict
-        User-defined configuration settings.
     """
 
-    def __init__(self, args):
+    def __init__(self):
 
         super(Model, self).__init__()
 
-        # initialize model parameters
-        self.params = Parameters(args)
-        self.device = torch.device(self.params.device)
+        # initialize local metadata
+        self.mode = None
+        self.meta = defaults
+        self.device = torch.device(self.meta.device)
 
         # build network
         self.net = None
@@ -79,6 +75,18 @@ class Model:
             'syncbatch': torch.nn.SyncBatchNorm
         }
 
+    def testing(self):
+        """Prepare model for testing"""
+        # self.net = torch.nn.DataParallel(self.net)
+        self.mode = defaults.TEST
+        return self
+
+    def training(self):
+        """Prepare model for testing"""
+        # self.net = torch.nn.DataParallel(self.net)
+        self.mode = defaults.TRAIN
+        return self
+
     def load(self, model_path):
         """
         Loads models PyLC model for evaluation.
@@ -88,39 +96,45 @@ class Model:
         model_path: str
             Path to PyLC models model.
         """
+        assert self.mode == defaults.TEST, "Model must be in test mode to load."
 
         if not model_path:
             print("\nModel path is empty. Use \'--model\' option to specify path.")
             exit(1)
         else:
-            print('\nLoading model:\n\t{}'.format(model_path))
+            print('\nLoading model for {}:\n\t{}'.format(self.mode, model_path))
 
         if os.path.exists(model_path):
             self.model_path = model_path
+            model_data = None
 
             # load model data
-            model_data = None
             try:
                 model_data = torch.load(self.model_path, map_location=self.device)
             except Exception as err:
-                print('An error occurred loading model:\n\t{}.'.format(
-                    model_path))
+                print('An error occurred loading model:\n\t{}.'.format(model_path))
                 print(err)
                 exit()
 
-            # get build metadata
-            if 'meta' not in model_data:
-                print('\nModel does not have metadata attached. Looking for external file ...')
-                model_path = self.update_meta(model_data)
-                self.load(model_path)
-            else:
-                self.params.update(model_data["meta"])
-                self.build()
+            # build model from metadata
+            assert 'meta' in model_data, '\nLoaded model missing metadata attribute.'
+
+            # build model from metadata
+            self.meta.update(model_data["meta"])
+
+            # create model identifier if none exists
+            # format: <architecture>_<channel_label>_<schema_id>
+            self.gen_id()
+
+            if self.mode == defaults.TEST:
+                self.meta.pretrained = False
+            self.build()
 
             # load model state
             self.net.load_state_dict(model_data["model"])
+
         else:
-            print('Model file does not exist:\n\t{}'.format(self.model_path))
+            print('Model file does not exist.')
             exit()
 
         return self
@@ -130,58 +144,53 @@ class Model:
         Builds neural network model from configuration settings.
         """
 
-        # create model identifier if none exists
-        # format: <architecture>_<channel_label>_<schema_id>
-        if not self.params.id:
-            self.gen_id()
-
         # initialize checkpoint
         self.checkpoint = Checkpoint(
-            self.params.id,
-            self.params.save_dir
+            self.meta.id,
+            self.meta.save_dir
         )
 
         # UNet
-        if self.params.arch == 'unet':
+        if self.meta.arch == 'unet':
             self.net = UNet(
-                in_channels=self.params.ch,
-                n_classes=self.params.n_classes,
-                up_mode=self.params.up_mode,
-                activ_func=self.activations[self.params.activ_type],
-                normalizer=self.normalizers[self.params.norm_type],
-                dropout=self.params.dropout
+                in_channels=self.meta.ch,
+                n_classes=self.meta.n_classes,
+                up_mode=self.meta.up_mode,
+                activ_func=self.activations[self.meta.activ_type],
+                normalizer=self.normalizers[self.meta.norm_type],
+                dropout=self.meta.dropout
             )
             self.net = self.net.to(self.device)
-            self.crop_target = self.params.crop_target
+            self.crop_target = self.meta.crop_target
 
         # Alternate Residual UNet
-        elif self.params.arch == 'resunet':
+        elif self.meta.arch == 'resunet':
             self.net = ResUNet(
-                in_channels=self.params.ch,
-                n_classes=self.params.n_classes,
-                up_mode=self.params.up_mode,
-                activ_func=self.activations[self.params.activ_type],
+                in_channels=self.meta.ch,
+                n_classes=self.meta.n_classes,
+                up_mode=self.meta.up_mode,
+                activ_func=self.activations[self.meta.activ_type],
                 batch_norm=True,
-                dropout=self.params.dropout
+                dropout=self.meta.dropout
             )
             self.net = self.net.to(self.device)
-            self.crop_target = self.params.crop_target
+            self.crop_target = self.meta.crop_target
 
         # DeeplabV3+
-        elif self.params.arch == 'deeplab':
+        elif self.meta.arch == 'deeplab':
             self.net = DeepLab(
-                activ_func=self.activations[self.params.activ_type],
-                normalizer=self.normalizers[self.params.norm_type],
-                backbone=self.params.backbone,
-                n_classes=self.params.n_classes,
-                in_channels=self.params.ch,
-                pretrained=self.params.pretrained
+                activ_func=self.activations[self.meta.activ_type],
+                normalizer=self.normalizers[self.meta.norm_type],
+                backbone=self.meta.backbone,
+                n_classes=self.meta.n_classes,
+                in_channels=self.meta.ch,
+                pretrained=self.meta.pretrained
             )
             self.net = self.net.to(self.device)
 
         # Unknown model requested
         else:
-            print('Model {} not available.'.format(self.params.arch))
+            print('Model {} not available.'.format(self.meta.arch))
             exit(1)
 
         # Enable CUDA
@@ -201,22 +210,22 @@ class Model:
         # initialize network loss calculators, etc.
         self.crit = MultiLoss(
             loss_weights={
-                'weighted': self.params.weighted,
-                'weights': self.params.weights,
-                'ce': self.params.ce_weight,
-                'dice': self.params.dice_weight,
-                'focal': self.params.focal_weight
+                'weighted': self.meta.weighted,
+                'weights': self.meta.weights,
+                'ce': self.meta.ce_weight,
+                'dice': self.meta.dice_weight,
+                'focal': self.meta.focal_weight
             },
             schema={
-                'n_classes': self.params.n_classes,
-                'class_codes': self.params.class_codes,
-                'class_labels': self.params.class_labels
+                'n_classes': self.meta.n_classes,
+                'class_codes': self.meta.class_codes,
+                'class_labels': self.meta.class_labels
             }
         )
         self.loss = RunningLoss(
-            self.params.id,
-            save_dir=self.params.save_dir,
-            resume=self.params.resume_checkpoint
+            self.meta.id,
+            save_dir=self.meta.save_dir,
+            resume=self.meta.resume_checkpoint
         )
 
         # initialize optimizer and optimizer scheduler
@@ -230,29 +239,30 @@ class Model:
         Check for existing checkpoint. If exists, resume from
         previous training. If not, delete the checkpoint.
         """
-        if self.params.resume_checkpoint:
+        if self.meta.resume_checkpoint:
             checkpoint_data = self.checkpoint.load()
-            self.epoch = checkpoint_data['epoch']
-            self.iter = checkpoint_data['iter']
-            self.params = checkpoint_data["meta"]
-            self.net.load_state_dict(checkpoint_data["model"])
-            self.optim.load_state_dict(checkpoint_data["optim"])
+            if checkpoint_data is not None:
+                self.epoch = checkpoint_data['epoch']
+                self.iter = checkpoint_data['iter']
+                self.meta = checkpoint_data["meta"]
+                self.net.load_state_dict(checkpoint_data["model"])
+                self.optim.load_state_dict(checkpoint_data["optim"])
         else:
             self.checkpoint.reset()
 
     def init_optim(self):
         """select optimizer"""
-        if self.params.optim_type == 'adam':
+        if self.meta.optim_type == 'adam':
             return torch.optim.AdamW(
                 self.net.parameters(),
-                lr=self.params.lr,
-                weight_decay=self.params.weight_decay
+                lr=self.meta.lr,
+                weight_decay=self.meta.weight_decay
             )
-        elif self.params.optim_type == 'sgd':
+        elif self.meta.optim_type == 'sgd':
             return torch.optim.SGD(
                 self.net.parameters(),
-                lr=self.params.lr,
-                momentum=self.params.momentum
+                lr=self.meta.lr,
+                momentum=self.meta.momentum
             )
         else:
             print('Optimizer is not defined.')
@@ -260,26 +270,26 @@ class Model:
 
     def init_sched(self):
         """(Optional) Scheduled learning rate step"""
-        if self.params.sched_type == 'step_lr':
+        if self.meta.sched_type == 'step_lr':
             return torch.optim.lr_scheduler.StepLR(
                 self.optim,
                 step_size=1,
-                gamma=self.params.gamma
+                gamma=self.meta.gamma
             )
-        elif self.params.sched_type == 'cyclic_lr':
+        elif self.meta.sched_type == 'cyclic_lr':
             return torch.optim.lr_scheduler.CyclicLR(
                 self.optim,
-                self.params.lr_min,
-                self.params.lr_max,
+                self.meta.lr_min,
+                self.meta.lr_max,
                 step_size_up=2000
             )
-        elif self.params.sched_type == 'anneal':
-            steps_per_epoch = int(self.params.clip * 29000 // self.params.batch_size)
+        elif self.meta.sched_type == 'anneal':
+            steps_per_epoch = int(self.meta.clip * 29000 // self.meta.batch_size)
             return torch.optim.lr_scheduler.OneCycleLR(
                 self.optim,
-                max_lr=self.params.lr_max,
+                max_lr=self.meta.lr_max,
                 steps_per_epoch=steps_per_epoch,
-                epochs=self.params.n_epoches)
+                epochs=self.meta.n_epoches)
 
         else:
             print('Optimizer scheduler is not defined.')
@@ -309,11 +319,11 @@ class Model:
         y = y.to(self.device)
 
         # crop target mask to fit output size (e.g. UNet model)
-        if self.params.arch == 'unet':
-            y = y[:, self.params.crop_left:self.params.crop_right, self.params.crop_up:self.params.crop_down]
+        if self.meta.arch == 'unet':
+            y = y[:, self.meta.crop_left:self.meta.crop_right, self.meta.crop_up:self.meta.crop_down]
 
         # stack single-channel input tensors (deeplab)
-        if self.params.ch == 1 and self.params.arch == 'deeplab':
+        if self.meta.ch == 1 and self.meta.arch == 'deeplab':
             x = torch.cat((x, x, x), 1)
 
         # forward pass
@@ -333,7 +343,7 @@ class Model:
 
         self.optim.step()
 
-        if self.iter % self.params.report == 0:
+        if self.iter % self.meta.report == 0:
             self.log()
 
         # log learning rate
@@ -353,11 +363,11 @@ class Model:
         y = y.to(self.device)
 
         # crop target mask to fit output size (UNet)
-        if self.params.arch == 'unet':
-            y = y[:, self.params.crop_left:self.params.crop_right, self.params.crop_up:self.params.crop_down]
+        if self.meta.arch == 'unet':
+            y = y[:, self.meta.crop_left:self.meta.crop_right, self.meta.crop_up:self.meta.crop_down]
 
         # stack single-channel input tensors (Deeplab)
-        if self.params.ch == 1 and self.params.arch == 'deeplab':
+        if self.meta.ch == 1 and self.meta.arch == 'deeplab':
             x = torch.cat((x, x, x), 1)
 
         # run forward pass
@@ -375,11 +385,11 @@ class Model:
         """model test forward"""
 
         # normalize
-        x = self.normalize_image(x, default=self.params.normalize_default)
+        x = self.normalize_image(x, default=self.meta.normalize_default)
         x = x.to(self.device)
 
         # stack single-channel input tensors (Deeplab)
-        if self.params.ch == 1 and self.params.arch == 'deeplab':
+        if self.meta.ch == 1 and self.meta.arch == 'deeplab':
             x = torch.cat((x, x, x), 1)
 
         # run forward pass
@@ -404,7 +414,20 @@ class Model:
 
     def get_meta(self):
         """Get model metadata."""
-        return self.params
+        return self.meta
+
+    def update_meta(self, params):
+        """
+        Update model metadata.
+
+        Parameters
+        ----------
+        params: Parameters
+            Model metadata.
+        """
+        self.meta.update(params)
+
+        return self
 
     def normalize_image(self, img, default=False):
         """
@@ -423,16 +446,19 @@ class Model:
             if default:
                 return torch.tensor(
                     (img.numpy().astype('float32') - defaults.px_grayscale_mean) / defaults.px_grayscale_std)
-            mean = np.mean(self.params.px_mean.numpy())
-            std = np.mean(self.params.px_std.numpy())
+            mean = np.mean(self.meta.px_mean)
+            std = np.mean(self.meta.px_std)
             return torch.tensor((img.numpy().astype('float32') - mean) / std) / 255
         # colour
         else:
             if default:
-                return ((img - defaults.px_rgb_mean[None, :, None, None]) /
-                        defaults.px_rgb_std[None, :, None, None]) / 255
-            return ((img - self.params.px_mean[None, :, None, None]) /
-                    self.params.px_std[None, :, None, None]) / 255
+                px_mean = torch.tensor(defaults.px_rgb_mean)
+                px_std = torch.tensor(defaults.px_rgb_std)
+            else:
+                px_mean = torch.tensor(self.meta.px_mean)
+                px_std = torch.tensor(self.meta.px_std)
+            return ((img - px_mean[None, :, None, None]) /
+                    px_std[None, :, None, None]) / 255
 
     def print_settings(self):
         """
@@ -441,105 +467,41 @@ class Model:
         hline = '_' * 40
         print("\nModel Configuration")
         print(hline)
-        print('{:30s} {}'.format('ID', self.params.id))
+        print('{:30s} {}'.format('ID', self.meta.id))
         print('{:30s} {}'.format('Model File', os.path.basename(self.model_path)))
-        print('{:30s} {}'.format('Architecture', self.params.arch))
+        print('{:30s} {}'.format('Architecture', self.meta.arch))
         # show encoder backbone for Deeplab
-        if self.params.arch == 'deeplab':
-            print('    -{:25s} {}'.format('Backbone', self.params.backbone))
-            print('    -{:25s} {}'.format('Pretrained model', self.params.pretrained))
-        print('{:30s} {}'.format('Input channels', self.params.ch))
-        print('{:30s} {}'.format('Output channels', self.params.n_classes))
-        print('{:30s} {}{}'.format('Px mean', self.params.px_mean.tolist(),
-                                   '*' if self.params.normalize_default else ''))
-        print('{:30s} {}{}'.format('Px std-dev', self.params.px_std.tolist(),
-                                   '*' if self.params.normalize_default else ''))
-        print('{:30s} {}'.format('Batch size', self.params.batch_size))
-        print('{:30s} {}'.format('Activation function', self.params.activ_type))
-        print('{:30s} {}'.format('Optimizer', self.params.optim_type))
-        print('{:30s} {}'.format('Scheduler', self.params.sched_type))
-        print('{:30s} {}'.format('Learning rate (default)', self.params.lr))
-        print('{:30s} {}'.format('Resume checkpoint', self.params.resume_checkpoint))
+        if self.meta.arch == 'deeplab':
+            print('   - {:25s} {}'.format('Backbone', self.meta.backbone))
+            print('   - {:25s} {}'.format('Pretrained model', self.meta.pretrained))
+        print('{:30s} {}'.format('Input channels', self.meta.ch))
+        print('{:30s} {}'.format('Output channels', self.meta.n_classes))
+        print('{:30s} {}{}'.format('Px mean', self.meta.px_mean,
+                                   '*' if self.meta.normalize_default else ''))
+        print('{:30s} {}{}'.format('Px std-dev', self.meta.px_std,
+                                   '*' if self.meta.normalize_default else ''))
+        print('{:30s} {}'.format('Batch size', self.meta.batch_size))
+        print('{:30s} {}'.format('Activation function', self.meta.activ_type))
+        print('{:30s} {}'.format('Optimizer', self.meta.optim_type))
+        print('{:30s} {}'.format('Scheduler', self.meta.sched_type))
+        print('{:30s} {}'.format('Learning rate (default)', self.meta.lr))
+        print('{:30s} {}'.format('Resume checkpoint', self.meta.resume_checkpoint))
         print()
         # use default pixel normalization (if requested)
-        if self.params.normalize_default:
+        if self.meta.normalize_default:
             print('* Normalized default settings')
 
         # print model loss settings
         self.crit.print_settings()
 
-    def summary(self):
-        """
-        Prints model parameters to screen.
-        """
-        try:
-            from torchsummary import summary
-            summary(self.net, input_size=(self.params.ch, self.params.input_size, self.params.input_size))
-        except ImportError as e:
-            print('Summary not available.')
-            pass  # module doesn't exist
-
     def gen_id(self):
         """
         Generate model identifier from metadata and assign to id.
         """
-        # format: pylc_<architecture>_ch<channels>_<schema_id>
-        self.params.id = 'pylc_' + self.params.arch + '_ch' + \
-                         str(self.params.ch) + '_' + \
-                         self.params.schema_name
-
-    def update_meta(self, model_data, meta_path = None):
-        """
-        Inserts model metadata into file from external Numpy file
-
-        Parameters
-        ----------
-        model_data: np.array
-            Input model data.
-        meta_path: str
-            Path to metadata file.
-
-        Returns
-        -------
-        model_path: np.array
-            New model path.
-        """
-        # get metadata file data
-        meta_path = input("\nModel does not have metadata. "
-                          "Enter a metadata file path ('default' for default path): ")
-        md = None
-        if meta_path == 'default':
-            md = np.load(defaults.meta_file, allow_pickle=True).tolist()
-        elif os.path.exists(meta_path):
-            md = np.load(meta_path, allow_pickle=True).tolist()
+        if self.model_path is None:
+            # format: pylc_<architecture>_ch<channels>_<schema_id>
+            self.meta.id = 'pylc_' + self.meta.arch + '_ch' + \
+                           str(self.meta.ch) + '_' + \
+                           self.meta.schema_name
         else:
-            print('Metadata file not found. Application stopped.')
-            exit(0)
-
-        # update model metadata
-        self.params.ch = 1 if md.get('capture') == 'historic' else 3
-        self.params.weights = md.get('weights')
-        self.params.px_mean = md.get('px_mean')
-        self.params.px_std = md.get('px_std')
-        self.params.m2 = md.get('m2')
-        self.params.jsd = md.get('jsd')
-        self.params.dset_px_dist = md.get('dset_px_dist')
-        self.params.dset_px_dist = md.get('probs')
-
-        # build model from metadata parameters
-        self.build()
-
-        # create model identifier if none exists
-        # format: pylc_<architecture>_ch<channels>_<schema_id>
-        self.gen_id()
-
-        # save updated model
-        model_path = os.path.join(defaults.save_dir, self.params.id + '.pth')
-        if confirm_write_file(model_path):
-            torch.save({
-                "model": self.net.state_dict(),
-                "optim": self.optim.state_dict(),
-                "meta": vars(self.params)
-            }, model_path)
-
-        return model_path
+            self.meta.id = get_fname(self.model_path)

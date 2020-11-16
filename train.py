@@ -1,6 +1,6 @@
 """
 (c) 2020 Spencer Rose, MIT Licence
-MLP Landscape Classification Tool (MLP-LCT)
+Python Landscape Classification Tool (PyLC)
  Reference: An evaluation of deep learning semantic segmentation
  for land cover classification of oblique ground-based photography,
  MSc. Thesis 2020.
@@ -16,7 +16,7 @@ import torch
 from db.dataset import MLPDataset
 from models.model import Model
 from tqdm import tqdm
-from config import defaults
+from config import Parameters, defaults
 
 
 def trainer(args):
@@ -30,32 +30,36 @@ def trainer(args):
         User-defined options.
     """
 
+    # load parameters
+    params = Parameters(args)
+
     # load training dataset, loader
-    tr_dset = MLPDataset(args.db, partition=(0, 1 - defaults.partition))
+    tr_dset = MLPDataset(db_path=args.db, partition=(0, 1 - defaults.partition))
     tr_loader, tr_batches = tr_dset.loader(
-        batch_size=args.batch_size,
-        n_workers=args.n_workers,
+        batch_size=params.batch_size,
+        n_workers=params.n_workers,
         drop_last=True
     )
 
     # load validation dataset, loader
     va_dset = MLPDataset(args.db, partition=(1 - defaults.partition, 1.))
     va_loader, va_batches = va_dset.loader(
-        batch_size=args.batch_size,
-        n_workers=args.n_workers,
+        batch_size=params.batch_size,
+        n_workers=params.n_workers,
         drop_last=True
     )
+
     # get database size
     db_size = tr_dset.db.size
-    meta = tr_dset.get_meta()
+    tr_meta = tr_dset.get_meta()
 
-    # Build model from user-defined cofiguration and db metadata
-    model = Model(args).build(meta)
+    # Load model for training
+    model = Model().training().update_meta(tr_meta).build()
 
     # Check for existing checkpoint. If exists, resume from
     # previous training. If not, delete the checkpoint.
     model.resume()
-    model.net.trainer()
+    model.net.train()
     model.print_settings()
 
     # get offset epoch if resuming from checkpoint

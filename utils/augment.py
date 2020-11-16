@@ -1,6 +1,6 @@
 """
 (c) 2020 Spencer Rose, MIT Licence
-MLP Landscape Classification Tool (MLP-LCT)
+Python Landscape Classification Tool (PyLC)
  Reference: An evaluation of deep learning semantic segmentation
  for land cover classification of oblique ground-based photography,
  MSc. Thesis 2020.
@@ -19,7 +19,7 @@ import numpy as np
 from utils.profile import get_profile
 from db.dataset import MLPDataset
 from config import defaults, Parameters
-from utils.tools import augment_transform, coshuffle, mk_path
+from utils.tools import augment_transform, coshuffle
 
 
 class Augmentor(object):
@@ -30,33 +30,21 @@ class Augmentor(object):
 
     Parameters
     ------
-    args: object
-        User-defined configuration settings.
+    params: Parameters
+        Updated parameters.
     """
 
-    def __init__(self, args):
+    def __init__(self):
 
-        if not os.path.exists(args.db) and os.path.isfile(args.db):
-            print("Database file {} not found.".format(args.db))
-            exit(1)
-
-        # load source (input) dataset
-        self.input_path = args.db
-        self.input_dset = MLPDataset(self.input_path)
-        self.input_meta = self.input_dset.get_meta()
-        self.input_loader, self.input_size = self.input_dset.loader(
-            batch_size=1,
-            n_workers=0,
-            drop_last=False
-        )
+        # initialize source (input) dataset
+        self.input_path = None
+        self.input_dset = None
+        self.input_meta = None
+        self.input_loader = None
+        self.input_size = 0
 
         # initialize target (output) dataset
-        self.output_meta = self.input_meta
-
-        # initialize output directory
-        if hasattr(args, 'output'):
-            self.output_meta.output_dir = mk_path(args.output)
-
+        self.output_meta = None
         self.output_imgs = None
         self.output_masks = None
         self.output_db_size = 0
@@ -64,6 +52,33 @@ class Augmentor(object):
         # optimized parameters
         self.optim_meta = None
         self.rates = []
+
+    def load(self, db_path):
+        """
+        Loads database into augmentor.
+
+        Parameters
+        ------
+        db_path: str
+            Path to source database.
+        """
+        if not os.path.exists(db_path) and os.path.isfile(db_path):
+            print("Database file {} not found.".format(db_path))
+            exit(1)
+
+        # load source (input) database
+        self.input_path = db_path
+        self.input_dset = MLPDataset(self.input_path)
+        self.input_meta = self.input_dset.get_meta()
+        self.input_loader, self.input_size = self.input_dset.loader(
+            batch_size=1,
+            n_workers=0,
+            drop_last=False
+        )
+        # update output metadata
+        self.output_meta = Parameters().update(self.input_meta)
+
+        return self
 
     def get_data(self):
         """
@@ -344,7 +359,8 @@ class Augmentor(object):
         readout += hline
         readout += '\n {:30s}{:20s}{:20s}'.format(
             'Total Samples', str(self.output_meta.n_samples), str(self.input_meta.n_samples))
-        readout += '\n {:30s}{:10s}'.format('Total Generated', str(len(self.output_imgs) - self.input_size))
+        readout += '\n {:30s}{:20s}{:20s}'.format(
+            'Total Generated', str(len(self.output_imgs) - self.input_size), '-')
         readout += '\n {:30s}{:20s}{:20s}'.format(
             'M2',
             str(round(self.output_meta.m2, 4)),
