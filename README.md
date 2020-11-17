@@ -90,12 +90,12 @@ All DCNN models and preprocessing utilities are implemented in [PyTorch](https:/
 
 The PyLC (Python Landscape Classifier) classification tool has three main run modes:
 
-1. Data Preprocessing: (`preprocessing.py`);
- - Extraction
- - Profiling
- - Data Augmentation
-2. Model Training: (`train.py`);
-3. Model Testing (`test.py`). 
+1. Data Preprocessing;
+ - Extraction: To generate training and validation databases.
+ - Profiling: To profile the semantic class distribution of a dataset.
+ - Data Augmentation: To extend dataset.
+2. Model Training: Train or retrain segmentation networks.
+3. Model Testing: Generate segmentation maps. 
 
 User configuration arguments `config.py` for . User input parameters can be listed by the following command:
 
@@ -109,7 +109,7 @@ Categorization schemas (i.e. class definitions) are defined in separate JSON fil
 
 This package offers configurable preprocessing utilities to prepare raw input data for model training. Input images must be either JPG or TIF format, and masks PNG format. The image filename must match its mask filename (e.g. img_01.tif and msk_01.png). You can download the original image/mask dataset(s) (see repository links under Datasets section) and save to a local directory for model training and testing.
 
-#### 1.1 Extraction (Generate Database)
+#### 1.1 Extraction
 
 Extraction is a preprocessing step to create usable data to train segmentation network models. Tile extraction is used to partition raw high-resolution source images and masks into smaller square image tiles that can be used in memory. Images are by default scaled by factors of 0.2, 0.5 and 1.0 before tiling to improve scale invariance. Image data is saved to HDF5 binary data format for fast loading. Mask data is also profiled for analysis and data augmentation. See parameters for dimensions and stride. Extracted tiles can be augmented using data augmentation processing.
 
@@ -117,7 +117,7 @@ To create an extraction database from raw images and masks, provide separacte im
 
 Note that the generated database file is saved to `data/db/` in the project root.
 
-#### Options: 
+##### Options: 
 
 - `--img <path>`: (Required) Path to images directory. 
 - `--mask <path>`: (Required) Path to masks directory. 
@@ -130,11 +130,11 @@ python pylc.py extract --ch [number of channels] --img [path/to/image(s)] --mask
 ```
 
 
-#### Profiling
+#### 1.2 Profiling
 
 Extraction automatically computes the pixel class distribution in the mask dataset, along with other metrics. This metadata is saved as JSON in the database file as an attribute, and used to calculate sample rates for data augmentation to balance the pixel semantic class distribution. 
 
-#### Options: 
+##### Options: 
 
 - `--db <path>`: (Required) Path to source database file. 
 
@@ -142,13 +142,13 @@ Extraction automatically computes the pixel class distribution in the mask datas
 python pylc.py profile --db [path/to/database.h5]
 ```
 
-#### Data Augmentation
+#### 1.3 Data Augmentation
 
 Data augmentation can improve the balance of pixel class distribution in a database by extending the dataset with altered copies of samples composed of less-represented semantic classes. This package uses a novel self-optimizing thresholding algorithm applied to the class distribution of each tile to compute a sampling rate for that tile. 
 
 Note that the generated augmented database is saved to `data/db/` in the project root.
 
-#### Options: 
+##### Options: 
 
 - `--db <path>`: (Required) Path to source database file. 
 
@@ -156,11 +156,11 @@ Note that the generated augmented database is saved to `data/db/` in the project
 python pylc.py augment --db [path/to/database.h5]
 ```
 
-#### Database Merging 
+##### 1.4 Database Merging (In-progress)
 Multiple databases can be combined and shuffled. Note that the generated merged database is saved to `data/db/` in the project root.
 
 
-#### Options: 
+##### Options: 
 
 - `--dbs <str>`: (Required) List of database paths to merge (path strings separated by spaces).
 
@@ -174,12 +174,12 @@ For example, the following command, using historic database files `db_1.h5` and 
 python pylc.py merge --dbs data/db/db_1.h5, data/db/db_2.h5
 ```
 
-### Training
+### 2.0 Training
 
 Training or retraining a model requires an extraction or augmented database generated using the preprocessing steps above. Model training is CUDA-enabled. Note that other training hyperparamters can be set in the `config.py` configuration file. Note that files generated for best models and checkpoints (`.pth`), as well as loss logs (`.npy`), are saved to `./data/save/` in a folder labeled by the model ID.
 
 
-#### Options: 
+##### Options: 
 
 - `--db <path>`: (Required) Path to training database file. 
 - `--batch_size <int>`: (Default: 8) Size of each data batch (default: 8). 
@@ -208,10 +208,10 @@ Training or retraining a model requires an extraction or augmented database gene
 python pylc.py train  --db [path/to/database.h5]
 ```
 
-### Testing
+### 3.0 Testing
 Segmentation maps can be generated for input images. Evaluation metrics can also be computed if ground truth masks are provided. Note that image pixel normalization coefficients are stored in model metadata.
 
-#### Options: 
+##### Options: 
 - `--model <path>`: (Required) Path to pretrained model.
 - `--img <path>`: (Required) Path to images directory or single file. 
 - `--mask <path>`: (Optional) Path to masks directory or single file. This option triggers an evaluation of model outputs using various metrics: F1, mIoU, Matthew's Correlation Coefficient, and generates a confusion matrix. 
