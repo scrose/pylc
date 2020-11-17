@@ -38,10 +38,10 @@ class Checkpoint:
     def load(self):
         """ load checkpoint file """
         if os.path.exists(self.checkpoint_file):
-            print('Checkpoint found at {}! Resuming.'.format(self.checkpoint_file))
+            print('\nCheckpoint found at:\n\t{}\n\tResuming!'.format(self.checkpoint_file))
             return torch.load(self.checkpoint_file)
         else:
-            print('Checkpoint does not exist.')
+            print('\nCheckpoint does not exist. Starting new.')
 
     def reset(self):
         """ delete checkpoint file """

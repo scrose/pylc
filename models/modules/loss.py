@@ -15,6 +15,7 @@ File: models/modules/loss.py
 import os
 import numpy as np
 import torch
+import torch.nn.functional
 import utils.tools as utils
 from config import defaults
 
@@ -29,8 +30,6 @@ class MultiLoss(torch.nn.Module):
         Weight factors applied to each loss function (Optional).
     schema:
         Schema metadata.
-    weights: Tensor
-        Class weights.
     """
 
     def __init__(self, loss_weights, schema):
@@ -256,9 +255,9 @@ class RunningLoss(object):
         Loads log file for losses. Resumes tracking if requested.
         """
         if os.path.exists(self.log_file):
-            print('Loss logs found at for:\n\t{}'.format(self.log_file), end='')
+            print('Loss logs found at:\n\t{}'.format(self.log_file), end='')
             if self.resume:
-                print('\tResuming loss tracking')
+                print('\n\tResuming!')
                 loss_res = torch.load(self.log_file)
                 self.train = loss_res['train']
                 self.valid = loss_res['valid']
@@ -295,7 +294,7 @@ class RunningLoss(object):
 
     def save(self):
         """
-        Save training loss values to disk
+        Save training loss values to file.
         """
         torch.save({
             "train": self.train,
@@ -304,3 +303,25 @@ class RunningLoss(object):
             "best_dice": self.best_dice,
             "lr": self.lr
         }, self.log_file)
+
+    def print_status(self, mode):
+        """
+        Print current training loss values to console.
+
+        Parameters
+        ----------
+        mode: str
+            Current training mode (train/valid).
+        """
+        mode = 'Training' if mode == defaults.TRAIN else 'Validation'
+        hline = '_' * 40
+        print()
+        print('Loss Update')
+        print(hline)
+        print('{:30s} {}'.format('Mode', mode))
+        print('{:30s} {:4f}'.format('CE Average', self.avg_ce))
+        print('{:30s} {:4f}'.format('Focal Average', self.avg_fl))
+        print('{:30s} {:4f}'.format('Dice Average', self.avg_dice))
+        print('{:30s} {:4f}'.format('Best Dice Average', self.best_dice))
+        print(hline)
+        print()

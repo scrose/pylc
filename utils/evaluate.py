@@ -87,7 +87,11 @@ class Evaluator:
         if mask_true_path:
             # load ground-truth data
             mask_true, w, h, w_scaled, h_scaled = utils.get_image(
-                mask_true_path, 3, scale=scale, interpolate=cv2.INTER_NEAREST)
+                mask_true_path,
+                ch=3,
+                scale=scale,
+                interpolate=cv2.INTER_NEAREST
+            )
 
             # check dimensions of ground truth mask and predicted mask
             if not (w_scaled == self.meta.extract['w_scaled'] and h_scaled == self.meta.extract['h_scaled']):

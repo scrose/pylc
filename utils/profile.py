@@ -12,6 +12,7 @@ Module: Profiler
 File: profile.py
 """
 import torch
+import torch.nn.functional
 from tqdm import tqdm
 from utils.metrics import m2, jsd
 import numpy as np
@@ -166,7 +167,7 @@ def print_meta(meta):
     px_mean = 'R{:3s} G{:3s} B{:3s}'.format(
         str(round(meta.px_mean[0], 3)), str(round(meta.px_mean[1], 3)), str(round(meta.px_mean[2], 3))) \
         if meta.ch == 3 else str(round(meta.px_mean[0], 3)
-    )
+                                 )
     readout += '\n {:30s}{}'.format('Pixel mean', px_mean)
 
     # RGB/Grayscale std-dev

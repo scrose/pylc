@@ -13,8 +13,7 @@ The PyLC (Python Landscape Classifier) is a Pytorch-based trainable segmentation
 
 The Deeplab implementation was adapted from [Jianfeng Zhang, Vision & Machine Learning Lab, National University of Singapore, Deeplab V3+ in PyTorch](https://github.com/jfzhang95/pytorch-deeplab-xception). The U-Net implementation was adapted from [Xiao Cheng](https://github.com/xiaochengcike/pytorch-unet-1).
 
-PyTorch implementation of Deeplab: This is a PyTorch(0.4.1) implementation of DeepLab-V3-Plus.
-It can use Modified Aligned Xception and ResNet as backbone.
+PyTorch implementation of Deeplab: This is a PyTorch(0.4.1) implementation of DeepLab-V3-Plus. It can use Modified Aligned Xception and ResNet as backbone.
 
 ### Mountain Legacy Project (MLP)
 
@@ -22,7 +21,7 @@ It can use Modified Aligned Xception and ResNet as backbone.
 
 ### Implementation
 
-PyLC uses deep convolutional neural networks (DCNNs) trained on high-resolution, grayscale and colour landscape photography from the MLP collection, specifically optimized for the segmentation of oblique mountain landscapes. This package uses [U-net][3] and [Deeplabv3+][4] segmentation models with a ResNet101 pretrained encoder, as well as a fully-connected [conditional random fields model][5] used to boost segmentation accuracy.
+PyLC uses deep convolutional neural networks (DCNNs) trained on high-resolution, grayscale and colour landscape photography from the MLP collection, specifically optimized for the segmentation of oblique mountain landscapes. This package uses [U-net](ref-3) and [Deeplabv3+](#ref-4) segmentation models with a ResNet101 pretrained encoder, as well as a fully-connected [conditional random fields model](#ref-5) used to boost segmentation accuracy.
 
 ### Features
 
@@ -39,7 +38,7 @@ Segmentation masks used in the two training datasets (DST.A and DST.B) conform t
 
 ### DST.A - [(Repository - 2.1 GB)](https://zenodo.org/record/12590) 
 
-The Mountain Habitats Segmentation and Change Detection Dataset. Jean, Frédéric; Branzan Albu, Alexandra; Capson, David; Higgs, Eric; Fisher, Jason T.; Starzomski, Brian M.  Includes full-sized images and segmentation masks along with the accompanying files and results.
+The Mountain Habitats Segmentation and Change Detection Dataset. Jean, Frédéric; Branzan Albu, Alexandra; Capson, David; Higgs, Eric; Fisher, Jason T.; Starzomski, Brian M.  Includes full-sized images and segmentation masks along with the accompanying files and results. See [Reference](#ref-1).
 
 #### [DST.A] Land Cover Classes
 | **Hex**   |  **Colour** | **Category** | 
@@ -56,7 +55,7 @@ The Mountain Habitats Segmentation and Change Detection Dataset. Jean, Frédéri
 
 ### DST.B: [Repository TBA] 
 
-Landscape and biodiversity change in the Willmore Wilderness Park through Repeat Photography. Julie Fortin (2018).
+Landscape and biodiversity change in the Willmore Wilderness Park through Repeat Photography. Julie Fortin (2018). See [Reference](#ref-2).
 
 #### DST-B Land Cover Categories (LCC-B)
 
@@ -74,18 +73,17 @@ Landscape and biodiversity change in the Willmore Wilderness Park through Repeat
 | `b0fffd` |Cyan| Snow/Ice| 
 | `ff00ff` |Magenta| Regenerating area| 
 
-## Requirements (Python 3.6)
+## Requirements (Python 3.7)
 
 All DCNN models and preprocessing utilities are implemented in [PyTorch](https://pytorch.org/), an open source Python library based on the Torch library and [OpenCV](https://opencv.org/), a library of programming functions developed for computer vision. Dependencies are listed below.
 
-- h5py >= 2.8.0
 - numpy >=1.18.5
+- h5py >= 2.8.0
 - opencv >=3.4.1
-- pytorch >=1.4.0
+- torch >=1.6.0
 - seaborn >=0.11.0(optional - evaluation)
 - matplotlib >=3.2.2 (optional - evaluation)
 - scikit-learn> =0.23.1(optional - evaluation)
-- torchsummary >=1.5.1 (optional)
 - tqdm >=4.47.1
 
 ## Usage
@@ -199,7 +197,7 @@ Training or retraining a model requires an extraction or augmented database gene
 - `--up_mode ['upconv', 'upsample']`: (Default: 'upsample') Interpolation for upsampling (Optional: use for U-Net).
 - `--lr <float>`: (Default: 0.0001) Initial learning rate.
 - `--batch_size <int>`: (Default: 8) Size of each training batch.
-- `--epochs <int>`: (Default: 20) Number of epochs to train.
+- `--n_epochs <int>`: (Default: 20) Number of epochs to train.
 - `--pretrained <bool>`: (Default: True) Use pre-trained network weights (model path defined in `config.py`).
 - `--n_workers <int>`: (Default: 6) Number of workers for worker pool.
 - `--report`: Report interval (number of iterations).
@@ -228,12 +226,12 @@ python pylc.py test --model [path/to/model] --img [path/to/images(s)] --mask [pa
 
 ## References 
 
-[1]: Jean, Frederic, Alexandra Branzan Albu, David Capson, Eric Higgs, Jason T. Fisher, and Brian M. Starzomski. "The mountain habitats segmentation and change detection dataset." In 2015 IEEE Winter Conference on Applications of Computer Vision, pp. 603-609. IEEE, 2015.
+[1]<a name="ref-1"></a> Jean, Frederic, Alexandra Branzan Albu, David Capson, Eric Higgs, Jason T. Fisher, and Brian M. Starzomski. "The mountain habitats segmentation and change detection dataset." In 2015 IEEE Winter Conference on Applications of Computer Vision, pp. 603-609. IEEE, 2015.
 
-[2]: Julie Fortin. Lanscape and biodiversity change in the Willmore Wilderness Park through Repeat Photography. PhD thesis, University of Victoria, 2015.
+[2]<a name="ref-2"></a> Julie Fortin. Lanscape and biodiversity change in the Willmore Wilderness Park through Repeat Photography. PhD thesis, University of Victoria, 2015.
 
-[3]: Olaf Ronneberger, Philipp Fischer, and Thomas Brox. U-net: Convolutional networks for biomedical image segmentation. Lecture Notes in Computer Science (including subseries Lecture Notes in Artificial Intelligence and Lecture Notes in Bioinformatics), 9351:234–241, 2015. ISSN 16113349. doi: 10.1007/ 978-3-319-24574-4 28. (http://lmb.informatik.uni-freiburg.de/).
+[3]<a name="ref-3"></a> Olaf Ronneberger, Philipp Fischer, and Thomas Brox. U-net: Convolutional networks for biomedical image segmentation. Lecture Notes in Computer Science (including subseries Lecture Notes in Artificial Intelligence and Lecture Notes in Bioinformatics), 9351:234–241, 2015. ISSN 16113349. doi: 10.1007/ 978-3-319-24574-4 28. (http://lmb.informatik.uni-freiburg.de/).
 
-[4]: Liang Chieh Chen, George Papandreou, Iasonas Kokkinos, Kevin Murphy, and Alan L. Yuille. DeepLab: Semantic Image Segmentation with Deep Convolutional Nets, Atrous Convolution, and Fully Connected CRFs. IEEE Transactions on Pattern Analysis and Machine Intelligence, 40(4):834–848, 2018. ISSN 01628828. doi: 10.1109/TPAMI.2017.2699184.
+[4]<a name="ref-4"></a> Liang Chieh Chen, George Papandreou, Iasonas Kokkinos, Kevin Murphy, and Alan L. Yuille. DeepLab: Semantic Image Segmentation with Deep Convolutional Nets, Atrous Convolution, and Fully Connected CRFs. IEEE Transactions on Pattern Analysis and Machine Intelligence, 40(4):834–848, 2018. ISSN 01628828. doi: 10.1109/TPAMI.2017.2699184.
 
-[5]: Philipp Krähenbühl and Vladlen Koltun. Parameter learning and convergent infer- ence for dense random fields. 30th International Conference on Machine Learning, ICML 2013, 28(PART 2):1550–1558, 2013.
+[5]<a name="ref-5"></a> Philipp Krähenbühl and Vladlen Koltun. Parameter learning and convergent infer- ence for dense random fields. 30th International Conference on Machine Learning, ICML 2013, 28(PART 2):1550–1558, 2013.

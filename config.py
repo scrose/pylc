@@ -1,12 +1,12 @@
 """
- Copyright:     (c) 2020 Spencer Rose, MIT Licence
- Project:       MLP Classification Tool
- Reference:     An evaluation of deep learning semantic
-                segmentation for land cover classification
-                of oblique ground-based photography, 2020.
-                <http://hdl.handle.net/1828/12156>
- Author:        Spencer Rose <spencerrose@uvic.ca>, June 2020
- Affiliation:   University of Victoria
+(c) 2020 Spencer Rose, MIT Licence
+Python Landscape Classification Tool (PyLC)
+ Reference: An evaluation of deep learning semantic segmentation
+ for land cover classification of oblique ground-based photography,
+ MSc. Thesis 2020.
+ <http://hdl.handle.net/1828/12156>
+Spencer Rose <spencerrose@uvic.ca>, June 2020
+University of Victoria
 
  Module:        Configuration Parameters
  File:          config.py
@@ -92,10 +92,11 @@ class Parameters:
 
         # Device settings
         self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
-        self.n_workers = 6
+        self.n_workers = 0
 
         # Application run modes
         self.TRAIN = 'train'
+        self.VALID = 'valid'
         self.TEST = 'test'
         self.EXTRACT = 'extract'
         self.AUGMENT = 'augment'
@@ -135,7 +136,8 @@ class Parameters:
         self.tile_size = 512
         self.stride = 512
         self.scale = 1.
-        self.scales = [0.2, 0.5, 1.]
+        # self.scales = [0.2, 0.5, 1.]
+        self.scales = [1.]
         self.tiles_per_image = int(sum(300 * self.scales))
         self.tile_px_count = self.tile_size * self.tile_size
 
@@ -183,7 +185,7 @@ class Parameters:
 
         # Network parameters
         self.pretrained = './data/models/resnet101-5d3b4d8f.pth'
-        self.n_epoches = 20
+        self.n_epochs = 20
         self.batch_size = 8
         self.dropout = 0.5
         self.crop_target = False
@@ -233,7 +235,7 @@ class Parameters:
         self.crop_down = self.pad_size + self.output_size
 
         # loss tracking
-        self.resume_checkpoint = True
+        self.resume_checkpoint = False
         self.report = 20
 
         # metrics

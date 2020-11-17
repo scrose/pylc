@@ -36,7 +36,7 @@ def tester(args):
     params = Parameters(args)
 
     # Load model for testing/evaluation
-    model = Model().testing().load(model_path)
+    model = Model().load(model_path)
     model.print_settings()
     model.net.eval()
 

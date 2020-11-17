@@ -26,7 +26,7 @@ def trainer(args):
 
     Parameters
     ----------
-    args: dict
+    args: argparse.Namespace
         User-defined options.
     """
 
@@ -40,6 +40,7 @@ def trainer(args):
         n_workers=params.n_workers,
         drop_last=True
     )
+    tr_dset.print_meta(defaults.TRAIN)
 
     # load validation dataset, loader
     va_dset = MLPDataset(args.db, partition=(1 - defaults.partition, 1.))
@@ -48,13 +49,17 @@ def trainer(args):
         n_workers=params.n_workers,
         drop_last=True
     )
+    va_dset.print_meta(defaults.VALID)
 
-    # get database size
-    db_size = tr_dset.db.size
+    va_dset.db.print_meta()
+
+    # get database metadata
     tr_meta = tr_dset.get_meta()
 
     # Load model for training
-    model = Model().training().update_meta(tr_meta).build()
+    model = Model().update_meta(tr_meta)
+    model.resume_checkpoint = args.resume if hasattr(args, 'resume') else defaults.resume_checkpoint
+    model.build()
 
     # Check for existing checkpoint. If exists, resume from
     # previous training. If not, delete the checkpoint.
@@ -64,29 +69,23 @@ def trainer(args):
 
     # get offset epoch if resuming from checkpoint
     epoch_offset = model.epoch
-    for e in range(args.n_epochs - epoch_offset):
-        # initial validation step
-        if e == 0:
-            model = validate(model, va_loader, va_batches)
+    for epoch in range(epoch_offset, params.n_epochs - epoch_offset):
 
         # log learning rate
         model.loss.lr += [(model.iter, model.get_lr())]
 
-        print('\nEpoch {} / {} for Experiment \'{}\''.format(e + epoch_offset + 1, args.n_epochs, args.id))
-        print('\tBatch size: {}'.format(args.batch_size))
-        print('\tTraining dataset size: {} / batches: {}'.format(tr_dset.size, tr_batches))
-        print('\tValidation dataset size: {} / batches: {}'.format(va_dset.size, va_batches))
-        print('\tCurrent learning rate: {}'.format(model.loss.lr[-1][1]))
+        # print status of epoch
+        print_epoch(model, tr_dset, va_dset, epoch, params)
+
+        # initial validation step
+        if epoch == 0:
+            model = validate(model, va_loader, va_batches)
 
         # train over epoch
         model = train_epoch(model, tr_loader, tr_batches)
-        print("\n\n[Train] Losses: \n\tCE avg: %4.4f \n\tFocal: %4.4f \n\tDice: %4.4f\n" %
-              (model.loss.avg_ce, model.loss.avg_fl, model.loss.avg_dice))
 
         # validate epoch results
         model = validate(model, va_loader, va_batches)
-        print("\n[Valid] Losses: \n\tCE avg: %4.4f \n\tFL avg: %4.4f \n\tDSC avg: %4.4f (DSC Best: %4.4f)\n" %
-              (model.loss.avg_ce, model.loss.avg_fl, model.loss.avg_dice, model.loss.best_dice))
 
         # step learning rate
         model.sched.step()
@@ -114,9 +113,12 @@ def train_epoch(model, dloader, n_batches):
         Updated model paramters.
     """
 
-    model.net.trainer()
+    model.net.train()
     for i, (x, y) in tqdm(enumerate(dloader), total=n_batches, desc="Training: ", unit=' batches'):
         model.train(x, y)
+
+    # print losses update
+    model.loss.print_status(defaults.TRAIN)
     return model
 
 
@@ -147,5 +149,26 @@ def validate(model, dloader, n_batches):
             model.eval(x, y)
         model.log()
         model.save()
+
+        # print losses update
+        model.loss.print_status(defaults.VALID)
+
     return model
 
+
+def print_epoch(model, tr_dset, va_dset, epoch, params):
+    """
+    Prints model training status for epoch.
+    """
+    hline = '_' * 40
+    print()
+    print('Training Status')
+    print(hline)
+    print('{:30s} {}'.format('Model ID', model.meta.id))
+    print('{:30s} {} / {}'.format('Epoch', epoch + 1, params.n_epochs))
+    print('{:30s} {}'.format('Batch size', params.batch_size))
+    print('{:30s} {} ({})'.format('Train Size (Batches)', tr_dset.size, tr_dset.size // params.batch_size))
+    print('{:30s} {} ({})'.format('Valid Site (Batches)', va_dset.size, va_dset.size // params.batch_size))
+    print('{:30s} {}'.format('Learning Rate', model.loss.lr[-1][1]))
+    print(hline)
+    print()

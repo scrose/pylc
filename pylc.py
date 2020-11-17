@@ -11,7 +11,9 @@ University of Victoria
 Module: Application
 File: pylc.py
 """
+import os
 from utils.argparse import get_parser
+from config import defaults
 
 
 def main():
@@ -27,6 +29,12 @@ def main():
         print("\n\'{}\' is not a valid option.\n".format(unparsed[0]))
         parser.print_usage()
         exit(1)
+
+    # ensure data directories exist in project root
+    dirs = [defaults.root, defaults.db_dir, defaults.save_dir, defaults.model_dir, defaults.output_dir]
+    for dir_path in dirs:
+        if not os.path.exists(dir_path):
+            os.mkdir(dir_path)
 
     # execute processing function
     args.func(args)

@@ -13,7 +13,7 @@ File: tools.py
 """
 import os
 from math import ceil
-
+import torch.nn.functional
 import numpy as np
 import torch
 import cv2
@@ -83,6 +83,10 @@ def get_image(img_path, ch=3, scale=None, tile_size=None, interpolate=cv2.INTER_
         Image width (px).
     h: int
         Image height (px).
+    w_resized: int
+        Image width resized (px).
+    h_resized: int
+        Image height resized (px).
      """
 
     assert ch == 3 or ch == 1, 'Invalid number of input channels:\t{}.'.format(ch)

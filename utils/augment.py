@@ -27,11 +27,6 @@ class Augmentor(object):
     Augmentor class for data augmentation from input database.
     Optimized rates minimize Jensen-Shannon divergence of dataset
     pixel distribution from ideal balanced distribution.
-
-    Parameters
-    ------
-    params: Parameters
-        Updated parameters.
     """
 
     def __init__(self):

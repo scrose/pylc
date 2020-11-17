@@ -13,7 +13,8 @@ File: model.py
 """
 import os
 import torch
-from torch import utils, nn
+import torch.utils.data
+from torch import nn
 import numpy as np
 from models.architectures.unet import UNet
 from models.architectures.res_unet import ResUNet
@@ -36,7 +37,6 @@ class Model:
         super(Model, self).__init__()
 
         # initialize local metadata
-        self.mode = None
         self.meta = defaults
         self.device = torch.device(self.meta.device)
 
@@ -75,18 +75,6 @@ class Model:
             'syncbatch': torch.nn.SyncBatchNorm
         }
 
-    def testing(self):
-        """Prepare model for testing"""
-        # self.net = torch.nn.DataParallel(self.net)
-        self.mode = defaults.TEST
-        return self
-
-    def training(self):
-        """Prepare model for testing"""
-        # self.net = torch.nn.DataParallel(self.net)
-        self.mode = defaults.TRAIN
-        return self
-
     def load(self, model_path):
         """
         Loads models PyLC model for evaluation.
@@ -96,13 +84,12 @@ class Model:
         model_path: str
             Path to PyLC models model.
         """
-        assert self.mode == defaults.TEST, "Model must be in test mode to load."
 
         if not model_path:
             print("\nModel path is empty. Use \'--model\' option to specify path.")
             exit(1)
         else:
-            print('\nLoading model for {}:\n\t{}'.format(self.mode, model_path))
+            print('\nLoading model:\n\t{}'.format(model_path))
 
         if os.path.exists(model_path):
             self.model_path = model_path
@@ -121,13 +108,7 @@ class Model:
 
             # build model from metadata
             self.meta.update(model_data["meta"])
-
-            # create model identifier if none exists
-            # format: <architecture>_<channel_label>_<schema_id>
-            self.gen_id()
-
-            if self.mode == defaults.TEST:
-                self.meta.pretrained = False
+            self.meta.pretrained = False
             self.build()
 
             # load model state
@@ -143,6 +124,10 @@ class Model:
         """
         Builds neural network model from configuration settings.
         """
+
+        # create model identifier if none exists
+        # format: pylc_<architecture>_<channel_label>_<schema_id>
+        self.gen_id()
 
         # initialize checkpoint
         self.checkpoint = Checkpoint(
@@ -239,7 +224,7 @@ class Model:
         Check for existing checkpoint. If exists, resume from
         previous training. If not, delete the checkpoint.
         """
-        if self.meta.resume_checkpoint:
+        if self.resume_checkpoint:
             checkpoint_data = self.checkpoint.load()
             if checkpoint_data is not None:
                 self.epoch = checkpoint_data['epoch']
@@ -284,12 +269,11 @@ class Model:
                 step_size_up=2000
             )
         elif self.meta.sched_type == 'anneal':
-            steps_per_epoch = int(self.meta.clip * 29000 // self.meta.batch_size)
-            return torch.optim.lr_scheduler.OneCycleLR(
-                self.optim,
-                max_lr=self.meta.lr_max,
-                steps_per_epoch=steps_per_epoch,
-                epochs=self.meta.n_epoches)
+            return
+            # steps_per_epoch = int(self.meta.clip * 29000 // self.meta.batch_size)
+            # return torch.optim.lr_scheduler.CosineAnnealingLR(
+            #     self.optim
+            # )
 
         else:
             print('Optimizer scheduler is not defined.')
@@ -468,7 +452,8 @@ class Model:
         print("\nModel Configuration")
         print(hline)
         print('{:30s} {}'.format('ID', self.meta.id))
-        print('{:30s} {}'.format('Model File', os.path.basename(self.model_path)))
+        if self.model_path is not None:
+            print('{:30s} {}'.format('Model File', os.path.basename(self.model_path)))
         print('{:30s} {}'.format('Architecture', self.meta.arch))
         # show encoder backbone for Deeplab
         if self.meta.arch == 'deeplab':
@@ -485,7 +470,7 @@ class Model:
         print('{:30s} {}'.format('Optimizer', self.meta.optim_type))
         print('{:30s} {}'.format('Scheduler', self.meta.sched_type))
         print('{:30s} {}'.format('Learning rate (default)', self.meta.lr))
-        print('{:30s} {}'.format('Resume checkpoint', self.meta.resume_checkpoint))
+        print('{:30s} {}'.format('Resume checkpoint', self.resume_checkpoint))
         print()
         # use default pixel normalization (if requested)
         if self.meta.normalize_default:

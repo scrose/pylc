@@ -12,8 +12,9 @@ Module: Data wrapper
 File: dataset.py
 """
 import os
+
 import torch
-from torch.utils import data
+import torch.utils.data
 from config import defaults
 from db.buffer import Buffer
 from db.database import DB
@@ -43,19 +44,24 @@ class MLPDataset(torch.utils.data.IterableDataset):
         self.db = DB(
             path=db_path,
             data=input_data,
-            partition=partition,
-            worker=torch.utils.data.get_worker_info()
+            partition=partition
         )
+        self.shuffle = shuffle
 
         # initialize data buffer
-        self.buffer = iter(Buffer(self.db, shuffle=shuffle))
+        self.buffer = None
 
         # get size of dataset
         self.size = self.db.partition_size
 
     def __iter__(self):
-        # Iterate over preset dataset chunks ('buffer_size' in settings);
-        # see: https://pytorch.org/docs/stable/data.html
+        """
+        Iterate over preset dataset chunks ('buffer_size' in settings);
+        see: https://pytorch.org/docs/stable/data.html
+        """
+        # initialize data buffer
+        self.db.reset()
+        self.buffer = iter(Buffer(self.db, shuffle=self.shuffle))
         return self
 
     def __next__(self):
@@ -93,11 +99,20 @@ class MLPDataset(torch.utils.data.IterableDataset):
                 self,
                 batch_size=batch_size,
                 num_workers=n_workers,
+                worker_init_fn=self.init_worker,
                 pin_memory=torch.cuda.is_available(),
                 drop_last=drop_last
             ),
             self.size//batch_size
         )
+
+    def init_worker(self, worker_id):
+        # Worker Pool: different configures each datase copy independently
+        # get_worker_info() returns information about the worker, used to
+        # initialize dataset partition by worker ID.
+        worker_info = torch.utils.data.get_worker_info()
+        if worker_info is not None:  # single-process data loading, return the full iterator
+            self.db.init_worker(worker_id, worker_info.num_workers)
 
     def get_meta(self):
         """
@@ -124,11 +139,6 @@ class MLPDataset(torch.utils.data.IterableDataset):
     def save(self):
         """
         Save data in buffer to database file.
-
-        Parameters
-        ----------
-        save_dir: str
-            Database path.
         """
 
         # get unique fname for data file
@@ -139,3 +149,26 @@ class MLPDataset(torch.utils.data.IterableDataset):
             if save_dir is not defaults.output_dir and os.path.isdir(save_dir) \
             else defaults.db_dir
         self.db.save(os.path.join(save_dir, fname))
+
+    def print_meta(self, label=None):
+        """
+        Prints dataset metadata to console
+         """
+
+        # get database metadata
+        meta = self.get_meta()
+
+        hline = '-' * 40
+        print('\nDataset Configuration')
+        print(hline)
+        print('{:30s} {}'.format('Label', label if label is not None else '-'))
+        print('{:30s} {}'.format('Database ID', meta.id))
+        print('{:30s} {} ({})'.format('Channels', meta.ch, 'Grayscale' if meta.ch == 1 else 'Colour'))
+        print('{:30s} {}px x {}px'.format('Tile size (WxH)', meta.tile_size, meta.tile_size))
+        print('{:30s} {}'.format('Dataset Size', self.size))
+        print('{:30s} {}'.format('Database Size', self.db.size))
+        print('{:30s} {}'.format('Partition', self.db.partition))
+        print('{:30s} {}'.format('Buffer Size', self.db.buffer_size))
+        print('{:30s} {}'.format('Worker Pool', meta.n_workers))
+        print('{:30s} {}'.format('Clipping', meta.clip))
+        print(hline)
