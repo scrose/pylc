@@ -73,6 +73,32 @@ Landscape and biodiversity change in the Willmore Wilderness Park through Repeat
 | `b0fffd` |Cyan| Snow/Ice| 
 | `ff00ff` |Magenta| Regenerating area| 
 
+## Pretrained Models
+
+Pretrained models can be downloaded and used directly with the PyLC tool to generate segmentation maps from high-resolution images. Each model has been trained and optimized using different hyperparameters, and results may differ.
+
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.4275008.svg)](https://doi.org/10.5281/zenodo.4275008)
+
+### Grayscale (Historic Capture) Models
+
+| **Model**   |  **Filename** | **Size** |
+|-------------|-------------|-------------|
+| H.2.1 |[pylc_2-1_deeplab_ch1_schema_a.pth](https://zenodo.org/record/4275008/files/pylc_2-1_deeplab_ch1_schema_a.pth?download=1) | 237.9 MB |
+| H.2.2 |[pylc_2-2_deeplab_ch1_schema_a.pth](https://zenodo.org/record/4275008/files/pylc_2-2_deeplab_ch1_schema_a.pth?download=1) | 237.9 MB |
+| H.2.3 |[pylc_2-3_deeplab_ch1_schema_a.pth](https://zenodo.org/record/4275008/files/pylc_2-3_deeplab_ch1_schema_a.pth?download=1) | 237.9 MB |
+| R.2.4 |[pylc_2-4_deeplab_ch1_schema_a.pth](https://zenodo.org/record/4275008/files/pylc_2-4_deeplab_ch1_schema_a.pth?download=1) | 237.9 MB |
+| R.2.5 |[pylc_2-5_deeplab_ch1_schema_a.pth](https://zenodo.org/record/4275008/files/pylc_2-5_deeplab_ch1_schema_a.pth?download=1) | 237.9 MB |
+
+### Colour (Repeat Capture) Models
+
+| **Model**   |  **Filename** | **Size** |
+|-------------|-------------|-------------|
+| R.2.1 |[pylc_2-1_deeplab_ch3_schema_a.pth](https://zenodo.org/record/4275008/files/pylc_2-1_deeplab_ch3_schema_a.pth?download=1) | 237.9 MB |
+| R.2.2 |[pylc_2-2_deeplab_ch3_schema_a.pth](https://zenodo.org/record/4275008/files/pylc_2-2_deeplab_ch3_schema_a.pth?download=1) | 237.9 MB |
+| R.2.3 |[pylc_2-3_deeplab_ch3_schema_a.pth](https://zenodo.org/record/4275008/files/pylc_2-3_deeplab_ch3_schema_a.pth?download=1) | 237.9 MB |
+| R.2.5 |[pylc_2-5_deeplab_ch3_schema_a.pth](https://zenodo.org/record/4275008/files/pylc_2-5_deeplab_ch3_schema_a.pth?download=1) | 237.9 MB |
+
+
 ## Requirements (Python 3.7)
 
 All DCNN models and preprocessing utilities are implemented in [PyTorch](https://pytorch.org/), an open source Python library based on the Torch library and [OpenCV](https://opencv.org/), a library of programming functions developed for computer vision. Dependencies are listed below.
