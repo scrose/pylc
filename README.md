@@ -41,17 +41,17 @@ Segmentation masks used in the two training datasets (DST.A and DST.B) conform t
 The Mountain Habitats Segmentation and Change Detection Dataset. Jean, Frédéric; Branzan Albu, Alexandra; Capson, David; Higgs, Eric; Fisher, Jason T.; Starzomski, Brian M.  Includes full-sized images and segmentation masks along with the accompanying files and results. See [Reference](#ref-1).
 
 #### [DST.A] Land Cover Classes
-| **Hex**   |  **Colour** | **Category** | 
+| **Hex**  |  **Colour** | **Category** | 
 |-------------|-------------|-------------|
-| `000000` |Black | Not categorized| 
-| `ffa500` |Orange | Broadleaf/Mixedwood forest| 
-| `228b22` |Dark Green| Coniferous forest| 
-| `7cfc00` |Light Green| Herbaceous/Shrub| 
-| `8b4513` |Brown| Sand/gravel/rock| 
-| `5f9ea0` |Turquoise| Wetland| 
-| `0000ff` |Blue| Water| 
-| `2dbdff` |Light Blue| Snow/Ice| 
-| `ff0004` |Red| Regenerating area| 
+| ![#f03c15](https://via.placeholder.com/15/000000/000000?text=+) |Black | Not categorized| 
+| ![#ffa500](https://via.placeholder.com/15/ffa500/000000?text=+) |Orange | Broadleaf/Mixedwood forest| 
+| ![#228b22](https://via.placeholder.com/15/228b22/000000?text=+) |Dark Green| Coniferous forest| 
+| ![#7cfc00](https://via.placeholder.com/15/7cfc00/000000?text=+) |Light Green| Herbaceous/Shrub| 
+| ![#8b4513](https://via.placeholder.com/15/8b4513/000000?text=+)  |Brown| Sand/gravel/rock| 
+| ![#5f9ea0](https://via.placeholder.com/15/5f9ea0/000000?text=+) |Turquoise| Wetland| 
+| ![#5f9ea0](https://via.placeholder.com/15/0000ff/000000?text=+) |Blue| Water| 
+| ![#2dbdff](https://via.placeholder.com/15/2dbdff/000000?text=+) |Light Blue| Snow/Ice| 
+| ![#ff0004](https://via.placeholder.com/15/ff0004/000000?text=+) |Red| Regenerating area| 
 
 ### DST.B: [Repository TBA] 
 
@@ -59,19 +59,19 @@ Landscape and biodiversity change in the Willmore Wilderness Park through Repeat
 
 #### DST-B Land Cover Categories (LCC-B)
 
-| **Hex**   |  **Colour** | **Category** | 
+| **Hex**  |  **Colour** | **Category** | 
 |-------------|-------------|-------------|
-| `000000` |Black | Not categorized| 
-| `ffaa00` |Orange | Broadleaf forest| 
-| `d5d500` |Dark Yellow | Mixedwood forest| 
-| `005500` |Dark Green| Coniferous forest| 
-| `41dc66` |Light Green| Shrub| 
-| `7cfc00` |Yellow| Herbaceous| 
-| `873434` |Brown| Sand/gravel/rock| 
-| `aaaaff` |Light Purple| Wetland| 
-| `0000ff` |Blue| Water| 
-| `b0fffd` |Cyan| Snow/Ice| 
-| `ff00ff` |Magenta| Regenerating area| 
+| ![#000000](https://via.placeholder.com/15/000000/000000?text=+) |Black | Not categorized| 
+| ![#ffaa00](https://via.placeholder.com/15/ffaa00/000000?text=+) |Orange | Broadleaf forest| 
+| ![#d5d500](https://via.placeholder.com/15/d5d500/000000?text=+) |Dark Yellow | Mixedwood forest| 
+| ![#005500](https://via.placeholder.com/15/005500/000000?text=+) |Dark Green| Coniferous forest| 
+| ![#41dc66](https://via.placeholder.com/15/41dc66/000000?text=+) |Light Green| Shrub| 
+| ![#7cfc00](https://via.placeholder.com/15/7cfc00/000000?text=+) |Yellow| Herbaceous| 
+| ![#873434](https://via.placeholder.com/15/873434/000000?text=+) |Brown| Sand/gravel/rock| 
+| ![#aaaaff](https://via.placeholder.com/15/aaaaff/000000?text=+) |Light Purple| Wetland| 
+| ![#0000ff](https://via.placeholder.com/15/0000ff/000000?text=+) |Blue| Water| 
+| ![#b0fffd](https://via.placeholder.com/15/b0fffd/000000?text=+) |Cyan| Snow/Ice| 
+| ![#ff00ff](https://via.placeholder.com/15/ff00ff/000000?text=+) |Magenta| Regenerating area| 
 
 ## Pretrained Models
 
