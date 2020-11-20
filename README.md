@@ -1,6 +1,10 @@
 
 # PyLC Landscape Classifier
-**Semantic segmentation for land cover classification of oblique ground-based photography**
+
+__Semantic segmentation for land cover classification of oblique ground-based photography__
+
+[![Python 3.7](https://img.shields.io/badge/python-3.7-blue.svg)](https://www.python.org/downloads/release/python-370/)
+[![PyPI license](https://img.shields.io/pypi/l/ansicolortags.svg)](https://pypi.python.org/pypi/ansicolortags/)
 
  Reference: Rose, Spencer, _An evaluation of deep learning semantic segmentation
  for land cover classification of oblique ground-based photography_,
@@ -103,14 +107,14 @@ Pretrained models can be downloaded and used directly with the PyLC tool to gene
 
 All DCNN models and preprocessing utilities are implemented in [PyTorch](https://pytorch.org/), an open source Python library based on the Torch library and [OpenCV](https://opencv.org/), a library of programming functions developed for computer vision. Dependencies are listed below.
 
-- numpy >=1.18.5
-- h5py >= 2.8.0
-- opencv >=3.4.1
-- torch >=1.6.0
-- seaborn >=0.11.0(optional - evaluation)
-- matplotlib >=3.2.2 (optional - evaluation)
-- scikit-learn> =0.23.1(optional - evaluation)
-- tqdm >=4.47.1
+- [numpy](https://numpy.org/) >=1.18.5
+- [h5py](https://www.h5py.org/) >= 2.8.0
+- [opencv](https://opencv.org/) >=3.4.1
+- [torch](https://pytorch.org/) >=1.6.0
+- [seaborn](https://seaborn.pydata.org/) >=0.11.0(optional - evaluation)
+- [matplotlib](https://matplotlib.org/) >=3.2.2 (optional - evaluation)
+- [scikit-learn](https://scikit-learn.org/stable/) >=0.23.1(optional - evaluation)
+- [tqdm](https://github.com/tqdm/tqdm) >=4.47.1
 
 ## Usage
 
@@ -123,13 +127,7 @@ The PyLC (Python Landscape Classifier) classification tool has three main run mo
 2. Model Training: Train or retrain segmentation networks.
 3. Model Testing: Generate segmentation maps. 
 
-User configuration arguments `config.py` for . User input parameters can be listed by the following command:
-
-```
-python pylc.py -h # prints usage configuration options
-```
-
-Categorization schemas (i.e. class definitions) are defined in separate JSON files. Two examples are provided: `schema_a.json` and `schema_b.json`, that correspond to DST.A and DST.B respectively.
+Default parameters are defined in `config.py`. Categorization schemas (i.e. class labels) are defined in separate JSON files in the local `/schemas` folder. Two examples are provided: `schema_a.json` and `schema_b.json`, that correspond to DST.A and DST.B respectively.
 
 ### 1. Preprocessing
 
@@ -152,7 +150,7 @@ Note that the generated database file is saved to `data/db/` in the project root
 - `--scale <int>`: Apply image scaling before extraction.
 
 ```
-python pylc.py extract --ch [number of channels] --img [path/to/image(s)] --mask [path/to/mask(s)] 
+% python pylc.py extract --ch [number of channels] --img [path/to/image(s)] --mask [path/to/mask(s)] 
 ```
 
 
@@ -165,7 +163,7 @@ Extraction automatically computes the pixel class distribution in the mask datas
 - `--db <path>`: (Required) Path to source database file. 
 
 ```
-python pylc.py profile --db [path/to/database.h5]
+% python pylc.py profile --db [path/to/database.h5]
 ```
 
 #### 1.3 Data Augmentation
@@ -179,7 +177,7 @@ Note that the generated augmented database is saved to `data/db/` in the project
 - `--db <path>`: (Required) Path to source database file. 
 
 ```
-python pylc.py augment --db [path/to/database.h5]
+% python pylc.py augment --db [path/to/database.h5]
 ```
 
 ##### 1.4 Database Merging (In-progress)
@@ -191,13 +189,13 @@ Multiple databases can be combined and shuffled. Note that the generated merged 
 - `--dbs <str>`: (Required) List of database paths to merge (path strings separated by spaces).
 
 ```
-python pylc.py merge --dbs [paths to databases] 
+% python pylc.py merge --dbs [paths to databases] 
 ```
 
 For example, the following command, using historic database files `db_1.h5` and `db_2.h5`, generates a merged database in as `data/db/_merged_db_1_db_2.h5`
 
 ```
-python pylc.py merge --dbs data/db/db_1.h5, data/db/db_2.h5
+% python pylc.py merge --dbs data/db/db_1.h5, data/db/db_2.h5
 ```
 
 ### 2.0 Training
@@ -231,7 +229,7 @@ Training or retraining a model requires an extraction or augmented database gene
 - `--clip <float>`: (Default: 1.0) Fraction of dataset to use in training.
 
 ```
-python pylc.py train  --db [path/to/database.h5]
+% python pylc.py train  --db [path/to/database.h5]
 ```
 
 ### 3.0 Testing
@@ -246,7 +244,7 @@ Segmentation maps can be generated for input images. Evaluation metrics can also
 - `--aggregate_metrics <bool>`: (Default: False) Report aggregate metrics for batched evaluations (default: False).
                          
 ```
-python pylc.py test --model [path/to/model] --img [path/to/images(s)] --mask [path/to/mask(s)]
+% python pylc.py test --model [path/to/model] --img [path/to/images(s)] --mask [path/to/mask(s)]
 ```
 
 
