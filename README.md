@@ -240,8 +240,8 @@ Segmentation maps can be generated for input images. Evaluation metrics can also
 - `--img <path>`: (Required) Path to images directory or single file. 
 - `--mask <path>`: (Optional) Path to masks directory or single file. This option triggers an evaluation of model outputs using various metrics: F1, mIoU, Matthew's Correlation Coefficient, and generates a confusion matrix. 
 - `--scale <float>`: (Default: 1.0) Scale the input image(s) by given factor.
-- `--save_logits <bool>`: (Default: False) Save unnormalized model output(s) to file (default: False).
-- `--aggregate_metrics <bool>`: (Default: False) Report aggregate metrics for batched evaluations (default: False).
+- `--save_logits <bool>`: (Default: False) Save unnormalized model output(s) to file.
+- `--aggregate_metrics <bool>`: (Default: False) Report aggregate metrics for batched evaluations.
                          
 ```
 % python pylc.py test --model [path/to/model] --img [path/to/images(s)] --mask [path/to/mask(s)]
@@ -252,7 +252,7 @@ Segmentation maps can be generated for input images. Evaluation metrics can also
 
 [1]<a name="ref-1"></a> Jean, Frederic, Alexandra Branzan Albu, David Capson, Eric Higgs, Jason T. Fisher, and Brian M. Starzomski. "The mountain habitats segmentation and change detection dataset." In 2015 IEEE Winter Conference on Applications of Computer Vision, pp. 603-609. IEEE, 2015.
 
-[2]<a name="ref-2"></a> Julie Fortin. Lanscape and biodiversity change in the Willmore Wilderness Park through Repeat Photography. MSc thesis, University of Victoria, 2015.
+[2]<a name="ref-2"></a> Julie Fortin. Landscape and biodiversity change in the Willmore Wilderness Park through Repeat Photography. MSc thesis, University of Victoria, 2015.
 
 [3]<a name="ref-3"></a> Olaf Ronneberger, Philipp Fischer, and Thomas Brox. U-net: Convolutional networks for biomedical image segmentation. Lecture Notes in Computer Science (including subseries Lecture Notes in Artificial Intelligence and Lecture Notes in Bioinformatics), 9351:234–241, 2015. ISSN 16113349. doi: 10.1007/ 978-3-319-24574-4 28. (http://lmb.informatik.uni-freiburg.de/).
 
