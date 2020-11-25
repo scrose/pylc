@@ -252,7 +252,7 @@ Segmentation maps can be generated for input images. Evaluation metrics can also
 
 [1]<a name="ref-1"></a> Jean, Frederic, Alexandra Branzan Albu, David Capson, Eric Higgs, Jason T. Fisher, and Brian M. Starzomski. "The mountain habitats segmentation and change detection dataset." In 2015 IEEE Winter Conference on Applications of Computer Vision, pp. 603-609. IEEE, 2015.
 
-[2]<a name="ref-2"></a> Julie Fortin. Lanscape and biodiversity change in the Willmore Wilderness Park through Repeat Photography. PhD thesis, University of Victoria, 2015.
+[2]<a name="ref-2"></a> Julie Fortin. Lanscape and biodiversity change in the Willmore Wilderness Park through Repeat Photography. MSc thesis, University of Victoria, 2015.
 
 [3]<a name="ref-3"></a> Olaf Ronneberger, Philipp Fischer, and Thomas Brox. U-net: Convolutional networks for biomedical image segmentation. Lecture Notes in Computer Science (including subseries Lecture Notes in Artificial Intelligence and Lecture Notes in Bioinformatics), 9351:234–241, 2015. ISSN 16113349. doi: 10.1007/ 978-3-319-24574-4 28. (http://lmb.informatik.uni-freiburg.de/).
 
