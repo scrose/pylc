@@ -90,8 +90,8 @@ Pretrained models can be downloaded and used directly with the PyLC tool to gene
 | H.2.1 |[pylc_2-1_deeplab_ch1_schema_a.pth](https://zenodo.org/record/4275008/files/pylc_2-1_deeplab_ch1_schema_a.pth?download=1) | 237.9 MB |
 | H.2.2 |[pylc_2-2_deeplab_ch1_schema_a.pth](https://zenodo.org/record/4275008/files/pylc_2-2_deeplab_ch1_schema_a.pth?download=1) | 237.9 MB |
 | H.2.3 |[pylc_2-3_deeplab_ch1_schema_a.pth](https://zenodo.org/record/4275008/files/pylc_2-3_deeplab_ch1_schema_a.pth?download=1) | 237.9 MB |
-| R.2.4 |[pylc_2-4_deeplab_ch1_schema_a.pth](https://zenodo.org/record/4275008/files/pylc_2-4_deeplab_ch1_schema_a.pth?download=1) | 237.9 MB |
-| R.2.5 |[pylc_2-5_deeplab_ch1_schema_a.pth](https://zenodo.org/record/4275008/files/pylc_2-5_deeplab_ch1_schema_a.pth?download=1) | 237.9 MB |
+| H.2.4 |[pylc_2-4_deeplab_ch1_schema_a.pth](https://zenodo.org/record/4275008/files/pylc_2-4_deeplab_ch1_schema_a.pth?download=1) | 237.9 MB |
+| H.2.5 |[pylc_2-5_deeplab_ch1_schema_a.pth](https://zenodo.org/record/4275008/files/pylc_2-5_deeplab_ch1_schema_a.pth?download=1) | 237.9 MB |
 
 ### Colour (Repeat Capture) Models
 
