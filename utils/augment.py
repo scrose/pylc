@@ -289,15 +289,17 @@ class Augmentor(object):
 
         return self
 
-    def grayscale(self):
+    def grayscale(self, imgs):
         """
-        Convert loaded database to grayscale.
+        Convert loaded database/image to grayscale.
 
         Returns
         ------
         self
             For chaining.
          """
+
+        #
 
         # # Data augmentation based on pixel profile
         # print('\nStarting {}:{} image grayscaling ...'.format(cf.capture, cf.id))

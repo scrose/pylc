@@ -317,7 +317,7 @@ def plot_samples(img_data, mask_data, n_rows=20, n_cols=5, offset=0, title=None,
             img = img_data[k].astype(int)
             mask = mask_data[k]
 
-            # show original subimage (greyscale: number of dimensions = 3)
+            # show original subimage (grayscale: number of dimensions = 3)
             if img_data.ndim == 3:
                 axes[i,j].imshow(img, cmap='gray')
             else:

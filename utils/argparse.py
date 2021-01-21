@@ -46,6 +46,7 @@ def get_parser():
     )
 
     # extraction options
+
     parser_extract = subparsers.add_parser(
         'extract',
         help="Extract subimages from input image.",
@@ -86,6 +87,7 @@ def get_parser():
     )
 
     # augment options
+
     parser_augment = subparsers.add_parser(
         'augment',
         help='Data augmentation for database.',
@@ -104,6 +106,7 @@ def get_parser():
     )
 
     # merge options
+
     parser_merge = subparsers.add_parser(
         'merge',
         help='Combine multiple databases.',
@@ -121,21 +124,29 @@ def get_parser():
         help='List of database file paths to merge.'
     )
 
-    # grayscale options
-    parser_augment = subparsers.add_parser(
+    # grayscale options (NOT IMPLEMENTED)
+
+    parser_grayscale = subparsers.add_parser(
         'grayscale',
-        help='Convert database to grayscale.',
+        help='Convert database/image to grayscale.',
         parents=[parser]
     )
-    parser_augment.set_defaults(
+    parser_grayscale.set_defaults(
         func=grayscale
     )
-    parser_augment.add_argument(
+    parser_grayscale.add_argument(
         '--db',
         type=str,
         metavar='DATABASE_PATH',
         default=None,
         help='Path to database file or directory.'
+    )
+    parser_grayscale.add_argument(
+        '--img',
+        type=str,
+        metavar='IMAGE_PATH',
+        default=None,
+        help='Path to image file or directory.'
     )
 
     # training options

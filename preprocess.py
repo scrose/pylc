@@ -109,15 +109,14 @@ def merge(args):
 
 def grayscale(args):
     """
-    Convert database to grayscale.
+    Convert database/images to grayscale.
 
     Parameters
     ----------
     args: dict
         User-defined options.
     """
-    augmentor = Augmentor(args.db)
-    augmentor.grayscale().save()
+    return
 
 
 

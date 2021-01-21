@@ -39,7 +39,7 @@ def rgb2hex(color):
     return "#{:02x}{:02x}{:02x}".format(int(color[0]), int(color[1]), int(color[2]))
 
 
-def is_greyscale(img):
+def is_grayscale(img):
     """
     Checks if loaded image is grayscale. Compares channel
     arrays for equality.
@@ -54,6 +54,24 @@ def is_greyscale(img):
     b_ch = img[:, :, 2]
 
     return np.array_equal(r_ch, g_ch) and np.array_equal(r_ch, b_ch)
+
+
+def grayscale(img):
+    """
+    Converts numpy image array to grayscale.
+
+    Parameters
+    ------
+    img: np.array
+        Image data array [HWC].
+    """
+
+    if img.shape[2] == 3:
+        return np.mean(img, axis=2)
+    elif img.shape[2] == 1:
+        print("Grayscaling skipped: Image is already single-channel.")
+    else:
+        print("Grayscaling stopped: Image channel is invalid.")
 
 
 def get_image(img_path, ch=3, scale=None, tile_size=None, interpolate=cv2.INTER_AREA):
@@ -97,13 +115,15 @@ def get_image(img_path, ch=3, scale=None, tile_size=None, interpolate=cv2.INTER_
 
     # verify image channel number
     img = cv2.imread(img_path, cv2.IMREAD_COLOR)
-    if is_greyscale(img) and ch == 3:
+    if is_grayscale(img) and ch == 3:
         print('\nInput image is grayscale but process expects colour (RGB).\n\tApplication stopped.')
         exit(1)
-    elif not is_greyscale(img) and ch == 1:
-        print('\nInput image is in colour (RGB) but process expects grayscale.\n\tApplication stopped.')
-        exit(1)
+    elif not is_grayscale(img) and ch == 1:
+        if input("\nInput image is in colour (RGB) but process expects grayscale. "
+                 "Apply grayscale filter? (Enter \'Y\' or \'y\' for Yes): ") in ['Y', 'y']:
+            grayscale(img)
 
+    # load image data
     if ch == 3:
         img = cv2.imread(img_path, cv2.IMREAD_COLOR)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -590,7 +610,7 @@ def load_files(path, exts):
          List of file names.
      """
     if not os.path.exists(path):
-        print('Image/mask file not found:\n\t{} .'.format(path))
+        print('File not found:\n\t{} .'.format(path))
         exit(1)
 
     files = []
