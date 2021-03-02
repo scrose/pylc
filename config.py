@@ -138,7 +138,8 @@ class Parameters:
         self.scale = 1.
         # self.scales = [0.2, 0.5, 1.]
         self.scales = [1.]
-        self.tiles_per_image = int(sum(300 * self.scales))
+        self.tiling_factor = 500
+        self.tiles_per_image = int(sum(self.tiling_factor * self.scales))
         self.tile_px_count = self.tile_size * self.tile_size
 
         # Data Augmentation Parameters

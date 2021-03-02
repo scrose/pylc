@@ -37,6 +37,8 @@ class Extractor(object):
         # initialize local metadata
         self.meta = Parameters(params) if params is not None else defaults
 
+        self.meta.print()
+
         # initialize image/mask arrays
         self.img_path = None
         self.mask_path = None
@@ -113,11 +115,13 @@ class Extractor(object):
         self
             For chaining.
         """
+
         # parameter overrides
         if stride:
             self.meta.stride = stride
         if scale:
             self.meta.scales = [scale]
+            self.meta.tiles_per_image = int(self.meta.tiling_factor * scale)
 
         # rescale image to fit tile dimensions
         self.fit = fit
@@ -169,6 +173,11 @@ class Extractor(object):
                 # print results to console and store in metadata
                 self.print_result("Image", img_path, self.meta.extract)
 
+                # check generated tiles against size of buffer
+                if n_tiles > self.masks_capacity or n_tiles > self.imgs_capacity:
+                    print('Data array reached capacity. Increase the number of tiles per image.')
+                    exit(1)
+
                 # copy tiles to main data arrays
                 np.copyto(self.imgs[self.img_idx:self.img_idx + n_tiles, ...], img_tiles)
                 self.img_idx += n_tiles
@@ -200,10 +209,6 @@ class Extractor(object):
 
                     # Encode masks to class encoding [NWH format] using configured palette
                     mask_tiles = utils.class_encode(mask_tiles, self.meta.palette_rgb)
-
-                    if n_tiles > self.masks_capacity or n_tiles > self.imgs_capacity:
-                        print('Data array reached capacity. Increase the number of tiles per image.')
-                        exit(1)
 
                     # copy tiles to main data arrays
                     np.copyto(self.masks[self.mask_idx:self.mask_idx + n_tiles, ...], mask_tiles)
@@ -298,6 +303,7 @@ class Extractor(object):
             0,
             self.meta.tile_size,
             self.meta.stride).unfold(1, self.meta.tile_size, self.meta.stride)
+
         img_data = torch.reshape(img_data, (
             img_data.shape[0] * img_data.shape[1], ch, self.meta.tile_size, self.meta.tile_size))
 

@@ -11,7 +11,7 @@ University of Victoria
 Module: Argument Parser
 File: argparse.py
 """
-import time
+
 from argparse import ArgumentParser
 from preprocess import extract, augment, merge, grayscale
 from test import tester
