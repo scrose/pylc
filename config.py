@@ -138,7 +138,7 @@ class Parameters:
         self.scale = 1.
         # self.scales = [0.2, 0.5, 1.]
         self.scales = [1.]
-        self.tiling_factor = 500
+        self.tiling_factor = 700
         self.tiles_per_image = int(sum(self.tiling_factor * self.scales))
         self.tile_px_count = self.tile_size * self.tile_size
 
@@ -270,6 +270,9 @@ class Parameters:
 
         # update colour label
         self.ch_label = 'grayscale' if self.ch == 1 else 'colour'
+
+        # reset tiles per image to defaults
+        self.tiles_per_image = int(sum(self.tiling_factor * self.scales))
 
         return self
 

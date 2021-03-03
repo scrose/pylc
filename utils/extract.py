@@ -37,8 +37,6 @@ class Extractor(object):
         # initialize local metadata
         self.meta = Parameters(params) if params is not None else defaults
 
-        self.meta.print()
-
         # initialize image/mask arrays
         self.img_path = None
         self.mask_path = None
@@ -86,6 +84,7 @@ class Extractor(object):
             print('File list is empty. Extraction stopped.')
             exit(1)
 
+        # create image tile buffer
         self.imgs = np.empty(
             (self.n_files * self.meta.tiles_per_image,
              self.meta.ch,
@@ -94,6 +93,7 @@ class Extractor(object):
             dtype=np.uint8)
         self.imgs_capacity = self.imgs.shape[0]
 
+        # include mask tile buffer (if masks provided)
         self.masks = np.empty(
             (self.n_files * self.meta.tiles_per_image,
              self.meta.tile_size,
@@ -174,7 +174,7 @@ class Extractor(object):
                 self.print_result("Image", img_path, self.meta.extract)
 
                 # check generated tiles against size of buffer
-                if n_tiles > self.masks_capacity or n_tiles > self.imgs_capacity:
+                if n_tiles > self.imgs_capacity:
                     print('Data array reached capacity. Increase the number of tiles per image.')
                     exit(1)
 
