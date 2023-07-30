@@ -17,6 +17,9 @@ import random
 import sys
 import numpy as np
 import torch
+# imports the torch_xla package
+import torch_xla
+import torch_xla.core.xla_model as xm
 
 
 class Parameters:
@@ -91,7 +94,9 @@ class Parameters:
         self.ch_label = 'grayscale' if self.ch == 1 else 'colour'
 
         # Device settings
-        self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
+        # self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
+
+        self.device = xm.xla_device()
         self.n_workers = 0
 
         # Application run modes
