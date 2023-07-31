@@ -218,7 +218,8 @@ def reconstruct(logits, meta):
      """
 
     # get tiles from tensor outputs
-    tiles = np.concatenate((logits), axis=0)
+    logits = logits.cpu() if torch.cuda.is_available() else logits
+    tiles = np.concatenate(logits, axis=0)
 
     # load metadata
     w = meta.extract['w_fitted']
